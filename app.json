@@ -54,17 +54,15 @@
     "experiments": {
       "typedRoutes": true
     },
-    "extra": {
-      "eas": {
-        "projectId": "0b44d60e-c7c4-4986-9c94-afcb2bbbbc59"
-      }
-    },
     "owner": "imranow",
-    "updates": {
-      "url": "https://u.expo.dev/0b44d60e-c7c4-4986-9c94-afcb2bbbbc59"
-    },
     "runtimeVersion": {
       "policy": "appVersion"
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "4b43ae46-2898-4f56-ba22-814bd6fe753e"
+      }
     }
   }
 }
