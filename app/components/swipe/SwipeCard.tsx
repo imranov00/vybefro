@@ -3,30 +3,30 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
 import {
-  Dimensions,
-  Image,
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Dimensions,
+    Image,
+    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import Animated, {
-  Extrapolate,
-  interpolate,
-  runOnJS,
-  useAnimatedGestureHandler,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming
+    Extrapolate,
+    interpolate,
+    runOnJS,
+    useAnimatedGestureHandler,
+    useAnimatedStyle,
+    useSharedValue,
+    withSpring,
+    withTiming
 } from 'react-native-reanimated';
 import { PotentialMatch } from '../../services/api';
 import {
-  getCompatibilityColor,
-  getCompatibilityLabel,
-  getCompatibilityLevel
+    getCompatibilityColor,
+    getCompatibilityLabel,
+    getCompatibilityLevel
 } from '../../types/compatibility';
 import { getZodiacDisplay, getZodiacEmoji } from '../../types/zodiac';
 
@@ -157,7 +157,7 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, onPress, isTop = f
     }
   };
 
-  const age = new Date().getFullYear() - new Date(user.age).getFullYear();
+  const age = typeof user.age === 'number' ? user.age : new Date().getFullYear() - new Date(user.age).getFullYear();
 
   return (
     <PanGestureHandler onGestureEvent={gestureHandler}>

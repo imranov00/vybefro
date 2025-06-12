@@ -440,7 +440,7 @@ export const premiumApi = {
 
 // Swipe API'leri
 export const swipeApi = {
-  // Potansiyel eşleşmeleri getir
+  // Potansiyel eşleşmeleri getir - Ana endpoint
   getPotentialMatches: async (page: number = 1, limit: number = 10): Promise<PotentialMatchesResponse> => {
     console.log('🔄 [API] getPotentialMatches çağrısı:', { page, limit });
     const authHeader = await createAuthHeader();
@@ -450,6 +450,68 @@ export const swipeApi = {
       return response.data;
     } catch (error: any) {
       console.error('❌ [API] getPotentialMatches hatası:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Alternatif endpoint - Tüm kullanıcıları getir
+  getAllUsers: async (page: number = 1, limit: number = 10): Promise<PotentialMatchesResponse> => {
+    console.log('🔄 [API] getAllUsers çağrısı:', { page, limit });
+    const authHeader = await createAuthHeader();
+    try {
+      const response = await api.get(`/api/users?page=${page}&limit=${limit}`, authHeader);
+      console.log('✅ [API] getAllUsers yanıtı:', response.data);
+      
+      // Response formatını PotentialMatchesResponse'a uyarla
+      if (response.data.users) {
+        return {
+          users: response.data.users.map((user: any) => ({
+            ...user,
+            photos: user.photos || (user.profileImageUrl ? [user.profileImageUrl] : []),
+            compatibilityScore: user.compatibilityScore || 50,
+            compatibilityDescription: user.compatibilityDescription || 'Uyumluluk hesaplanıyor...',
+            distance: user.distance || 0,
+            isOnline: user.isOnline || false
+          })),
+          totalCount: response.data.totalCount || response.data.users.length,
+          hasMore: response.data.hasMore || false
+        };
+      }
+      
+      return { users: [], totalCount: 0, hasMore: false };
+    } catch (error: any) {
+      console.error('❌ [API] getAllUsers hatası:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Başka bir alternatif - Discover endpoint
+  getDiscoverUsers: async (page: number = 1, limit: number = 10): Promise<PotentialMatchesResponse> => {
+    console.log('🔄 [API] getDiscoverUsers çağrısı:', { page, limit });
+    const authHeader = await createAuthHeader();
+    try {
+      const response = await api.get(`/api/discover?page=${page}&limit=${limit}`, authHeader);
+      console.log('✅ [API] getDiscoverUsers yanıtı:', response.data);
+      
+      // Response formatını PotentialMatchesResponse'a uyarla
+      if (response.data.users) {
+        return {
+          users: response.data.users.map((user: any) => ({
+            ...user,
+            photos: user.photos || (user.profileImageUrl ? [user.profileImageUrl] : []),
+            compatibilityScore: user.compatibilityScore || 50,
+            compatibilityDescription: user.compatibilityDescription || 'Uyumluluk hesaplanıyor...',
+            distance: user.distance || 0,
+            isOnline: user.isOnline || false
+          })),
+          totalCount: response.data.totalCount || response.data.users.length,
+          hasMore: response.data.hasMore || false
+        };
+      }
+      
+      return { users: [], totalCount: 0, hasMore: false };
+    } catch (error: any) {
+      console.error('❌ [API] getDiscoverUsers hatası:', error.response?.data || error.message);
       throw error;
     }
   },
