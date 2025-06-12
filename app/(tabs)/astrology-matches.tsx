@@ -8,6 +8,7 @@ import {
     Dimensions,
     Modal,
     Platform,
+    ScrollView,
     StatusBar,
     StyleSheet,
     Text,
@@ -18,71 +19,25 @@ import MatchScreen from '../components/match/MatchScreen';
 import SwipeCard from '../components/swipe/SwipeCard';
 import { useAuth } from '../context/AuthContext';
 import { useProfile } from '../context/ProfileContext';
-import { Match, PotentialMatch, SwipeResponse } from '../services/api';
+import { Match, PotentialMatch, swipeApi } from '../services/api';
 import { calculateCompatibility, getCompatibilityDescription } from '../types/compatibility';
 
 const { width, height } = Dimensions.get('window');
-
-// Mock data for development
-const MOCK_POTENTIAL_MATCHES: PotentialMatch[] = [
-  {
-    id: 1,
-    username: 'ayse_23',
-    firstName: 'Ayşe',
-    lastName: 'Yılmaz',
-    age: 25,
-    profileImageUrl: 'https://picsum.photos/400/600?random=1',
-    photos: ['https://picsum.photos/400/600?random=1', 'https://picsum.photos/400/600?random=2'],
-    bio: 'Doğa sevgisi, kitap okumak ve yeni yerler keşfetmek hayatımın vazgeçilmezleri.',
-    zodiacSign: 'LEO',
-    compatibilityScore: 88,
-    compatibilityDescription: 'Ateş elementinden olan burçlar olarak harika bir enerji yaratıyorsunuz!',
-    distance: 5,
-    isOnline: true
-  },
-  {
-    id: 2,
-    username: 'mehmet_34',
-    firstName: 'Mehmet',
-    lastName: 'Kaya',
-    age: 28,
-    profileImageUrl: 'https://picsum.photos/400/600?random=3',
-    photos: ['https://picsum.photos/400/600?random=3'],
-    bio: 'Müzik tutkunu, gitar çalan ve hayatı dolu dolu yaşamaya çalışan biriyim.',
-    zodiacSign: 'SAGITTARIUS',
-    compatibilityScore: 92,
-    compatibilityDescription: 'Aynı element grubundan olarak birbirinizi çok iyi anlayabilirsiniz.',
-    distance: 12,
-    isOnline: false
-  },
-  {
-    id: 3,
-    username: 'zeynep_91',
-    firstName: 'Zeynep',
-    lastName: 'Demir',
-    age: 24,
-    profileImageUrl: 'https://picsum.photos/400/600?random=4',
-    photos: ['https://picsum.photos/400/600?random=4', 'https://picsum.photos/400/600?random=5'],
-    bio: 'Sanat ve tasarım dünyasında kaybolmayı seven yaratıcı bir ruh.',
-    zodiacSign: 'GEMINI',
-    compatibilityScore: 75,
-    compatibilityDescription: 'Farklı elementlerden gelsek de tamamlayıcı özellikleriniz var.',
-    distance: 8,
-    isOnline: true
-  }
-];
 
 export default function AstrologyMatchesScreen() {
   const { isPremium } = useAuth();
   const { userProfile } = useProfile();
   const router = useRouter();
   
-  const [potentialMatches, setPotentialMatches] = useState<PotentialMatch[]>(MOCK_POTENTIAL_MATCHES);
+  const [potentialMatches, setPotentialMatches] = useState<PotentialMatch[]>([]);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [currentMatch, setCurrentMatch] = useState<Match | null>(null);
   const [activeTab, setActiveTab] = useState<'swipe' | 'matches'>('swipe');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
 
   // Swipe işlemi
   const handleSwipe = async (direction: 'left' | 'right' | 'up', userId: number) => {
@@ -92,22 +47,22 @@ export default function AstrologyMatchesScreen() {
       setIsLoading(true);
       
       // API'ye swipe gönder
-      const swipeAction = direction === 'right' ? 'LIKE' : direction === 'up' ? 'SUPER_LIKE' : 'DISLIKE';
+      const swipeAction: 'LIKE' | 'SUPER_LIKE' | 'DISLIKE' = direction === 'right' ? 'LIKE' : direction === 'up' ? 'SUPER_LIKE' : 'DISLIKE';
       
-      // Mock API response
-      const mockResponse: SwipeResponse = {
-        success: true,
-        isMatch: direction !== 'left' && Math.random() > 0.7, // %30 match şansı
-        matchId: direction !== 'left' && Math.random() > 0.7 ? Math.floor(Math.random() * 1000) : undefined,
-        message: direction !== 'left' && Math.random() > 0.7 ? 'Eşleşme gerçekleşti!' : 'Swipe başarılı'
+      const swipeRequest = {
+        targetUserId: userId,
+        action: swipeAction
       };
 
-      if (mockResponse.isMatch && mockResponse.matchId) {
+      // Gerçek API çağrısı
+      const response = await swipeApi.swipe(swipeRequest);
+
+      if (response.isMatch && response.matchId) {
         // Match oluştu!
         const matchedUser = potentialMatches.find(u => u.id === userId);
         if (matchedUser) {
           const newMatch: Match = {
-            id: mockResponse.matchId,
+            id: response.matchId,
             matchedUser: {
               id: matchedUser.id,
               username: matchedUser.username,
@@ -146,59 +101,42 @@ export default function AstrologyMatchesScreen() {
 
   // Daha fazla match yükle
   const loadMoreMatches = async () => {
+    if (!hasMore || isLoading) return;
+    
     try {
-      // Gerçek API kullanımı için:
-      // const response = await swipeApi.getPotentialMatches(1, 10);
-      // const newMatches = response.users.map(user => ({
-      //   ...user,
-      //   compatibilityScore: calculateCompatibility(
-      //     userProfile.zodiacSign as any, 
-      //     user.zodiacSign as any
-      //   ),
-      //   compatibilityDescription: getCompatibilityDescription(
-      //     userProfile.zodiacSign as any,
-      //     user.zodiacSign as any,
-      //     calculateCompatibility(userProfile.zodiacSign as any, user.zodiacSign as any)
-      //   )
-      // }));
+      setIsLoading(true);
       
-      // Mock data - gerçek uygulamada API'den gelecek
-      const mockZodiacSigns = ['ARIES', 'TAURUS', 'GEMINI', 'CANCER', 'LEO', 'VIRGO', 'LIBRA', 'SCORPIO', 'SAGITTARIUS', 'CAPRICORN', 'AQUARIUS', 'PISCES'];
-      const randomZodiac = mockZodiacSigns[Math.floor(Math.random() * mockZodiacSigns.length)];
-      const userZodiac = userProfile.zodiacSign || 'ARIES';
-      const compatibility = calculateCompatibility(userZodiac as any, randomZodiac as any);
+      // Gerçek API çağrısı
+      const response = await swipeApi.getPotentialMatches(currentPage, 10);
       
-      const newMatches: PotentialMatch[] = [
-        {
-          id: potentialMatches.length + 1,
-          username: `user_${potentialMatches.length + 1}`,
-          firstName: ['Ayşe', 'Fatma', 'Zeynep', 'Mehmet', 'Ali', 'Ahmet'][Math.floor(Math.random() * 6)],
-          lastName: ['Yılmaz', 'Kaya', 'Demir', 'Çelik', 'Şahin', 'Özkan'][Math.floor(Math.random() * 6)],
-          age: Math.floor(Math.random() * 15) + 20, // 20-35 yaş arası
-          profileImageUrl: `https://picsum.photos/400/600?random=${potentialMatches.length + 10}`,
-          photos: [`https://picsum.photos/400/600?random=${potentialMatches.length + 10}`],
-          bio: [
-            'Hayatı dolu dolu yaşamayı seven biriyim.',
-            'Doğa sevgisi ve kitap okuma tutkum var.',
-            'Müzik ve sanat dünyasında kaybolmayı seviyorum.',
-            'Yeni yerler keşfetmek ve macera aramak benim işim.',
-            'Spor yapmayı ve sağlıklı yaşamayı seviyorum.'
-          ][Math.floor(Math.random() * 5)],
-          zodiacSign: randomZodiac,
-          compatibilityScore: compatibility,
-          compatibilityDescription: getCompatibilityDescription(
-            userZodiac as any,
-            randomZodiac as any,
-            compatibility
+      if (response.users && response.users.length > 0) {
+        // Uyumluluk skorlarını hesapla
+        const newMatches = response.users.map(user => ({
+          ...user,
+          compatibilityScore: calculateCompatibility(
+            userProfile.zodiacSign as any, 
+            user.zodiacSign as any
           ),
-          distance: Math.floor(Math.random() * 20) + 1,
-          isOnline: Math.random() > 0.5
-        }
-      ];
+          compatibilityDescription: getCompatibilityDescription(
+            userProfile.zodiacSign as any,
+            user.zodiacSign as any,
+            calculateCompatibility(userProfile.zodiacSign as any, user.zodiacSign as any)
+          )
+        }));
+        
+        setPotentialMatches(prev => [...prev, ...newMatches]);
+        setCurrentPage(prev => prev + 1);
+        setHasMore(response.hasMore);
+      } else {
+        setHasMore(false);
+      }
       
-      setPotentialMatches(prev => [...prev, ...newMatches]);
     } catch (error) {
       console.error('Load more matches error:', error);
+      Alert.alert('Hata', 'Kullanıcılar yüklenirken bir hata oluştu.');
+    } finally {
+      setIsLoading(false);
+      setIsInitialLoading(false);
     }
   };
 
@@ -208,6 +146,15 @@ export default function AstrologyMatchesScreen() {
   }, []);
 
   const renderSwipeCards = () => {
+    if (isInitialLoading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="white" />
+          <Text style={styles.loadingText}>Kullanıcılar yükleniyor...</Text>
+        </View>
+      );
+    }
+
     const cardsToShow = potentialMatches.slice(currentCardIndex, currentCardIndex + 3);
     
     return (
@@ -216,14 +163,19 @@ export default function AstrologyMatchesScreen() {
           <View style={styles.noMoreCards}>
             <Ionicons name="heart-outline" size={80} color="rgba(255,255,255,0.5)" />
             <Text style={styles.noMoreCardsText}>
-              Şimdilik bu kadar! Yakında yeni profiller ekleyeceğiz.
+              {hasMore ? 'Yeni kullanıcılar yükleniyor...' : 'Şimdilik bu kadar! Yakında yeni profiller ekleyeceğiz.'}
             </Text>
-            <TouchableOpacity 
-              style={styles.refreshButton}
-              onPress={loadMoreMatches}
-            >
-              <Text style={styles.refreshButtonText}>Yenile</Text>
-            </TouchableOpacity>
+            {hasMore && (
+              <TouchableOpacity 
+                style={styles.refreshButton}
+                onPress={loadMoreMatches}
+                disabled={isLoading}
+              >
+                <Text style={styles.refreshButtonText}>
+                  {isLoading ? 'Yükleniyor...' : 'Daha Fazla Yükle'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
           cardsToShow.map((user, index) => (
@@ -248,6 +200,7 @@ export default function AstrologyMatchesScreen() {
             handleSwipe('left', potentialMatches[currentCardIndex].id);
           }
         }}
+        disabled={isLoading || potentialMatches.length === 0}
       >
         <Ionicons name="close" size={32} color="#FF5722" />
       </TouchableOpacity>
@@ -259,6 +212,7 @@ export default function AstrologyMatchesScreen() {
             handleSwipe('up', potentialMatches[currentCardIndex].id);
           }
         }}
+        disabled={isLoading || potentialMatches.length === 0}
       >
         <Ionicons name="star" size={28} color="#2196F3" />
       </TouchableOpacity>
@@ -270,6 +224,7 @@ export default function AstrologyMatchesScreen() {
             handleSwipe('right', potentialMatches[currentCardIndex].id);
           }
         }}
+        disabled={isLoading || potentialMatches.length === 0}
       >
         <Ionicons name="heart" size={32} color="#4CAF50" />
       </TouchableOpacity>
@@ -286,63 +241,70 @@ export default function AstrologyMatchesScreen() {
         style={styles.background}
       />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Burç Eşleşmeleri</Text>
-        <Text style={styles.subtitle}>
-          Yıldızların rehberliğinde aşkı keşfet
-        </Text>
-      </View>
-
-      {/* Tab Bar */}
-      <View style={styles.tabBar}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'swipe' && styles.activeTab]}
-          onPress={() => setActiveTab('swipe')}
-        >
-          <Ionicons 
-            name="heart" 
-            size={20} 
-            color={activeTab === 'swipe' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.6)'} 
-          />
-          <Text style={[styles.tabText, activeTab === 'swipe' && styles.activeTabText]}>
-            Keşfet
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={true}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Burç Eşleşmeleri</Text>
+          <Text style={styles.subtitle}>
+            Yıldızların rehberliğinde aşkı keşfet
           </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'matches' && styles.activeTab]}
-          onPress={() => setActiveTab('matches')}
-        >
-          <Ionicons 
-            name="people" 
-            size={20} 
-            color={activeTab === 'matches' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.6)'} 
-          />
-          <Text style={[styles.tabText, activeTab === 'matches' && styles.activeTabText]}>
-            Eşleşmeler
-          </Text>
-        </TouchableOpacity>
-      </View>
+        </View>
 
-      {/* Content */}
-      <View style={styles.content}>
-        {activeTab === 'swipe' ? (
-          <>
-            {renderSwipeCards()}
-            {renderActionButtons()}
-          </>
-        ) : (
-          <View style={styles.matchesContainer}>
-            <Text style={styles.comingSoonText}>
-              Eşleşmeler yakında gelecek!
+        {/* Tab Bar */}
+        <View style={styles.tabBar}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'swipe' && styles.activeTab]}
+            onPress={() => setActiveTab('swipe')}
+          >
+            <Ionicons 
+              name="heart" 
+              size={20} 
+              color={activeTab === 'swipe' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.6)'} 
+            />
+            <Text style={[styles.tabText, activeTab === 'swipe' && styles.activeTabText]}>
+              Keşfet
             </Text>
-          </View>
-        )}
-      </View>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'matches' && styles.activeTab]}
+            onPress={() => setActiveTab('matches')}
+          >
+            <Ionicons 
+              name="people" 
+              size={20} 
+              color={activeTab === 'matches' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.6)'} 
+            />
+            <Text style={[styles.tabText, activeTab === 'matches' && styles.activeTabText]}>
+              Eşleşmeler
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Content */}
+        <View style={styles.content}>
+          {activeTab === 'swipe' ? (
+            <>
+              {renderSwipeCards()}
+              {!isInitialLoading && renderActionButtons()}
+            </>
+          ) : (
+            <View style={styles.matchesContainer}>
+              <Text style={styles.comingSoonText}>
+                Eşleşmeler yakında gelecek!
+              </Text>
+            </View>
+          )}
+        </View>
+      </ScrollView>
 
       {/* Loading Overlay */}
-      {isLoading && (
+      {isLoading && !isInitialLoading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="white" />
         </View>
@@ -386,6 +348,13 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    minHeight: height,
   },
   header: {
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
@@ -441,17 +410,32 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: height * 0.6,
   },
   cardsContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
+    minHeight: height * 0.5,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: height * 0.4,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 16,
+    textAlign: 'center',
   },
   noMoreCards: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 40,
+    minHeight: height * 0.3,
   },
   noMoreCardsText: {
     fontSize: 18,
@@ -480,6 +464,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: Platform.OS === 'ios' ? 40 : 20,
     paddingHorizontal: 40,
+    marginTop: 20,
   },
   actionButton: {
     width: 60,
@@ -517,6 +502,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: height * 0.4,
   },
   comingSoonText: {
     fontSize: 18,
