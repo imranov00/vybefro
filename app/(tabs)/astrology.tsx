@@ -21,6 +21,7 @@ import { useProfile } from '../context/ProfileContext';
 import { PotentialMatch, swipeApi } from '../services/api';
 import { calculateCompatibility, getCompatibilityDescription } from '../types/compatibility';
 import { getZodiacEmoji } from '../types/zodiac';
+import { getToken } from '../utils/tokenStorage';
 
 const { width, height } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.9;
@@ -312,17 +313,46 @@ export default function AstrologyScreen() {
       setIsLoading(true);
       console.log('🔄 Gerçek kullanıcılar yükleniyor...');
       
+      // Token kontrolü
+      const token = await getToken();
+      console.log('🔑 Token durumu:', token ? 'Mevcut' : 'Yok', token ? `(${token.substring(0, 20)}...)` : '');
+      
+      if (!token) {
+        console.log('❌ Token bulunamadı, kullanıcı giriş yapmamış');
+        Alert.alert(
+          'Oturum Hatası',
+          'Lütfen önce giriş yapın.',
+          [{ text: 'Tamam', style: 'default' }]
+        );
+        return;
+      }
+      
       let response = null;
       let apiSuccess = false;
+      let lastError = null;
       
       // 1. Ana endpoint'i dene - Potansiyel eşleşmeler
       try {
         console.log('🔄 Ana endpoint deneniyor: /api/swipes/potential-matches');
         response = await swipeApi.getPotentialMatches(1, 20);
-        console.log('✅ Ana endpoint başarılı:', response);
+        console.log('✅ Ana endpoint başarılı:', {
+          userCount: response?.users?.length || 0,
+          totalCount: response?.totalCount,
+          hasMore: response?.hasMore,
+          firstUser: response?.users?.[0] ? {
+            id: response.users[0].id,
+            firstName: response.users[0].firstName,
+            age: response.users[0].age
+          } : 'Yok'
+        });
         apiSuccess = true;
-      } catch (error) {
-        console.log('❌ Ana endpoint başarısız:', error);
+      } catch (error: any) {
+        lastError = error;
+        console.log('❌ Ana endpoint başarısız:', {
+          status: error.response?.status,
+          message: error.response?.data?.message || error.message,
+          url: error.config?.url
+        });
       }
       
       // 2. Alternatif endpoint - Tüm kullanıcılar
@@ -330,10 +360,18 @@ export default function AstrologyScreen() {
         try {
           console.log('🔄 Alternatif endpoint deneniyor: /api/users');
           response = await swipeApi.getAllUsers(1, 20);
-          console.log('✅ Alternatif endpoint başarılı:', response);
+          console.log('✅ Alternatif endpoint başarılı:', {
+            userCount: response?.users?.length || 0,
+            totalCount: response?.totalCount,
+            hasMore: response?.hasMore
+          });
           apiSuccess = true;
-        } catch (error) {
-          console.log('❌ Alternatif endpoint başarısız:', error);
+        } catch (error: any) {
+          lastError = error;
+          console.log('❌ Alternatif endpoint başarısız:', {
+            status: error.response?.status,
+            message: error.response?.data?.message || error.message
+          });
         }
       }
       
@@ -342,15 +380,32 @@ export default function AstrologyScreen() {
         try {
           console.log('🔄 Discover endpoint deneniyor: /api/discover');
           response = await swipeApi.getDiscoverUsers(1, 20);
-          console.log('✅ Discover endpoint başarılı:', response);
+          console.log('✅ Discover endpoint başarılı:', {
+            userCount: response?.users?.length || 0,
+            totalCount: response?.totalCount,
+            hasMore: response?.hasMore
+          });
           apiSuccess = true;
-        } catch (error) {
-          console.log('❌ Discover endpoint de başarısız:', error);
+        } catch (error: any) {
+          lastError = error;
+          console.log('❌ Discover endpoint de başarısız:', {
+            status: error.response?.status,
+            message: error.response?.data?.message || error.message
+          });
         }
       }
 
       if (apiSuccess && response?.users && response.users.length > 0) {
-        console.log('📊 Ham API yanıtı:', response.users[0]); // İlk kullanıcıyı logla
+        console.log('📊 Ham API yanıtı (ilk kullanıcı):', {
+          id: response.users[0].id,
+          firstName: response.users[0].firstName,
+          lastName: response.users[0].lastName,
+          age: response.users[0].age,
+          profileImageUrl: response.users[0].profileImageUrl,
+          photos: response.users[0].photos,
+          zodiacSign: response.users[0].zodiacSign,
+          bio: response.users[0].bio
+        });
         
         const processedUsers = response.users.map((user: any) => {
           // Yaş hesaplama
@@ -432,19 +487,53 @@ export default function AstrologyScreen() {
         console.log('✅ Toplam kullanıcı yüklendi:', processedUsers.length);
       } else {
         console.log('⚠️ Hiç kullanıcı bulunamadı veya tüm APIler başarısız');
+        console.log('🔍 Son hata detayı:', {
+          status: lastError?.response?.status,
+          statusText: lastError?.response?.statusText,
+          message: lastError?.response?.data?.message || lastError?.message,
+          url: lastError?.config?.url,
+          headers: lastError?.config?.headers
+        });
+        
         setPotentialMatches([]);
-        Alert.alert(
-          'Kullanıcı Bulunamadı',
-          'Şu anda gösterilecek kullanıcı bulunmuyor. Lütfen daha sonra tekrar deneyin.',
-          [{ text: 'Tamam', style: 'default' }]
-        );
+        
+        // Hata türüne göre farklı mesajlar
+        if (lastError?.response?.status === 401) {
+          Alert.alert(
+            'Oturum Süresi Doldu',
+            'Lütfen tekrar giriş yapın.',
+            [{ text: 'Tamam', style: 'default' }]
+          );
+        } else if (lastError?.response?.status === 404) {
+          Alert.alert(
+            'Endpoint Bulunamadı',
+            'API endpoint\'i mevcut değil. Backend kontrolü gerekli.',
+            [{ text: 'Tamam', style: 'default' }]
+          );
+        } else if (lastError?.code === 'NETWORK_ERROR' || lastError?.message?.includes('Network')) {
+          Alert.alert(
+            'Bağlantı Hatası',
+            'İnternet bağlantınızı kontrol edin veya sunucu çalışmıyor olabilir.',
+            [{ text: 'Tamam', style: 'default' }]
+          );
+        } else {
+          Alert.alert(
+            'Kullanıcı Bulunamadı',
+            'Şu anda gösterilecek kullanıcı bulunmuyor. Lütfen daha sonra tekrar deneyin.',
+            [{ text: 'Tamam', style: 'default' }]
+          );
+        }
       }
-    } catch (error) {
-      console.error('❌ Kullanıcı yükleme genel hatası:', error);
+    } catch (error: any) {
+      console.error('❌ Kullanıcı yükleme genel hatası:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack?.substring(0, 200)
+      });
       setPotentialMatches([]);
       Alert.alert(
-        'Bağlantı Hatası',
-        'Kullanıcılar yüklenirken bir hata oluştu. İnternet bağlantınızı kontrol edin.',
+        'Beklenmeyen Hata',
+        'Bir hata oluştu. Lütfen uygulamayı yeniden başlatın.',
         [{ text: 'Tamam', style: 'default' }]
       );
     } finally {
@@ -972,15 +1061,16 @@ const styles = StyleSheet.create({
   },
   actionButtons: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 40 : 20, // Tab bar'ın üstünde
+    bottom: Platform.OS === 'ios' ? 90 : 70, // Tab bar'ın üstünde kalması için artırıldı
     left: 0,
     right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 40,
-    backgroundColor: 'transparent',
-    paddingVertical: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.1)', // Hafif arka plan ekledim
+    paddingVertical: 15,
+    zIndex: 1000, // En üstte kalması için
   },
   actionButton: {
     width: 60,
