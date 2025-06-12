@@ -294,6 +294,7 @@ const styles = StyleSheet.create({
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
     alignSelf: 'center',
+    zIndex: 1,
   },
   cardContent: {
     flex: 1,

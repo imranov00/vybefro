@@ -25,7 +25,7 @@ import ReanimatedAnimated, {
   withTiming
 } from 'react-native-reanimated';
 import { useAuth } from '../../context/AuthContext';
-import { UserProfile } from '../../context/ProfileContext';
+import { useProfile, UserProfile } from '../../context/ProfileContext';
 import { premiumApi } from '../../services/api';
 import { getZodiacDisplay, getZodiacEmoji } from '../../types/zodiac';
 
@@ -41,7 +41,8 @@ type ProfileDrawerProps = {
 
 export default function ProfileDrawer({ visible, onClose, user, isLoading = false }: ProfileDrawerProps) {
   const colorScheme = useColorScheme();
-  const { currentMode, switchMode, logout, isPremium, setPremium } = useAuth();
+  const { currentMode, switchMode, logout, isPremium, isLoggedIn, setPremium } = useAuth();
+  const { fetchUserProfile } = useProfile();
   const router = useRouter();
   const [purchasingPremium, setPurchasingPremium] = useState(false);
   const animation = useRef(new Animated.Value(DRAWER_WIDTH)).current;
@@ -51,6 +52,13 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
   const premiumGlow = useSharedValue(0);
   const premiumScale = useSharedValue(1);
   
+  // Login durumu değiştiğinde profil bilgilerini yenile
+  useEffect(() => {
+    if (isLoggedIn && visible) {
+      fetchUserProfile();
+    }
+  }, [isLoggedIn, visible, fetchUserProfile]);
+
   useEffect(() => {
     if (visible) {
       setIsRendered(true);
@@ -251,18 +259,32 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
         {/* Premium Badge - Burç altında */}
         {isPremium && (
           <ReanimatedAnimated.View style={[styles.premiumBadgeLuxury, animatedPremiumStyle]}>
+            {/* Arka plan gradient efekti */}
+            <View style={styles.premiumGradientBackground} />
+            
+            {/* Ana içerik */}
             <View style={styles.premiumBadgeInner}>
               <View style={styles.premiumIconContainer}>
-                <Ionicons name="diamond" size={16} color="#FFD700" />
+                <Ionicons name="diamond" size={18} color="#FFD700" />
               </View>
               <ReanimatedAnimated.Text style={[styles.premiumTextLuxury, animatedPremiumStyle]}>
                 PREMIUM
               </ReanimatedAnimated.Text>
               <View style={styles.premiumIconContainer}>
-                <Ionicons name="diamond" size={16} color="#FFD700" />
+                <Ionicons name="diamond" size={18} color="#FFD700" />
               </View>
             </View>
+            
+            {/* Çoklu glow efektleri */}
             <View style={styles.premiumGlowEffect} />
+            <View style={styles.premiumInnerGlow} />
+            
+            {/* Shimmer efekti */}
+            <ReanimatedAnimated.View style={[styles.premiumShimmer, {
+              transform: [{
+                translateX: premiumGlow.value * 200 - 100
+              }]
+            }]} />
           </ReanimatedAnimated.View>
         )}
 
@@ -810,15 +832,46 @@ const styles = StyleSheet.create({
     letterSpacing: 2.5,
     fontFamily: Platform.OS === 'ios' ? 'Helvetica-Bold' : 'sans-serif-medium',
   },
+  premiumGradientBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 30,
+    backgroundColor: 'rgba(26, 26, 46, 0.8)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+    zIndex: -3,
+  },
   premiumGlowEffect: {
     position: 'absolute',
-    top: -2,
-    left: -2,
-    right: -2,
-    bottom: -2,
-    borderRadius: 32,
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.4)',
+    top: -4,
+    left: -4,
+    right: -4,
+    bottom: -4,
+    borderRadius: 34,
+    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    zIndex: -2,
+  },
+  premiumInnerGlow: {
+    position: 'absolute',
+    top: -8,
+    left: -8,
+    right: -8,
+    bottom: -8,
+    borderRadius: 38,
+    backgroundColor: 'rgba(255, 215, 0, 0.08)',
+    zIndex: -1,
+  },
+  premiumShimmer: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderRadius: 30,
+    opacity: 0.6,
+    zIndex: 1,
   },
 }); 

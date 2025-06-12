@@ -408,12 +408,7 @@ export const userApi = {
     return response.data;
   },
 
-  // Beni beğenen kullanıcıları getirme (Premium özellik)
-  async getUsersWhoLikedMe(limit: number = 10): Promise<UsersWhoLikedMeResponse> {
-    const authHeader = await createAuthHeader();
-    const response = await api.get(`/api/swipes/users-who-liked-me?limit=${limit}`, authHeader);
-    return response.data;
-  }
+
 };
 
 // Premium işlemleri için API
@@ -461,13 +456,20 @@ export const swipeApi = {
     const authHeader = await createAuthHeader();
     const response = await api.get(`/api/matches/high-compatibility?minScore=${minScore}`, authHeader);
     return response.data;
+  },
+
+  // Beni beğenen kullanıcıları getir
+  getUsersWhoLikedMe: async (limit: number = 10): Promise<UsersWhoLikedMeResponse> => {
+    const authHeader = await createAuthHeader();
+    const response = await api.get(`/api/swipes/users-who-liked-me?limit=${limit}`, authHeader);
+    return response.data;
   }
 };
 
 // Match API'leri
 export const matchApi = {
   // Tüm eşleşmeleri getir
-  getMatches: async (): Promise<Match[]> => {
+  getMatches: async (): Promise<{ matches: Match[] }> => {
     const authHeader = await createAuthHeader();
     const response = await api.get('/api/matches', authHeader);
     return response.data;
