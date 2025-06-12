@@ -171,6 +171,66 @@ export interface LogoutResponse {
   message: string;
 }
 
+// Swipe ve Match API'leri için interface'ler
+export interface PotentialMatch {
+  id: number;
+  username: string;
+  firstName: string;
+  lastName: string;
+  age: number;
+  profileImageUrl: string | null;
+  photos: string[];
+  bio: string | null;
+  zodiacSign: ZodiacSign | string;
+  compatibilityScore: number;
+  compatibilityDescription: string;
+  distance?: number;
+  isOnline?: boolean;
+  lastSeen?: string;
+}
+
+export interface SwipeRequest {
+  targetUserId: number;
+  action: 'LIKE' | 'DISLIKE' | 'SUPER_LIKE';
+}
+
+export interface SwipeResponse {
+  success: boolean;
+  isMatch: boolean;
+  matchId?: number;
+  message: string;
+}
+
+export interface Match {
+  id: number;
+  matchedUser: {
+    id: number;
+    username: string;
+    firstName: string;
+    lastName: string;
+    age: number;
+    profileImageUrl: string | null;
+    zodiacSign: ZodiacSign | string;
+  };
+  compatibilityScore: number;
+  compatibilityDescription: string;
+  matchType: 'ZODIAC' | 'MUSIC' | 'GENERAL';
+  matchedAt: string;
+  lastMessageAt?: string;
+  unreadCount?: number;
+}
+
+export interface HighCompatibilityMatchesResponse {
+  matches: Match[];
+  totalCount: number;
+}
+
+export interface PotentialMatchesResponse {
+  users: PotentialMatch[];
+  totalCount: number;
+  hasMore: boolean;
+}
+
 // API'yi kullanırken gerekli token header'ını oluşturur
 const createAuthHeader = async () => {
   const token = await getToken();
@@ -376,6 +436,48 @@ export const premiumApi = {
   async cancel(): Promise<PremiumCancelResponse> {
     const authHeader = await createAuthHeader();
     const response = await api.post('/api/premium/cancel', {}, authHeader);
+    return response.data;
+  }
+};
+
+// Swipe API'leri
+export const swipeApi = {
+  // Potansiyel eşleşmeleri getir
+  getPotentialMatches: async (page: number = 1, limit: number = 10): Promise<PotentialMatchesResponse> => {
+    const response = await api.get(`/api/swipes/potential-matches?page=${page}&limit=${limit}`);
+    return response.data;
+  },
+
+  // Swipe işlemi yap
+  swipe: async (swipeData: SwipeRequest): Promise<SwipeResponse> => {
+    const response = await api.post('/api/swipes', swipeData);
+    return response.data;
+  },
+
+  // Yüksek uyumluluk eşleşmeleri
+  getHighCompatibilityMatches: async (minScore: number = 70): Promise<HighCompatibilityMatchesResponse> => {
+    const response = await api.get(`/api/matches/high-compatibility?minScore=${minScore}`);
+    return response.data;
+  }
+};
+
+// Match API'leri
+export const matchApi = {
+  // Tüm eşleşmeleri getir
+  getMatches: async (): Promise<Match[]> => {
+    const response = await api.get('/api/matches');
+    return response.data;
+  },
+
+  // Belirli bir eşleşme detayı
+  getMatchDetail: async (matchId: number): Promise<Match> => {
+    const response = await api.get(`/api/matches/${matchId}`);
+    return response.data;
+  },
+
+  // Eşleşmeyi sil
+  deleteMatch: async (matchId: number): Promise<{ success: boolean }> => {
+    const response = await api.delete(`/api/matches/${matchId}`);
     return response.data;
   }
 };

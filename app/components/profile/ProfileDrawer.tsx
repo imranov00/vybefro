@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
   Image,
@@ -25,6 +26,7 @@ import ReanimatedAnimated, {
 } from 'react-native-reanimated';
 import { useAuth } from '../../context/AuthContext';
 import { UserProfile } from '../../context/ProfileContext';
+import { premiumApi } from '../../services/api';
 import { getZodiacDisplay, getZodiacEmoji } from '../../types/zodiac';
 
 const { width, height } = Dimensions.get('window');
@@ -39,14 +41,15 @@ type ProfileDrawerProps = {
 
 export default function ProfileDrawer({ visible, onClose, user, isLoading = false }: ProfileDrawerProps) {
   const colorScheme = useColorScheme();
-  const { currentMode, switchMode, logout, isPremium } = useAuth();
-  const isDark = colorScheme === 'dark';
+  const { currentMode, switchMode, logout, isPremium, setPremium } = useAuth();
+  const router = useRouter();
+  const [purchasingPremium, setPurchasingPremium] = useState(false);
   const animation = useRef(new Animated.Value(DRAWER_WIDTH)).current;
   const [isRendered, setIsRendered] = useState(visible);
-  const router = useRouter();
   
-  // Premium yazısı için animasyon
-  const premiumAnimation = useSharedValue(0);
+  // Premium badge animasyonu
+  const premiumGlow = useSharedValue(0);
+  const premiumScale = useSharedValue(1);
   
   useEffect(() => {
     if (visible) {
@@ -65,8 +68,16 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
     
     // Premium animasyonunu başlat
     if (isPremium) {
-      premiumAnimation.value = withRepeat(
-        withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+      // Neon glow animasyonu
+      premiumGlow.value = withRepeat(
+        withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.sin) }),
+        -1,
+        true
+      );
+      
+      // Hafif scale animasyonu
+      premiumScale.value = withRepeat(
+        withTiming(1.05, { duration: 3000, easing: Easing.inOut(Easing.sin) }),
         -1,
         true
       );
@@ -75,8 +86,9 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
 
   const animatedPremiumStyle = useAnimatedStyle(() => {
     return {
-      opacity: 0.7 + premiumAnimation.value * 0.3,
-      transform: [{ scale: 0.95 + premiumAnimation.value * 0.1 }],
+      shadowOpacity: 0.6 + (premiumGlow.value * 0.4),
+      shadowRadius: 8 + (premiumGlow.value * 12),
+      transform: [{ scale: premiumScale.value }],
     };
   });
 
@@ -121,6 +133,57 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
     setTimeout(() => {
       logout();
     }, 300);
+  };
+
+  // Premium satın alma fonksiyonu
+  const handlePremiumPurchase = async () => {
+    if (isPremium) {
+      // Zaten premium ise premium sayfasına git
+      onClose();
+      router.push('/(profile)/premiumScreen' as any);
+      return;
+    }
+
+    try {
+      setPurchasingPremium(true);
+      
+      // Premium satın alma API çağrısı
+      const response = await premiumApi.purchase({
+        plan: 'monthly',
+        paymentMethod: 'credit_card'
+      });
+
+      if (response.success) {
+        // Premium durumunu güncelle
+        setPremium(true);
+        
+        Alert.alert(
+          '🎉 Tebrikler!',
+          'Premium üyeliğiniz başarıyla aktifleştirildi! Artık tüm premium özelliklerden yararlanabilirsiniz.',
+          [
+            {
+              text: 'Harika!',
+              style: 'default'
+            }
+          ]
+        );
+      } else {
+        Alert.alert(
+          'Hata',
+          response.message || 'Premium satın alma işlemi başarısız oldu.',
+          [{ text: 'Tamam', style: 'default' }]
+        );
+      }
+    } catch (error) {
+      console.error('Premium purchase error:', error);
+      Alert.alert(
+        'Hata',
+        'Premium satın alma sırasında bir hata oluştu. Lütfen tekrar deneyin.',
+        [{ text: 'Tamam', style: 'default' }]
+      );
+    } finally {
+      setPurchasingPremium(false);
+    }
   };
 
   // Profil fotoğrafı ve bilgileri görünümü
@@ -205,9 +268,18 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
         {/* Premium Badge - Burç altında */}
         {isPremium && (
           <ReanimatedAnimated.View style={[styles.premiumBadgeLuxury, animatedPremiumStyle]}>
-            <ReanimatedAnimated.Text style={[styles.premiumTextLuxury, animatedPremiumStyle]}>
-              ✨ PREMİUM ✨
-            </ReanimatedAnimated.Text>
+            <View style={styles.premiumBadgeInner}>
+              <View style={styles.premiumIconContainer}>
+                <Ionicons name="diamond" size={16} color="#FFD700" />
+              </View>
+              <ReanimatedAnimated.Text style={[styles.premiumTextLuxury, animatedPremiumStyle]}>
+                PREMIUM
+              </ReanimatedAnimated.Text>
+              <View style={styles.premiumIconContainer}>
+                <Ionicons name="diamond" size={16} color="#FFD700" />
+              </View>
+            </View>
+            <View style={styles.premiumGlowEffect} />
           </ReanimatedAnimated.View>
         )}
 
@@ -302,11 +374,9 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
               </TouchableOpacity>
 
               <TouchableOpacity 
-                style={styles.menuItem}
-                onPress={() => {
-                  onClose();
-                  router.push('/(profile)/premiumScreen' as any);
-                }}
+                style={[styles.menuItem, purchasingPremium && styles.menuItemDisabled]}
+                onPress={handlePremiumPurchase}
+                disabled={purchasingPremium}
               >
                 <View style={[styles.menuIcon, { 
                   backgroundColor: '#FFD70040',
@@ -315,10 +385,18 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                   shadowRadius: 8,
                   elevation: 8
                 }]}>
-                  <Ionicons name="diamond" size={22} color="#FFD700" />
+                  {purchasingPremium ? (
+                    <ActivityIndicator size="small" color="#FFD700" />
+                  ) : (
+                    <Ionicons name="diamond" size={22} color="#FFD700" />
+                  )}
                 </View>
-                <Text style={styles.menuText}>Premium</Text>
-                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.8)" />
+                <Text style={styles.menuText}>
+                  {isPremium ? 'Premium Yönetimi' : purchasingPremium ? 'Satın Alınıyor...' : 'Premium'}
+                </Text>
+                {!purchasingPremium && (
+                  <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.8)" />
+                )}
               </TouchableOpacity>
               
               <TouchableOpacity 
@@ -624,6 +702,9 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  menuItemDisabled: {
+    opacity: 0.6,
+  },
   menuIcon: {
     width: 40,
     height: 40,
@@ -682,9 +763,9 @@ const styles = StyleSheet.create({
   premiumBadgeLuxury: {
     marginTop: 4,
     marginBottom: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 25,
     backgroundColor: 'rgba(255, 215, 0, 0.15)',
     borderWidth: 2,
     borderColor: '#FFD700',
@@ -696,14 +777,37 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.8,
     shadowRadius: 10,
     elevation: 15,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  premiumBadgeInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  premiumIconContainer: {
+    marginHorizontal: 6,
   },
   premiumTextLuxury: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#FFD700',
     textAlign: 'center',
     textShadowColor: '#FFD700',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 8,
+    letterSpacing: 2,
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica-Bold' : 'sans-serif-medium',
+  },
+  premiumGlowEffect: {
+    position: 'absolute',
+    top: -2,
+    left: -2,
+    right: -2,
+    bottom: -2,
+    borderRadius: 27,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
   },
 }); 
