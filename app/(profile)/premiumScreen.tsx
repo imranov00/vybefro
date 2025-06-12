@@ -137,7 +137,8 @@ export default function PremiumScreen() {
         {
           text: 'Tamam',
           onPress: () => {
-            router.back();
+            // Kullanıcıyı ana sayfaya yönlendir, mode değişmeyecek
+            router.replace('/(tabs)/' as any);
           }
         }
       ]);
@@ -172,7 +173,8 @@ export default function PremiumScreen() {
                 {
                   text: 'Tamam',
                   onPress: () => {
-                    router.back();
+                    // Kullanıcıyı ana sayfaya yönlendir, mode değişmeyecek
+                    router.replace('/(tabs)/' as any);
                   }
                 }
               ]);

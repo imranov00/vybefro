@@ -144,6 +144,26 @@ export interface PremiumCancelResponse {
   message: string;
 }
 
+// Beğeni işlemleri için interface'ler
+export interface UserWhoLikedMe {
+  id: number;
+  username: string;
+  firstName: string;
+  lastName: string;
+  profileImageUrl: string | null;
+  age: number;
+  zodiacSign?: string;
+  zodiacSignTurkish?: string;
+  compatibility?: number;
+  likedAt: string;
+}
+
+export interface UsersWhoLikedMeResponse {
+  users: UserWhoLikedMe[];
+  total: number;
+  hasMore: boolean;
+}
+
 // Çıkış isteği için interface
 export interface LogoutResponse {
   success: boolean;
@@ -324,6 +344,13 @@ export const userApi = {
   async updatePhotoDescription(photoId: string, data: PhotoDescriptionRequest): Promise<any> {
     const authHeader = await createAuthHeader();
     const response = await api.put(`/api/images/${photoId}/description`, data, authHeader);
+    return response.data;
+  },
+
+  // Beni beğenen kullanıcıları getirme (Premium özellik)
+  async getUsersWhoLikedMe(limit: number = 10): Promise<UsersWhoLikedMeResponse> {
+    const authHeader = await createAuthHeader();
+    const response = await api.get(`/api/swipes/users-who-liked-me?limit=${limit}`, authHeader);
     return response.data;
   }
 };

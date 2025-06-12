@@ -16,9 +16,12 @@ import {
 import Animated, {
     useAnimatedStyle,
     useSharedValue,
+    withRepeat,
     withSpring,
     withTiming
 } from 'react-native-reanimated';
+import { useAuth } from '../context/AuthContext';
+import { userApi, UserWhoLikedMe } from '../services/api';
 
 const { width, height } = Dimensions.get('window');
 
@@ -102,24 +105,28 @@ const DAILY_MUSIC_SUGGESTIONS = [
 
 export default function MusicMatchesScreen() {
   const colorScheme = useColorScheme();
-  const [activeTab, setActiveTab] = useState<'matches' | 'suggestions' | 'likes'>('matches');
+  const { isPremium } = useAuth();
+  const [activeTab, setActiveTab] = useState<'matches' | 'suggestions' | 'playlists'>('matches');
   const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [isPremium, setIsPremium] = useState(false); // Premium durum kontrolü
+  const [loading, setLoading] = useState(false);
+  const [likedUsers, setLikedUsers] = useState<UserWhoLikedMe[]>([]);
   
   // Animasyon değerleri
   const fadeAnim = useSharedValue(1);
   const scaleAnim = useSharedValue(1);
+  const slideAnim = useSharedValue(0);
   const pulseAnim = useSharedValue(1);
 
   // Müzik pulse animasyonu
   useEffect(() => {
-    const pulse = () => {
-      pulseAnim.value = withTiming(1.1, { duration: 800 }, () => {
-        pulseAnim.value = withTiming(1, { duration: 800 });
-      });
-    };
-    const interval = setInterval(pulse, 2000);
-    return () => clearInterval(interval);
+    slideAnim.value = withTiming(1, { duration: 300 });
+    
+    // Pulse animasyonu
+    pulseAnim.value = withRepeat(
+      withTiming(1.05, { duration: 1500 }),
+      -1,
+      true
+    );
   }, []);
 
   const animatedStyle = useAnimatedStyle(() => {
@@ -131,7 +138,7 @@ export default function MusicMatchesScreen() {
 
   const animatedPulseStyle = useAnimatedStyle(() => {
     return {
-      transform: [{ scale: pulseAnim.value }]
+      transform: [{ scale: pulseAnim.value }],
     };
   });
 
@@ -215,6 +222,26 @@ export default function MusicMatchesScreen() {
     </TouchableOpacity>
   );
 
+  const fetchLikedUsers = async () => {
+    if (!isPremium) return;
+    
+    setLoading(true);
+    try {
+      const response = await userApi.getUsersWhoLikedMe(20);
+      setLikedUsers(response.users);
+    } catch (error) {
+      console.error('Liked users fetching error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'playlists') {
+      fetchLikedUsers();
+    }
+  }, [activeTab, isPremium]);
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
@@ -262,15 +289,15 @@ export default function MusicMatchesScreen() {
         </TouchableOpacity>
         
         <TouchableOpacity 
-          style={[styles.tab, activeTab === 'likes' && styles.activeTab]}
-          onPress={() => setActiveTab('likes')}
+          style={[styles.tab, activeTab === 'playlists' && styles.activeTab]}
+          onPress={() => setActiveTab('playlists')}
         >
           <Ionicons 
             name="heart" 
             size={20} 
-            color={activeTab === 'likes' ? '#FFFFFF' : 'rgba(255,255,255,0.6)'} 
+            color={activeTab === 'playlists' ? '#FFFFFF' : 'rgba(255,255,255,0.6)'} 
           />
-          <Text style={[styles.tabText, activeTab === 'likes' && styles.activeTabText]}>
+          <Text style={[styles.tabText, activeTab === 'playlists' && styles.activeTabText]}>
             Beğeniler
           </Text>
         </TouchableOpacity>
@@ -302,7 +329,7 @@ export default function MusicMatchesScreen() {
           </ScrollView>
         )}
         
-        {activeTab === 'likes' && (
+        {activeTab === 'playlists' && (
           <ScrollView 
             style={styles.scrollView}
             showsVerticalScrollIndicator={false}

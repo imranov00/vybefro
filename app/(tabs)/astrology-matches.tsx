@@ -1,8 +1,9 @@
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
     Dimensions,
     FlatList,
     Platform,
@@ -18,6 +19,8 @@ import Animated, {
     useSharedValue,
     withSpring
 } from 'react-native-reanimated';
+import { useAuth } from '../context/AuthContext';
+import { userApi, UserWhoLikedMe } from '../services/api';
 
 const { width, height } = Dimensions.get('window');
 
@@ -95,9 +98,11 @@ const DAILY_SUGGESTIONS = [
 
 export default function AstrologyMatchesScreen() {
   const colorScheme = useColorScheme();
+  const { isPremium } = useAuth();
   const [activeTab, setActiveTab] = useState<'matches' | 'suggestions' | 'likes'>('matches');
   const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [isPremium, setIsPremium] = useState(false); // Premium durum kontrolü
+  const [likes, setLikes] = useState<UserWhoLikedMe[]>([]);
+  const [loading, setLoading] = useState(false);
   
   // Animasyon değerleri
   const fadeAnim = useSharedValue(1);
@@ -181,6 +186,26 @@ export default function AstrologyMatchesScreen() {
       </View>
     </TouchableOpacity>
   );
+
+  const fetchLikes = async () => {
+    if (!isPremium) return;
+    
+    setLoading(true);
+    try {
+      const response = await userApi.getUsersWhoLikedMe(20);
+      setLikes(response.users);
+    } catch (error) {
+      console.error('Likes fetching error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'likes') {
+      fetchLikes();
+    }
+  }, [activeTab, isPremium]);
 
   return (
     <View style={styles.container}>
@@ -297,37 +322,43 @@ export default function AstrologyMatchesScreen() {
                 {isPremium ? 'Seni Beğenenler' : 'Beğeni Alındı'}
               </Text>
               
-              {MATCHES_DATA.slice(0, 3).map((user, index) => (
-                <View key={user.id} style={[styles.likeCard, !isPremium && styles.blurredCard]}>
-                  <View style={styles.likeCardContent}>
-                    <View style={styles.likeImageContainer}>
-                      <Text style={styles.zodiacIcon}>{user.zodiacSign}</Text>
+              {loading ? (
+                <ActivityIndicator size="large" color="#FF9FF3" />
+              ) : (
+                likes.map((like) => (
+                  <View key={like.id} style={[styles.likeCard, !isPremium && styles.blurredCard]}>
+                    <View style={styles.likeCardContent}>
+                      <View style={styles.likeImageContainer}>
+                        <Text style={styles.zodiacIcon}>{like.zodiacSign}</Text>
+                      </View>
+                      
+                      <View style={styles.likeUserInfo}>
+                        <Text style={[styles.likeUserName, !isPremium && styles.blurredText]}>
+                          {isPremium ? `${like.firstName} ${like.lastName}, ${like.age}` : '••••••, ••'}
+                        </Text>
+                        <Text style={[styles.likeZodiacText, !isPremium && styles.blurredText]}>
+                          {isPremium ? (like.zodiacSignTurkish || 'Burç yok') : '••••••'}
+                        </Text>
+                        <Text style={styles.likeTimeText}>
+                          {new Date(like.likedAt).toLocaleDateString('tr-TR')}
+                        </Text>
+                      </View>
+                      
+                      <View style={styles.likeCompatibility}>
+                        <Text style={styles.likeCompatibilityText}>
+                          %{like.compatibility}
+                        </Text>
+                      </View>
                     </View>
                     
-                    <View style={styles.likeUserInfo}>
-                      <Text style={[styles.likeUserName, !isPremium && styles.blurredText]}>
-                        {isPremium ? `${user.name}, ${user.age}` : '••••••, ••'}
-                      </Text>
-                      <Text style={[styles.likeZodiacText, !isPremium && styles.blurredText]}>
-                        {isPremium ? user.zodiacName : '••••••'}
-                      </Text>
-                      <Text style={styles.likeTimeText}>2 saat önce</Text>
-                    </View>
-                    
-                    <View style={styles.likeCompatibility}>
-                      <Text style={styles.likeCompatibilityText}>
-                        %{user.compatibility}
-                      </Text>
-                    </View>
+                    {!isPremium && (
+                      <View style={styles.blurOverlay}>
+                        <Ionicons name="lock-closed" size={24} color="white" />
+                      </View>
+                    )}
                   </View>
-                  
-                  {!isPremium && (
-                    <View style={styles.blurOverlay}>
-                      <Ionicons name="lock-closed" size={24} color="white" />
-                    </View>
-                  )}
-                </View>
-              ))}
+                ))
+              )}
               
               {!isPremium && (
                 <TouchableOpacity style={styles.viewMoreButton}>

@@ -43,7 +43,20 @@ const translateZodiacSign = (englishSign: string): string => {
     'Sagittarius': 'Yay',
     'Capricorn': 'Oğlak',
     'Aquarius': 'Kova',
-    'Pisces': 'Balık'
+    'Pisces': 'Balık',
+    // Küçük harfli versiyonlar
+    'aries': 'Koç',
+    'taurus': 'Boğa', 
+    'gemini': 'İkizler',
+    'cancer': 'Yengeç',
+    'leo': 'Aslan',
+    'virgo': 'Başak',
+    'libra': 'Terazi',
+    'scorpio': 'Akrep',
+    'sagittarius': 'Yay',
+    'capricorn': 'Oğlak',
+    'aquarius': 'Kova',
+    'pisces': 'Balık'
   };
   
   return zodiacTranslations[englishSign] || englishSign;
@@ -170,13 +183,6 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
           
           {/* Online Status */}
           <View style={[styles.onlineStatus, { backgroundColor: '#4CAF50' }]} />
-          
-          {/* Premium Badge */}
-          {isPremium && (
-            <ReanimatedAnimated.View style={[styles.premiumBadge, animatedPremiumStyle]}>
-              <ReanimatedAnimated.Text style={styles.premiumText}>PREMİUM</ReanimatedAnimated.Text>
-            </ReanimatedAnimated.View>
-          )}
         </View>
         
         {/* Profil Bilgileri */}
@@ -185,12 +191,32 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
         
         {/* Burç Bilgisi */}
         {(user.zodiacSign || user.zodiacSignTurkish) && (
-          <View style={[styles.zodiacBadge, { backgroundColor: themeColors.light, borderColor: themeColors.accent }]}>
-            <Ionicons name="planet" size={16} color={themeColors.accent} />
-            <Text style={[styles.zodiacText, { color: themeColors.accent }]}>
+          <View style={[styles.zodiacBadge, { 
+            backgroundColor: themeColors.light, 
+            borderColor: themeColors.accent,
+            shadowColor: themeColors.accent,
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 8
+          }]}>
+            <Ionicons name="planet" size={18} color={themeColors.accent} />
+            <Text style={[styles.zodiacText, { 
+              color: themeColors.accent,
+              fontWeight: '700',
+              fontSize: 15
+            }]}>
               {user.zodiacSignTurkish || translateZodiacSign(user.zodiacSign || '') || 'Burç Belirtilmemiş'}
             </Text>
           </View>
+        )}
+
+        {/* Premium Badge - Burç altında */}
+        {isPremium && (
+          <ReanimatedAnimated.View style={[styles.premiumBadgeLuxury, animatedPremiumStyle]}>
+            <ReanimatedAnimated.Text style={[styles.premiumTextLuxury, animatedPremiumStyle]}>
+              ✨ PREMİUM ✨
+            </ReanimatedAnimated.Text>
+          </ReanimatedAnimated.View>
         )}
 
         {/* Stats */}
@@ -270,11 +296,17 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                 style={styles.menuItem}
                 onPress={navigateToProfile}
               >
-                <View style={[styles.menuIcon, { backgroundColor: `${themeColors.accent}20` }]}>
-                  <Ionicons name="person-outline" size={20} color={themeColors.accent} />
+                <View style={[styles.menuIcon, { 
+                  backgroundColor: `${themeColors.accent}40`,
+                  shadowColor: themeColors.accent,
+                  shadowOpacity: 0.4,
+                  shadowRadius: 6,
+                  elevation: 6
+                }]}>
+                  <Ionicons name="person-outline" size={22} color={themeColors.accent} />
                 </View>
                 <Text style={styles.menuText}>Profili Düzenle</Text>
-                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.6)" />
+                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.8)" />
               </TouchableOpacity>
 
               <TouchableOpacity 
@@ -284,11 +316,17 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                   router.push('/(profile)/premiumScreen' as any);
                 }}
               >
-                <View style={[styles.menuIcon, { backgroundColor: '#FFD70020' }]}>
-                  <Ionicons name="diamond" size={20} color="#FFD700" />
+                <View style={[styles.menuIcon, { 
+                  backgroundColor: '#FFD70040',
+                  shadowColor: '#FFD700',
+                  shadowOpacity: 0.5,
+                  shadowRadius: 8,
+                  elevation: 8
+                }]}>
+                  <Ionicons name="diamond" size={22} color="#FFD700" />
                 </View>
                 <Text style={styles.menuText}>Premium</Text>
-                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.6)" />
+                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.8)" />
               </TouchableOpacity>
               
               <TouchableOpacity 
@@ -298,11 +336,17 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                   router.push('/settingsScreen' as any);
                 }}
               >
-                <View style={[styles.menuIcon, { backgroundColor: `${themeColors.accent}20` }]}>
-                  <Ionicons name="settings-outline" size={20} color={themeColors.accent} />
+                <View style={[styles.menuIcon, { 
+                  backgroundColor: `${themeColors.accent}40`,
+                  shadowColor: themeColors.accent,
+                  shadowOpacity: 0.4,
+                  shadowRadius: 6,
+                  elevation: 6
+                }]}>
+                  <Ionicons name="settings-outline" size={22} color={themeColors.accent} />
                 </View>
                 <Text style={styles.menuText}>Ayarlar</Text>
-                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.6)" />
+                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.8)" />
               </TouchableOpacity>
 
               <TouchableOpacity 
@@ -312,11 +356,17 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                   // Notifications page
                 }}
               >
-                <View style={[styles.menuIcon, { backgroundColor: `${themeColors.accent}20` }]}>
-                  <Ionicons name="notifications-outline" size={20} color={themeColors.accent} />
+                <View style={[styles.menuIcon, { 
+                  backgroundColor: `${themeColors.accent}40`,
+                  shadowColor: themeColors.accent,
+                  shadowOpacity: 0.4,
+                  shadowRadius: 6,
+                  elevation: 6
+                }]}>
+                  <Ionicons name="notifications-outline" size={22} color={themeColors.accent} />
                 </View>
                 <Text style={styles.menuText}>Bildirimler</Text>
-                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.6)" />
+                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.8)" />
               </TouchableOpacity>
 
               <TouchableOpacity 
@@ -326,11 +376,17 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                   // Privacy page
                 }}
               >
-                <View style={[styles.menuIcon, { backgroundColor: `${themeColors.accent}20` }]}>
-                  <Ionicons name="shield-outline" size={20} color={themeColors.accent} />
+                <View style={[styles.menuIcon, { 
+                  backgroundColor: `${themeColors.accent}40`,
+                  shadowColor: themeColors.accent,
+                  shadowOpacity: 0.4,
+                  shadowRadius: 6,
+                  elevation: 6
+                }]}>
+                  <Ionicons name="shield-outline" size={22} color={themeColors.accent} />
                 </View>
                 <Text style={styles.menuText}>Gizlilik</Text>
-                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.6)" />
+                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.8)" />
               </TouchableOpacity>
 
               <TouchableOpacity 
@@ -340,11 +396,17 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                   // Help page
                 }}
               >
-                <View style={[styles.menuIcon, { backgroundColor: `${themeColors.accent}20` }]}>
-                  <Ionicons name="help-circle-outline" size={20} color={themeColors.accent} />
+                <View style={[styles.menuIcon, { 
+                  backgroundColor: `${themeColors.accent}40`,
+                  shadowColor: themeColors.accent,
+                  shadowOpacity: 0.4,
+                  shadowRadius: 6,
+                  elevation: 6
+                }]}>
+                  <Ionicons name="help-circle-outline" size={22} color={themeColors.accent} />
                 </View>
                 <Text style={styles.menuText}>Yardım</Text>
-                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.6)" />
+                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.8)" />
               </TouchableOpacity>
             </View>
             
@@ -492,24 +554,24 @@ const styles = StyleSheet.create({
   zodiacBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 2,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 25,
+    borderWidth: 3,
     marginBottom: 20,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 10,
   },
   zodiacText: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 6,
+    fontSize: 16,
+    fontWeight: '700',
+    marginLeft: 8,
   },
   statsContainer: {
     flexDirection: 'row',
@@ -551,10 +613,20 @@ const styles = StyleSheet.create({
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderRadius: 16,
+    padding: 18,
+    borderRadius: 18,
     marginBottom: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   menuIcon: {
     width: 40,
@@ -611,28 +683,30 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
-  premiumBadge: {
-    position: 'absolute',
-    bottom: -10,
-    left: '50%',
-    marginLeft: -30,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: '#FFD700',
-    shadowColor: '#000',
+  premiumBadgeLuxury: {
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    borderWidth: 2,
+    borderColor: '#FFD700',
+    shadowColor: '#FFD700',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 0,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 15,
   },
-  premiumText: {
-    fontSize: 10,
+  premiumTextLuxury: {
+    fontSize: 14,
     fontWeight: 'bold',
-    color: '#000',
+    color: '#FFD700',
     textAlign: 'center',
+    textShadowColor: '#FFD700',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
   },
 }); 
