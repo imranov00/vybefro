@@ -178,6 +178,23 @@ export default function TabLayout() {
             href: currentMode === 'astrology' ? '/astrology' : null,
           }}
         />
+
+        {/* Astrology Matches Tab - Sadece astrology mode'da görünür */}
+        <Tabs.Screen
+          name="astrology-matches"
+          options={{
+            title: 'Eşleşmelerim',
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons 
+                name={focused ? 'people' : 'people-outline'} 
+                size={28} 
+                color={color} 
+              />
+            ),
+            // Music mode'dayken bu tab'ı gizle
+            href: currentMode === 'astrology' ? undefined : null,
+          }}
+        />
         
         {/* Music Tab */}
         <Tabs.Screen
@@ -193,6 +210,23 @@ export default function TabLayout() {
             ),
             // Astrology mode'dayken bu tab'ı gizle
             href: currentMode === 'music' ? '/music' : null,
+          }}
+        />
+
+        {/* Music Matches Tab - Sadece music mode'da görünür */}
+        <Tabs.Screen
+          name="music-matches"
+          options={{
+            title: 'Eşleşmelerim',
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons 
+                name={focused ? 'people' : 'people-outline'} 
+                size={28} 
+                color={color} 
+              />
+            ),
+            // Astrology mode'dayken bu tab'ı gizle
+            href: currentMode === 'music' ? undefined : null,
           }}
         />
 
