@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     Dimensions,
     FlatList,
     Image,
@@ -96,7 +97,7 @@ export default function AstrologyMatchesScreen() {
       }
       
     } catch (error: any) {
-      console.error('❌ Load more matches error:', error);
+      console.error('❌ Load potential matches error:', error);
       
       // Geçici olarak mock data kullan (backend hazır olmadığında)
       console.log('🔄 Backend bağlantısı yok, mock data kullanılıyor...');
@@ -246,6 +247,9 @@ export default function AstrologyMatchesScreen() {
           console.log('🎉 MATCH FOUND!', newMatch);
           setCurrentMatch(newMatch);
           setShowMatchModal(true);
+          
+          // Matches listesini güncelle
+          setMatches(prev => [newMatch, ...prev]);
         }
       }
 
@@ -299,6 +303,9 @@ export default function AstrologyMatchesScreen() {
           console.log('🎉 MOCK MATCH FOUND!', newMatch);
           setCurrentMatch(newMatch);
           setShowMatchModal(true);
+          
+          // Matches listesini güncelle
+          setMatches(prev => [newMatch, ...prev]);
         }
       }
 
@@ -324,25 +331,26 @@ export default function AstrologyMatchesScreen() {
     try {
       setIsLoading(true);
       
-      console.log('🔄 Kullanıcılar yükleniyor...', { currentPage, hasMore });
+      console.log('🔄 Daha fazla kullanıcı yükleniyor...', { currentPage, hasMore });
       
       // Gerçek API çağrısı
       const response = await swipeApi.getPotentialMatches(currentPage, 10);
       
-      console.log('✅ API Response:', response);
+      console.log('✅ Load more API Response:', response);
       
       if (response.users && response.users.length > 0) {
         // Uyumluluk skorlarını hesapla
         const newMatches = response.users.map(user => ({
           ...user,
-          compatibilityScore: calculateCompatibility(
+          photos: user.photos && user.photos.length > 0 ? user.photos : (user.profileImageUrl ? [user.profileImageUrl] : []),
+          compatibilityScore: user.compatibilityScore || calculateCompatibility(
             userProfile.zodiacSign as any, 
             user.zodiacSign as any
           ),
-          compatibilityDescription: getCompatibilityDescription(
+          compatibilityDescription: user.compatibilityMessage || getCompatibilityDescription(
             userProfile.zodiacSign as any,
             user.zodiacSign as any,
-            calculateCompatibility(userProfile.zodiacSign as any, user.zodiacSign as any)
+            user.compatibilityScore || calculateCompatibility(userProfile.zodiacSign as any, user.zodiacSign as any)
           )
         }));
         
@@ -364,54 +372,75 @@ export default function AstrologyMatchesScreen() {
       const userZodiac = userProfile.zodiacSign || 'ARIES';
       const compatibility = calculateCompatibility(userZodiac as any, randomZodiac as any);
       
-      const mockUsers: PotentialMatch[] = Array.from({ length: 5 }, (_, index) => ({
-        id: potentialMatches.length + index + 1,
-        username: `user_${potentialMatches.length + index + 1}`,
-        firstName: ['Ayşe', 'Fatma', 'Zeynep', 'Mehmet', 'Ali', 'Ahmet', 'Elif', 'Deniz'][Math.floor(Math.random() * 8)],
-        lastName: ['Yılmaz', 'Kaya', 'Demir', 'Çelik', 'Şahin', 'Özkan', 'Arslan', 'Doğan'][Math.floor(Math.random() * 8)],
-        age: Math.floor(Math.random() * 15) + 20,
-        profileImageUrl: `https://picsum.photos/400/600?random=${potentialMatches.length + index + 100}`,
-        photos: [`https://picsum.photos/400/600?random=${potentialMatches.length + index + 100}`],
-        bio: [
-          'Hayatı dolu dolu yaşamayı seven biriyim.',
-          'Doğa sevgisi ve kitap okuma tutkum var.',
-          'Müzik ve sanat dünyasında kaybolmayı seviyorum.',
-          'Yeni yerler keşfetmek ve macera aramak benim işim.',
-          'Spor yapmayı ve sağlıklı yaşamayı seviyorum.',
-          'Kahve tutkunu, film sevdalısı.',
-          'Yoga ve meditasyon ile iç huzuru arıyorum.',
-          'Fotoğrafçılık hobim, anları ölümsüzleştiriyorum.'
-        ][Math.floor(Math.random() * 8)],
-        zodiacSign: randomZodiac,
-        compatibilityScore: compatibility,
-        compatibilityDescription: getCompatibilityDescription(
-          userZodiac as any,
-          randomZodiac as any,
-          compatibility
-        ),
-        distance: Math.floor(Math.random() * 20) + 1,
-        isOnline: Math.random() > 0.5
-      }));
+      const mockUsers: PotentialMatch[] = Array.from({ length: 5 }, (_, index) => {
+        const baseId = potentialMatches.length + index + 200;
+        const photoCount = Math.floor(Math.random() * 4) + 1;
+        const photos = Array.from({ length: photoCount }, (_, photoIndex) => 
+          `https://picsum.photos/400/600?random=${baseId + photoIndex}`
+        );
+        
+        return {
+          id: potentialMatches.length + index + 100,
+          username: `user_${potentialMatches.length + index + 100}`,
+          firstName: ['Ayşe', 'Fatma', 'Zeynep', 'Mehmet', 'Ali', 'Ahmet', 'Elif', 'Deniz'][Math.floor(Math.random() * 8)],
+          lastName: ['Yılmaz', 'Kaya', 'Demir', 'Çelik', 'Şahin', 'Özkan', 'Arslan', 'Doğan'][Math.floor(Math.random() * 8)],
+          age: Math.floor(Math.random() * 15) + 20,
+          profileImageUrl: photos[0],
+          photos: photos,
+          bio: [
+            'Hayatı dolu dolu yaşamayı seven biriyim.',
+            'Doğa sevgisi ve kitap okuma tutkum var.',
+            'Müzik ve sanat dünyasında kaybolmayı seviyorum.',
+            'Yeni yerler keşfetmek ve macera aramak benim işim.',
+            'Spor yapmayı ve sağlıklı yaşamayı seviyorum.',
+            'Kahve tutkunu, film sevdalısı.',
+            'Yoga ve meditasyon ile iç huzuru arıyorum.',
+            'Fotoğrafçılık hobim, anları ölümsüzleştiriyorum.'
+          ][Math.floor(Math.random() * 8)],
+          zodiacSign: randomZodiac,
+          compatibilityScore: compatibility,
+          compatibilityDescription: getCompatibilityDescription(
+            userZodiac as any,
+            randomZodiac as any,
+            compatibility
+          ),
+          distance: Math.floor(Math.random() * 20) + 1,
+          isOnline: Math.random() > 0.5
+        };
+      });
       
       setPotentialMatches(prev => [...prev, ...mockUsers]);
       setCurrentPage(prev => prev + 1);
-      setHasMore(currentPage < 3); // 3 sayfa mock data
+      setHasMore(currentPage < 5); // 5 sayfa mock data
       
       console.log('✅ Mock data yüklendi:', mockUsers.length, 'kullanıcı');
     } finally {
       setIsLoading(false);
-      setIsInitialLoading(false);
     }
   };
 
   // Eşleşme silme fonksiyonu
   const handleDeleteMatch = async (matchId: number) => {
     try {
-      await matchApi.deleteMatch(matchId);
-      // Eşleşmeleri yeniden yükle
-      await loadMatches();
+      Alert.alert(
+        'Eşleşmeyi Sil',
+        'Bu eşleşmeyi silmek istediğinizden emin misiniz?',
+        [
+          { text: 'İptal', style: 'cancel' },
+          { 
+            text: 'Sil', 
+            style: 'destructive',
+            onPress: async () => {
+              await matchApi.deleteMatch(matchId);
+              // Eşleşmeleri yeniden yükle
+              await loadMatches();
+            }
+          }
+        ]
+      );
     } catch (error) {
       console.error('❌ Match delete error:', error);
+      Alert.alert('Hata', 'Eşleşme silinirken bir hata oluştu.');
     }
   };
 

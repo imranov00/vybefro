@@ -2,7 +2,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
-import { Dimensions, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Dimensions, Image, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
     Easing,
     useAnimatedStyle,
@@ -12,20 +12,12 @@ import Animated, {
     withTiming
 } from 'react-native-reanimated';
 import { useAuth } from '../context/AuthContext';
+import { useProfile } from '../context/ProfileContext';
+import { PotentialMatch, swipeApi } from '../services/api';
+import { calculateCompatibility, getCompatibilityDescription } from '../types/compatibility';
+import { getZodiacEmoji } from '../types/zodiac';
 
 const { width, height } = Dimensions.get('window');
-
-// Burç bilgileri
-const ZODIAC_SIGNS = [
-  { symbol: '♈', name: 'Koç', compatibility: 95, color: '#FF6B6B' },
-  { symbol: '♉', name: 'Boğa', compatibility: 88, color: '#4ECDC4' },
-  { symbol: '♊', name: 'İkizler', compatibility: 92, color: '#45B7D1' },
-  { symbol: '♋', name: 'Yengeç', compatibility: 78, color: '#96CEB4' },
-  { symbol: '♌', name: 'Aslan', compatibility: 85, color: '#FECA57' },
-  { symbol: '♍', name: 'Başak', compatibility: 90, color: '#FF9FF3' },
-  { symbol: '♎', name: 'Terazi', compatibility: 87, color: '#54A0FF' },
-  { symbol: '♏', name: 'Akrep', compatibility: 83, color: '#5F27CD' },
-];
 
 // Burç çarkı sembolleri
 const ZODIAC_WHEEL_SYMBOLS = [
@@ -46,7 +38,10 @@ const ZODIAC_WHEEL_SYMBOLS = [
 export default function AstrologyScreen() {
   const colorScheme = useColorScheme();
   const { switchMode } = useAuth();
+  const { userProfile } = useProfile();
   const [currentMatch, setCurrentMatch] = useState(0);
+  const [potentialMatches, setPotentialMatches] = useState<PotentialMatch[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   
   // Animasyon değerleri
   const rotation = useSharedValue(0);
@@ -64,6 +59,117 @@ export default function AstrologyScreen() {
       false
     );
   }, []);
+
+  // Potential matches'i yükle
+  useEffect(() => {
+    loadPotentialMatches();
+  }, []);
+
+  const loadPotentialMatches = async () => {
+    try {
+      setIsLoading(true);
+      console.log('🔄 Astroloji potansiyel eşleşmeleri yükleniyor...');
+      
+      const response = await swipeApi.getPotentialMatches(1, 10);
+      
+      if (response.users && response.users.length > 0) {
+        const matches = response.users.map(user => ({
+          ...user,
+          photos: user.photos && user.photos.length > 0 ? user.photos : (user.profileImageUrl ? [user.profileImageUrl] : []),
+          compatibilityDescription: user.compatibilityMessage || getCompatibilityDescription(
+            userProfile.zodiacSign as any,
+            user.zodiacSign as any,
+            user.compatibilityScore || 50
+          )
+        }));
+        
+        setPotentialMatches(matches);
+        console.log('✅ Astroloji eşleşmeleri yüklendi:', matches.length);
+      } else {
+        console.log('⚠️ Hiç kullanıcı bulunamadı, mock data kullanılıyor...');
+        generateMockData();
+      }
+    } catch (error) {
+      console.error('❌ Astroloji potential matches yükleme hatası:', error);
+      console.log('🔄 API hatası, mock data kullanılıyor...');
+      generateMockData();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const generateMockData = () => {
+    const mockZodiacSigns = ['ARIES', 'TAURUS', 'GEMINI', 'CANCER', 'LEO', 'VIRGO', 'LIBRA', 'SCORPIO', 'SAGITTARIUS', 'CAPRICORN', 'AQUARIUS', 'PISCES'];
+    const userZodiac = userProfile.zodiacSign || 'ARIES';
+    
+    const mockUsers: PotentialMatch[] = Array.from({ length: 8 }, (_, index) => {
+      const randomZodiac = mockZodiacSigns[Math.floor(Math.random() * mockZodiacSigns.length)];
+      const compatibility = calculateCompatibility(userZodiac as any, randomZodiac as any);
+      
+      return {
+        id: index + 1,
+        username: `user_${index + 1}`,
+        firstName: ['Ayşe', 'Fatma', 'Zeynep', 'Mehmet', 'Ali', 'Ahmet', 'Elif', 'Deniz'][index],
+        lastName: ['Yılmaz', 'Kaya', 'Demir', 'Çelik', 'Şahin', 'Özkan', 'Arslan', 'Doğan'][index],
+        age: Math.floor(Math.random() * 15) + 20,
+        profileImageUrl: `https://picsum.photos/400/600?random=${index + 1}`,
+        photos: [`https://picsum.photos/400/600?random=${index + 1}`],
+        bio: 'Hayatı dolu dolu yaşamayı seven biriyim.',
+        zodiacSign: randomZodiac,
+        compatibilityScore: compatibility,
+        compatibilityDescription: getCompatibilityDescription(userZodiac as any, randomZodiac as any, compatibility),
+        distance: Math.floor(Math.random() * 20) + 1,
+        isOnline: Math.random() > 0.5
+      };
+    });
+    
+    setPotentialMatches(mockUsers);
+  };
+
+  const handleSwipe = async (direction: 'left' | 'right' | 'up') => {
+    if (potentialMatches.length === 0) return;
+    
+    const currentUser = potentialMatches[currentMatch];
+    
+    try {
+      let action: 'LIKE' | 'DISLIKE' | 'SUPER_LIKE';
+      switch (direction) {
+        case 'right':
+          action = 'LIKE';
+          break;
+        case 'left':
+          action = 'DISLIKE';
+          break;
+        case 'up':
+          action = 'SUPER_LIKE';
+          break;
+      }
+      
+      console.log('🔄 Swipe yapılıyor:', { userId: currentUser.id, action });
+      
+      const response = await swipeApi.swipe({
+        targetUserId: currentUser.id,
+        action: action
+      });
+      
+      console.log('✅ Swipe yanıtı:', response);
+      
+      if (response.isMatch) {
+        Alert.alert(
+          '🎉 Eşleştiniz!',
+          `${currentUser.firstName} ile eşleştiniz! %${currentUser.compatibilityScore} uyumluluğunuz var.`,
+          [{ text: 'Harika!', style: 'default' }]
+        );
+      }
+      
+    } catch (error) {
+      console.error('❌ Swipe hatası:', error);
+      Alert.alert('Hata', 'Swipe işlemi sırasında bir hata oluştu.');
+    }
+    
+    // Sonraki karta geç
+    handleCardTap();
+  };
 
   // Kart animasyonu
   const animatedWheelStyle = useAnimatedStyle(() => {
@@ -87,11 +193,18 @@ export default function AstrologyScreen() {
     // Sonraki eşleşmeye geç
     setTimeout(() => {
       fadeAnim.value = withTiming(0, { duration: 200 }, () => {
-        setCurrentMatch((prev) => (prev + 1) % ZODIAC_SIGNS.length);
+        setCurrentMatch((prev) => (prev + 1) % potentialMatches.length);
         fadeAnim.value = withTiming(1, { duration: 200 });
       });
     }, 100);
   };
+
+  const getCurrentUser = () => {
+    if (potentialMatches.length === 0) return null;
+    return potentialMatches[currentMatch];
+  };
+
+  const currentUser = getCurrentUser();
 
   return (
     <View style={styles.container}>
@@ -149,56 +262,95 @@ export default function AstrologyScreen() {
         </View>
 
         {/* Ana Eşleşme Kartı */}
-        <Animated.View style={[styles.matchCard, animatedCardStyle]}>
-          <TouchableOpacity 
-            style={styles.cardContent}
-            onPress={handleCardTap}
-            activeOpacity={0.9}
-          >
-            <View style={styles.cardHeader}>
-              <Text style={styles.matchSymbol}>
-                {ZODIAC_SIGNS[currentMatch].symbol}
-              </Text>
-              <View style={styles.matchInfo}>
-                <Text style={styles.matchName}>
-                  {ZODIAC_SIGNS[currentMatch].name}
+        {isLoading ? (
+          <View style={[styles.matchCard, styles.loadingCard]}>
+            <Text style={styles.loadingText}>Eşleşmeler yükleniyor...</Text>
+          </View>
+        ) : currentUser ? (
+          <Animated.View style={[styles.matchCard, animatedCardStyle]}>
+            <TouchableOpacity 
+              style={styles.cardContent}
+              onPress={handleCardTap}
+              activeOpacity={0.9}
+            >
+              {/* Profil Fotoğrafı */}
+              <View style={styles.profileImageContainer}>
+                <Image 
+                  source={{ uri: currentUser.profileImageUrl || 'https://picsum.photos/300' }}
+                  style={styles.profileImage}
+                />
+              </View>
+              
+              <View style={styles.cardHeader}>
+                <Text style={styles.matchSymbol}>
+                  {getZodiacEmoji(currentUser.zodiacSign)}
                 </Text>
-                <View style={styles.compatibilityContainer}>
-                  <Text style={styles.compatibilityText}>
-                    %{ZODIAC_SIGNS[currentMatch].compatibility} Uyumlu
+                <View style={styles.matchInfo}>
+                  <Text style={styles.matchName}>
+                    {currentUser.firstName}, {currentUser.age}
                   </Text>
-                  <View style={styles.compatibilityBar}>
-                    <View 
-                      style={[
-                        styles.compatibilityFill, 
-                        { 
-                          width: `${ZODIAC_SIGNS[currentMatch].compatibility}%`,
-                          backgroundColor: ZODIAC_SIGNS[currentMatch].color
-                        }
-                      ]} 
-                    />
+                  <View style={styles.compatibilityContainer}>
+                    <Text style={styles.compatibilityText}>
+                      %{currentUser.compatibilityScore} Uyumlu
+                    </Text>
+                    <View style={styles.compatibilityBar}>
+                      <View 
+                        style={[
+                          styles.compatibilityFill, 
+                          { 
+                            width: `${currentUser.compatibilityScore}%`,
+                            backgroundColor: currentUser.compatibilityScore > 80 ? '#4ECDC4' : 
+                                           currentUser.compatibilityScore > 60 ? '#FECA57' : '#FF6B6B'
+                          }
+                        ]} 
+                      />
+                    </View>
                   </View>
+                  {currentUser.compatibilityDescription && (
+                    <Text style={styles.compatibilityDesc}>
+                      {currentUser.compatibilityDescription}
+                    </Text>
+                  )}
                 </View>
               </View>
-            </View>
-            
-            <View style={styles.cardActions}>
-              <TouchableOpacity style={[styles.actionButton, styles.passButton]}>
-                <Ionicons name="close" size={24} color="#FF6B6B" />
-              </TouchableOpacity>
               
-              <TouchableOpacity style={[styles.actionButton, styles.likeButton]}>
-                <Ionicons name="heart" size={24} color="#4ECDC4" />
-              </TouchableOpacity>
+              <View style={styles.cardActions}>
+                <TouchableOpacity 
+                  style={[styles.actionButton, styles.passButton]}
+                  onPress={() => handleSwipe('left')}
+                >
+                  <Ionicons name="close" size={24} color="#FF6B6B" />
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.actionButton, styles.likeButton]}
+                  onPress={() => handleSwipe('right')}
+                >
+                  <Ionicons name="heart" size={24} color="#4ECDC4" />
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.actionButton, styles.superLikeButton]}
+                  onPress={() => handleSwipe('up')}
+                >
+                  <Ionicons name="star" size={24} color="#FECA57" />
+                </TouchableOpacity>
+              </View>
               
-              <TouchableOpacity style={[styles.actionButton, styles.superLikeButton]}>
-                <Ionicons name="star" size={24} color="#FECA57" />
-              </TouchableOpacity>
-            </View>
-            
-            <Text style={styles.tapHint}>Kartı değiştirmek için dokunun</Text>
-          </TouchableOpacity>
-        </Animated.View>
+              <Text style={styles.tapHint}>Kartı değiştirmek için dokunun</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        ) : (
+          <View style={[styles.matchCard, styles.emptyCard]}>
+            <Text style={styles.emptyText}>Şu anda gösterilecek eşleşme yok</Text>
+            <TouchableOpacity 
+              style={styles.refreshButton}
+              onPress={loadPotentialMatches}
+            >
+              <Text style={styles.refreshButtonText}>Yenile</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Bugünün Burç Yorumu */}
         <View style={styles.horoscopeCard}>
@@ -404,5 +556,50 @@ const styles = StyleSheet.create({
   },
   spacer: {
     height: 40,
+  },
+  loadingCard: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  profileImageContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    overflow: 'hidden',
+    marginBottom: 20,
+  },
+  profileImage: {
+    width: '100%',
+    height: '100%',
+  },
+  compatibilityDesc: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 10,
+  },
+  emptyCard: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 20,
+  },
+  refreshButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    padding: 10,
+    borderRadius: 5,
+  },
+  refreshButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: 'white',
   },
 }); 

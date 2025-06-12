@@ -4,6 +4,8 @@ import { getToken, saveToken } from '../utils/tokenStorage';
 
 const API_URL = 'https://f92a-95-70-131-250.ngrok-free.app';
 
+console.log('🔗 [API CONFIG] Base URL:', API_URL);
+
 // API isteği için bir axios örneği oluşturuluyor
 const api = axios.create({
   baseURL: API_URL,
@@ -440,30 +442,58 @@ export const premiumApi = {
 export const swipeApi = {
   // Potansiyel eşleşmeleri getir
   getPotentialMatches: async (page: number = 1, limit: number = 10): Promise<PotentialMatchesResponse> => {
+    console.log('🔄 [API] getPotentialMatches çağrısı:', { page, limit });
     const authHeader = await createAuthHeader();
-    const response = await api.get(`/api/swipes/potential-matches?page=${page}&limit=${limit}`, authHeader);
-    return response.data;
+    try {
+      const response = await api.get(`/api/swipes/potential-matches?page=${page}&limit=${limit}`, authHeader);
+      console.log('✅ [API] getPotentialMatches yanıtı:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] getPotentialMatches hatası:', error.response?.data || error.message);
+      throw error;
+    }
   },
 
   // Swipe işlemi yap
   swipe: async (swipeData: SwipeRequest): Promise<SwipeResponse> => {
+    console.log('🔄 [API] swipe çağrısı:', swipeData);
     const authHeader = await createAuthHeader();
-    const response = await api.post('/api/swipes', swipeData, authHeader);
-    return response.data;
+    try {
+      const response = await api.post('/api/swipes', swipeData, authHeader);
+      console.log('✅ [API] swipe yanıtı:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] swipe hatası:', error.response?.data || error.message);
+      throw error;
+    }
   },
 
   // Yüksek uyumluluk eşleşmeleri
   getHighCompatibilityMatches: async (minScore: number = 70): Promise<HighCompatibilityMatchesResponse> => {
+    console.log('🔄 [API] getHighCompatibilityMatches çağrısı:', { minScore });
     const authHeader = await createAuthHeader();
-    const response = await api.get(`/api/matches/high-compatibility?minScore=${minScore}`, authHeader);
-    return response.data;
+    try {
+      const response = await api.get(`/api/matches/high-compatibility?minScore=${minScore}`, authHeader);
+      console.log('✅ [API] getHighCompatibilityMatches yanıtı:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] getHighCompatibilityMatches hatası:', error.response?.data || error.message);
+      throw error;
+    }
   },
 
   // Beni beğenen kullanıcıları getir
   getUsersWhoLikedMe: async (limit: number = 10): Promise<UsersWhoLikedMeResponse> => {
+    console.log('🔄 [API] getUsersWhoLikedMe çağrısı:', { limit });
     const authHeader = await createAuthHeader();
-    const response = await api.get(`/api/swipes/users-who-liked-me?limit=${limit}`, authHeader);
-    return response.data;
+    try {
+      const response = await api.get(`/api/swipes/users-who-liked-me?limit=${limit}`, authHeader);
+      console.log('✅ [API] getUsersWhoLikedMe yanıtı:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] getUsersWhoLikedMe hatası:', error.response?.data || error.message);
+      throw error;
+    }
   }
 };
 
@@ -471,23 +501,44 @@ export const swipeApi = {
 export const matchApi = {
   // Tüm eşleşmeleri getir
   getMatches: async (): Promise<{ matches: Match[] }> => {
+    console.log('🔄 [API] getMatches çağrısı');
     const authHeader = await createAuthHeader();
-    const response = await api.get('/api/matches', authHeader);
-    return response.data;
+    try {
+      const response = await api.get('/api/matches', authHeader);
+      console.log('✅ [API] getMatches yanıtı:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] getMatches hatası:', error.response?.data || error.message);
+      throw error;
+    }
   },
 
   // Belirli bir eşleşme detayı
   getMatchDetail: async (matchId: number): Promise<Match> => {
+    console.log('🔄 [API] getMatchDetail çağrısı:', { matchId });
     const authHeader = await createAuthHeader();
-    const response = await api.get(`/api/matches/${matchId}`, authHeader);
-    return response.data;
+    try {
+      const response = await api.get(`/api/matches/${matchId}`, authHeader);
+      console.log('✅ [API] getMatchDetail yanıtı:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] getMatchDetail hatası:', error.response?.data || error.message);
+      throw error;
+    }
   },
 
   // Eşleşmeyi sil
   deleteMatch: async (matchId: number): Promise<{ success: boolean }> => {
+    console.log('🔄 [API] deleteMatch çağrısı:', { matchId });
     const authHeader = await createAuthHeader();
-    const response = await api.delete(`/api/matches/${matchId}`, authHeader);
-    return response.data;
+    try {
+      const response = await api.delete(`/api/matches/${matchId}`, authHeader);
+      console.log('✅ [API] deleteMatch yanıtı:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] deleteMatch hatası:', error.response?.data || error.message);
+      throw error;
+    }
   }
 };
 
