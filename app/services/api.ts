@@ -234,6 +234,64 @@ export interface PotentialMatchesResponse {
   hasMore: boolean;
 }
 
+export interface PhotoItem {
+  id: number;
+  imageUrl: string;
+  isPrimary: boolean;
+  uploadDate: string;
+}
+
+export interface UserActivity {
+  activityType: string;
+  description: string;
+  timestamp: string;
+}
+
+export interface SwipeLimitInfo {
+  isPremium: boolean;
+  remainingSwipes: number;
+  totalSwipes: number;
+  nextResetTime: string;
+}
+
+export interface DiscoverUser {
+  id: number;
+  username: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  age: number;
+  gender: string;
+  bio: string;
+  zodiacSign: string;
+  zodiacSignDisplay: string;
+  compatibilityScore: number;
+  compatibilityMessage: string;
+  profileImageUrl: string;
+  photos: PhotoItem[];
+  photoCount: number;
+  isPremium: boolean;
+  lastActiveTime: string;
+  activityStatus: string;
+  location: string;
+  activities: UserActivity[];
+  isVerified: boolean;
+  isNewUser: boolean;
+  hasLikedCurrentUser: boolean;
+  profileCompleteness: string;
+}
+
+export interface DiscoverResponse {
+  success: boolean;
+  users: DiscoverUser[];
+  totalCount: number;
+  hasMore: boolean;
+  currentPage: number;
+  limit: number;
+  swipeLimitInfo: SwipeLimitInfo;
+  message?: string;
+}
+
 // API'yi kullanırken gerekli token header'ını oluşturur
 const createAuthHeader = async () => {
   const token = await getToken();
@@ -440,6 +498,20 @@ export const premiumApi = {
 
 // Swipe API'leri
 export const swipeApi = {
+  // Yeni discover endpoint - Ana swipe endpoint
+  getDiscoverUsers: async (page: number = 1, limit: number = 10): Promise<DiscoverResponse> => {
+    console.log('🔄 [API] getDiscoverUsers çağrısı:', { page, limit });
+    const authHeader = await createAuthHeader();
+    try {
+      const response = await api.get(`/api/swipes/discover?page=${page}&limit=${limit}`, authHeader);
+      console.log('✅ [API] getDiscoverUsers yanıtı:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] getDiscoverUsers hatası:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
   // Potansiyel eşleşmeleri getir - Ana endpoint
   getPotentialMatches: async (page: number = 1, limit: number = 10): Promise<PotentialMatchesResponse> => {
     console.log('🔄 [API] getPotentialMatches çağrısı:', { page, limit });
@@ -485,13 +557,13 @@ export const swipeApi = {
     }
   },
 
-  // Başka bir alternatif - Discover endpoint
-  getDiscoverUsers: async (page: number = 1, limit: number = 10): Promise<PotentialMatchesResponse> => {
-    console.log('🔄 [API] getDiscoverUsers çağrısı:', { page, limit });
+  // Başka bir alternatif - Discover endpoint (Eski)
+  getDiscoverUsersOld: async (page: number = 1, limit: number = 10): Promise<PotentialMatchesResponse> => {
+    console.log('🔄 [API] getDiscoverUsersOld çağrısı:', { page, limit });
     const authHeader = await createAuthHeader();
     try {
       const response = await api.get(`/api/discover?page=${page}&limit=${limit}`, authHeader);
-      console.log('✅ [API] getDiscoverUsers yanıtı:', response.data);
+      console.log('✅ [API] getDiscoverUsersOld yanıtı:', response.data);
       
       // Response formatını PotentialMatchesResponse'a uyarla
       if (response.data.users) {
@@ -511,7 +583,7 @@ export const swipeApi = {
       
       return { users: [], totalCount: 0, hasMore: false };
     } catch (error: any) {
-      console.error('❌ [API] getDiscoverUsers hatası:', error.response?.data || error.message);
+      console.error('❌ [API] getDiscoverUsersOld hatası:', error.response?.data || error.message);
       throw error;
     }
   },
