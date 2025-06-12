@@ -294,15 +294,24 @@ export interface DiscoverResponse {
 
 // API'yi kullanırken gerekli token header'ını oluşturur
 const createAuthHeader = async () => {
-  const token = await getToken();
-  if (!token) {
-    throw new Error('Oturum açık değil');
-  }
-  return {
-    headers: {
-      Authorization: `Bearer ${token}`
+  try {
+    const token = await getToken();
+    console.log('🔑 [API] Token kontrolü:', token ? 'Token mevcut' : 'Token bulunamadı');
+    
+    if (!token) {
+      throw new Error('Token bulunamadı');
     }
-  };
+    
+    return {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    };
+  } catch (error) {
+    console.error('❌ [API] Token oluşturma hatası:', error);
+    throw error;
+  }
 };
 
 // Kullanıcı işlemleri için API
@@ -503,11 +512,22 @@ export const swipeApi = {
     console.log('🔄 [API] getDiscoverUsers çağrısı:', { page, limit });
     const authHeader = await createAuthHeader();
     try {
+      console.log('🔍 [API] Discover isteği gönderiliyor...');
       const response = await api.get(`/api/swipes/discover?page=${page}&limit=${limit}`, authHeader);
-      console.log('✅ [API] getDiscoverUsers yanıtı:', response.data);
+      console.log('✅ [API] getDiscoverUsers yanıtı:', {
+        success: response.data.success,
+        userCount: response.data.users?.length || 0,
+        totalCount: response.data.totalCount,
+        hasMore: response.data.hasMore,
+        message: response.data.message
+      });
       return response.data;
     } catch (error: any) {
-      console.error('❌ [API] getDiscoverUsers hatası:', error.response?.data || error.message);
+      console.error('❌ [API] getDiscoverUsers hatası:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data
+      });
       throw error;
     }
   },

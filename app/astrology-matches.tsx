@@ -20,7 +20,6 @@ import { useAuth } from './context/AuthContext';
 import { useProfile } from './context/ProfileContext';
 import { DiscoverResponse, DiscoverUser, SwipeLimitInfo, swipeApi } from './services/api';
 import { getZodiacEmoji } from './types/zodiac';
-import { getToken } from './utils/tokenStorage';
 
 const { width, height } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.92;
@@ -358,59 +357,40 @@ export default function AstrologyMatchesScreen() {
   const loadDiscoverUsers = async () => {
     try {
       setIsLoading(true);
-      console.log('🔄 Discover kullanıcıları yükleniyor...');
+      console.log('🔄 [DISCOVER] Kullanıcılar yükleniyor...');
       
-      const token = await getToken();
-      if (!token) {
-        console.log('❌ Token bulunamadı');
-        Alert.alert('Oturum Hatası', 'Lütfen önce giriş yapın.');
-        return;
-      }
+      const response = await swipeApi.getDiscoverUsers(1, 10);
+      console.log('✅ [DISCOVER] API Yanıtı:', JSON.stringify(response, null, 2));
       
-      const response: DiscoverResponse = await swipeApi.getDiscoverUsers(currentPage, 10);
-      
-      if (response.success && response.users && response.users.length > 0) {
-        console.log('✅ Discover kullanıcıları yüklendi:', response.users.length);
-        
+      if (response.success && response.users) {
+        console.log(`📊 [DISCOVER] ${response.users.length} kullanıcı bulundu`);
         setDiscoverUsers(response.users);
         setSwipeLimitInfo(response.swipeLimitInfo);
-        
-        // Photo index'lerini initialize et
-        const indexes: Record<number, number> = {};
-        response.users.forEach(user => {
-          indexes[user.id] = 0;
-        });
-        setPhotoIndexes(indexes);
-        
-        console.log('📊 Swipe limit bilgisi:', response.swipeLimitInfo);
       } else {
-        console.log('⚠️ Hiç kullanıcı bulunamadı veya limit doldu');
+        console.warn('⚠️ [DISCOVER] API başarılı ama kullanıcı listesi boş:', response.message);
         setDiscoverUsers([]);
-        
-        if (response.message) {
-          Alert.alert(
-            'Swipe Limiti',
-            response.message,
-            [
-              { text: 'Tamam', style: 'default' as const },
-              ...(response.swipeLimitInfo?.isPremium ? [] : [
-                { text: 'Premium Al', style: 'default' as const, onPress: () => router.push('/premium' as any) }
-              ])
-            ]
-          );
-        }
       }
     } catch (error: any) {
-      console.error('❌ Discover kullanıcı yükleme hatası:', error);
-      setDiscoverUsers([]);
+      console.error('❌ [DISCOVER] Hata detayı:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
       
       if (error.response?.status === 401) {
-        Alert.alert('Oturum Süresi Doldu', 'Lütfen tekrar giriş yapın.');
-      } else if (error.response?.data?.message) {
-        Alert.alert('Hata', error.response.data.message);
+        Alert.alert(
+          'Oturum Süresi Doldu',
+          'Lütfen tekrar giriş yapın.',
+          [{ text: 'Tamam', style: 'default' as const }]
+        );
       } else {
-        Alert.alert('Hata', 'Kullanıcılar yüklenirken bir hata oluştu.');
+        Alert.alert(
+          'Hata',
+          'Kullanıcılar yüklenirken bir hata oluştu. Lütfen tekrar deneyin.',
+          [{ text: 'Tamam', style: 'default' as const }]
+        );
       }
+      setDiscoverUsers([]);
     } finally {
       setIsLoading(false);
     }
