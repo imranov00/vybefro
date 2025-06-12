@@ -1,6 +1,7 @@
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -17,7 +18,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import ReanimatedAnimated, {
+import Reanimated, {
     Easing,
     useAnimatedStyle,
     useSharedValue,
@@ -26,11 +27,10 @@ import ReanimatedAnimated, {
 } from 'react-native-reanimated';
 import { useAuth } from '../../context/AuthContext';
 import { useProfile, UserProfile } from '../../context/ProfileContext';
-import { premiumApi } from '../../services/api';
 import { getZodiacDisplay, getZodiacEmoji } from '../../types/zodiac';
 
 const { width, height } = Dimensions.get('window');
-const DRAWER_WIDTH = width * 0.85;
+const DRAWER_WIDTH = width * 0.88;
 
 type ProfileDrawerProps = {
   visible: boolean;
@@ -41,308 +41,286 @@ type ProfileDrawerProps = {
 
 export default function ProfileDrawer({ visible, onClose, user, isLoading = false }: ProfileDrawerProps) {
   const colorScheme = useColorScheme();
-  const { currentMode, switchMode, logout, isPremium, isLoggedIn, setPremium } = useAuth();
+  const { currentMode, switchMode, logout, isPremium, isLoggedIn } = useAuth();
   const { fetchUserProfile } = useProfile();
   const router = useRouter();
-  const [purchasingPremium, setPurchasingPremium] = useState(false);
-  const animation = useRef(new Animated.Value(DRAWER_WIDTH)).current;
   const [isRendered, setIsRendered] = useState(visible);
   
-  // Premium badge animasyonu
-  const premiumGlow = useSharedValue(0);
-  const premiumScale = useSharedValue(1);
+  const slideAnimation = useRef(new Animated.Value(DRAWER_WIDTH)).current;
+  const fadeAnimation = useRef(new Animated.Value(0)).current;
   
-  // Sadece login durumu değiştiğinde profil bilgilerini yenile
+  // Premium animasyon
+  const premiumGlow = useSharedValue(0);
+  
   useEffect(() => {
     if (isLoggedIn && visible) {
       fetchUserProfile();
     }
-  }, [isLoggedIn]); // fetchUserProfile ve visible dependency'sini kaldırdık
+  }, [isLoggedIn]);
 
   useEffect(() => {
     if (visible) {
       setIsRendered(true);
+      // Slide ve fade animasyonlarını paralel çalıştır
+      Animated.parallel([
+        Animated.timing(slideAnimation, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnimation, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        })
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(slideAnimation, {
+          toValue: DRAWER_WIDTH,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnimation, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        })
+      ]).start(() => {
+        setIsRendered(false);
+      });
     }
     
-    Animated.timing(animation, {
-      toValue: visible ? 0 : DRAWER_WIDTH,
-      duration: 350,
-      useNativeDriver: true,
-    }).start(() => {
-      if (!visible) {
-        setIsRendered(false);
-      }
-    });
-    
-    // Premium animasyonunu başlat
-    if (isPremium) {
-      // Neon glow animasyonu
+    // Premium glow animasyonu
+    if (isPremium && visible) {
       premiumGlow.value = withRepeat(
         withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.sin) }),
         -1,
         true
       );
-      
-      // Hafif scale animasyonu
-      premiumScale.value = withRepeat(
-        withTiming(1.05, { duration: 3000, easing: Easing.inOut(Easing.sin) }),
-        -1,
-        true
-      );
     }
-  }, [visible, animation, isPremium]);
+  }, [visible, isPremium]);
 
-  const animatedPremiumStyle = useAnimatedStyle(() => {
-    return {
-      shadowOpacity: 0.6 + (premiumGlow.value * 0.4),
-      shadowRadius: 8 + (premiumGlow.value * 12),
-      transform: [{ scale: premiumScale.value }],
-    };
-  });
+  const animatedPremiumStyle = useAnimatedStyle(() => ({
+    shadowOpacity: 0.3 + (premiumGlow.value * 0.5),
+    shadowRadius: 10 + (premiumGlow.value * 15),
+    transform: [{ scale: 1 + (premiumGlow.value * 0.02) }],
+  }));
 
-  if (!isRendered) {
-    return null;
-  }
+  if (!isRendered) return null;
 
-  // Mode'a göre renkler
+  // Mode'a göre tema renkleri
   const getThemeColors = () => {
     if (currentMode === 'music') {
       return {
+        primary: '#1DB954',
+        secondary: '#1E7E34',
+        accent: '#FFD700',
         gradient: ['#1DB954', '#1E7E34', '#145A24'],
-        accent: '#1DB954',
-        secondary: '#FFD700',
-        light: 'rgba(29, 185, 84, 0.1)',
-        border: 'rgba(255, 215, 0, 0.3)'
-      };
-    } else {
-      return {
-        gradient: ['#8000FF', '#5B00B5', '#3D007A'],
-        accent: '#8000FF',
-        secondary: '#FFFFFF',
-        light: 'rgba(128, 0, 255, 0.1)',
-        border: 'rgba(255, 255, 255, 0.3)'
+        cardBg: 'rgba(29, 185, 84, 0.1)',
+        iconBg: 'rgba(29, 185, 84, 0.15)',
       };
     }
+    return {
+      primary: '#8000FF',
+      secondary: '#5B00B5', 
+      accent: '#FFFFFF',
+      gradient: ['#8000FF', '#5B00B5', '#3D007A'],
+      cardBg: 'rgba(128, 0, 255, 0.1)',
+      iconBg: 'rgba(128, 0, 255, 0.15)',
+    };
   };
 
-  const themeColors = getThemeColors();
+  const theme = getThemeColors();
 
-  // Profil ekranına yönlendir - mode'a göre doğru ekrana yönlendir
+  // Navigation handlers
   const navigateToProfile = () => {
     onClose();
-    setTimeout(() => {
-      router.push('/profileScreen' as any);
-    }, 300);
+    setTimeout(() => router.push('/profileScreen' as any), 300);
   };
 
-  // Çıkış yap
+  const handlePremiumPress = () => {
+    onClose();
+    setTimeout(() => router.push('/(profile)/premiumScreen' as any), 300);
+  };
+
   const handleLogout = () => {
-    onClose();
-    setTimeout(() => {
-      logout();
-    }, 300);
+    Alert.alert(
+      'Çıkış Yap',
+      'Hesabınızdan çıkmak istediğinizden emin misiniz?',
+      [
+        { text: 'İptal', style: 'cancel' },
+        { 
+          text: 'Çıkış Yap', 
+          style: 'destructive',
+          onPress: () => {
+            onClose();
+            setTimeout(() => logout(), 300);
+          }
+        }
+      ]
+    );
   };
 
-  // Premium satın alma fonksiyonu
-  const handlePremiumPurchase = async () => {
-    // Premium ise veya değilse her durumda premium sayfasına yönlendir
-    onClose();
-    setTimeout(() => {
-      router.push('/(profile)/premiumScreen' as any);
-    }, 300);
-  };
-
-  // Premium iptal fonksiyonu
-  const handlePremiumCancel = async () => {
-    try {
-      setPurchasingPremium(true);
-      
-      // Premium iptal API çağrısı
-      const response = await premiumApi.cancel();
-
-      if (response.success) {
-        // Premium durumunu güncelle
-        setPremium(false);
-        
-        Alert.alert(
-          'İptal Edildi',
-          'Premium üyeliğiniz başarıyla iptal edildi.',
-          [
-            {
-              text: 'Tamam',
-              style: 'default'
-            }
-          ]
-        );
-      } else {
-        Alert.alert(
-          'Hata',
-          response.message || 'Premium iptal işlemi başarısız oldu.',
-          [{ text: 'Tamam', style: 'default' }]
-        );
-      }
-    } catch (error) {
-      console.error('Premium cancel error:', error);
-      Alert.alert(
-        'Hata',
-        'Premium iptal sırasında bir hata oluştu. Lütfen tekrar deneyin.',
-        [{ text: 'Tamam', style: 'default' }]
-      );
-    } finally {
-      setPurchasingPremium(false);
-    }
-  };
-
-  // Profil fotoğrafı ve bilgileri görünümü
-  const renderProfileContent = () => {
+  // Profil içerik renderer
+  const renderProfileHeader = () => {
     if (isLoading) {
       return (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={themeColors.accent} />
-          <Text style={[styles.loadingText, { color: themeColors.accent }]}>
-            Profil yükleniyor...
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={[styles.loadingText, { color: theme.primary }]}>
+            Yükleniyor...
           </Text>
         </View>
       );
     }
 
     return (
-      <View style={styles.profileSection}>
-        {/* Profil Avatar */}
-        <View style={[styles.avatarContainer, { borderColor: themeColors.accent }]}>
-          <View
-            style={[styles.avatarGradient, { backgroundColor: themeColors.accent }]}
+      <View style={styles.profileHeader}>
+        {/* Avatar */}
+        <View style={[styles.avatarContainer, { borderColor: theme.primary }]}>
+          <LinearGradient
+            colors={theme.gradient as any}
+            style={styles.avatarGradient}
           >
             <Image
               source={{ uri: user.profileImage || 'https://via.placeholder.com/120' }}
-              style={styles.profileImage}
+              style={styles.avatarImage}
             />
-          </View>
-          
-          {/* Online Status */}
-          <View style={[styles.onlineStatus, { backgroundColor: '#4CAF50' }]} />
+          </LinearGradient>
+          <View style={styles.onlineIndicator} />
         </View>
-        
+
         {/* Profil Bilgileri */}
-        <Text style={styles.profileName}>{user.name}</Text>
-        <Text style={styles.profileUsername}>@{user.username}</Text>
-        
+        <Text style={styles.userName}>{user.name}</Text>
+        <Text style={styles.userHandle}>@{user.username}</Text>
+
+        {/* Premium Badge */}
+        {isPremium && (
+          <Reanimated.View style={[styles.premiumBadge, animatedPremiumStyle]}>
+            <LinearGradient
+              colors={['#FFD700', '#FFA500'] as any}
+              style={styles.premiumGradient}
+            >
+              <Ionicons name="diamond" size={16} color="#FFF" />
+              <Text style={styles.premiumText}>PREMIUM</Text>
+            </LinearGradient>
+          </Reanimated.View>
+        )}
+
         {/* Burç Bilgisi */}
         {(user.zodiacSign || user.zodiacSignTurkish) && (
-          <View style={[styles.zodiacBadge, { 
-            borderColor: themeColors.accent,
-          }]}>
+          <View style={[styles.zodiacCard, { borderColor: theme.primary, backgroundColor: theme.cardBg }]}>
             <Text style={styles.zodiacEmoji}>
               {getZodiacEmoji(user.zodiacSign || '')}
             </Text>
-            <Text style={[styles.zodiacText, { 
-              color: themeColors.accent,
-            }]}>
-              {(() => {
-                // Burç gösterimi düzeltildi
-                if (user.zodiacSign) {
-                  // Yeni sistem - enum'dan tam display
-                  return getZodiacDisplay(user.zodiacSign);
-                }
-                
-                if (user.zodiacSignTurkish) {
-                  // Eski sistem - sadece Türkçe isim
-                  return user.zodiacSignTurkish;
-                }
-                
-                return 'Burç Belirtilmemiş';
-              })()}
+            <Text style={[styles.zodiacName, { color: theme.primary }]}>
+              {user.zodiacSign ? getZodiacDisplay(user.zodiacSign) : user.zodiacSignTurkish}
             </Text>
           </View>
         )}
 
-        {/* Premium Badge - Burç altında */}
-        {isPremium && (
-          <ReanimatedAnimated.View style={[styles.premiumBadgeLuxury, animatedPremiumStyle]}>
-            {/* Arka plan gradient efekti */}
-            <View style={styles.premiumGradientBackground} />
-            
-            {/* Ana içerik */}
-            <View style={styles.premiumBadgeInner}>
-              <View style={styles.premiumIconContainer}>
-                <Ionicons name="diamond" size={18} color="#FFD700" />
-              </View>
-              <ReanimatedAnimated.Text style={[styles.premiumTextLuxury, animatedPremiumStyle]}>
-                PREMIUM
-              </ReanimatedAnimated.Text>
-              <View style={styles.premiumIconContainer}>
-                <Ionicons name="diamond" size={18} color="#FFD700" />
-              </View>
-            </View>
-            
-            {/* Çoklu glow efektleri */}
-            <View style={styles.premiumGlowEffect} />
-            <View style={styles.premiumInnerGlow} />
-            
-            {/* Shimmer efekti */}
-            <ReanimatedAnimated.View style={[styles.premiumShimmer, {
-              transform: [{
-                translateX: premiumGlow.value * 200 - 100
-              }]
-            }]} />
-          </ReanimatedAnimated.View>
-        )}
-
-        {/* Stats */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statItem}>
+        {/* İstatistikler */}
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
             <Text style={styles.statNumber}>42</Text>
-            <Text style={styles.statLabel}>Eşleşmeler</Text>
+            <Text style={styles.statLabel}>Eşleşme</Text>
           </View>
-          <View style={[styles.statDivider, { backgroundColor: themeColors.border }]} />
-          <View style={styles.statItem}>
+          <View style={styles.statCard}>
             <Text style={styles.statNumber}>18</Text>
-            <Text style={styles.statLabel}>Beğeniler</Text>
+            <Text style={styles.statLabel}>Beğeni</Text>
           </View>
-          <View style={[styles.statDivider, { backgroundColor: themeColors.border }]} />
-          <View style={styles.statItem}>
+          <View style={styles.statCard}>
             <Text style={styles.statNumber}>95%</Text>
-            <Text style={styles.statLabel}>Uyumluluk</Text>
+            <Text style={styles.statLabel}>Uyum</Text>
           </View>
         </View>
       </View>
     );
   };
 
+  // Menu items
+  const menuItems = [
+    {
+      icon: 'person',
+      title: 'Profilim',
+      color: theme.primary,
+      onPress: navigateToProfile,
+    },
+    {
+      icon: 'diamond',
+      title: isPremium ? 'Premium Yönetimi' : 'Premium Ol',
+      color: '#FFD700',
+      onPress: handlePremiumPress,
+    },
+    {
+      icon: 'settings',
+      title: 'Ayarlar',
+      color: '#9CA3AF',
+      onPress: () => {
+        onClose();
+        setTimeout(() => router.push('/settingsScreen' as any), 300);
+      },
+    },
+    {
+      icon: 'notifications',
+      title: 'Bildirimler',
+      color: '#3B82F6',
+      onPress: () => {
+        onClose();
+        // Notifications handler
+      },
+    },
+    {
+      icon: 'help-circle',
+      title: 'Yardım',
+      color: '#A855F7',
+      onPress: () => {
+        onClose();
+        // Help handler  
+      },
+    },
+  ];
+
   return (
     <View style={styles.container}>
-      {/* Karartılmış arka plan */}
-      <TouchableOpacity 
-        style={styles.backdrop} 
-        activeOpacity={1} 
-        onPress={onClose}
-      />
+      {/* Backdrop */}
+      <Animated.View style={[styles.backdrop, { opacity: fadeAnimation }]}>
+        <TouchableOpacity 
+          style={StyleSheet.absoluteFillObject}
+          activeOpacity={1} 
+          onPress={onClose}
+        />
+      </Animated.View>
       
-      {/* Drawer paneli */}
+      {/* Drawer */}
       <Animated.View 
         style={[
           styles.drawer,
-          { transform: [{ translateX: animation }] }
+          { transform: [{ translateX: slideAnimation }] }
         ]}
       >
-        {/* Arka plan gradyanı */}
-        <View
-          style={[styles.drawerGradient, { backgroundColor: themeColors.accent }]}
+        <LinearGradient
+          colors={['rgba(0,0,0,0.95)', 'rgba(0,0,0,0.9)'] as any}
+          style={styles.drawerBackground}
         />
         
         <BlurView
-          intensity={Platform.OS === 'ios' ? 40 : 80}
+          intensity={Platform.OS === 'ios' ? 50 : 80}
           tint="dark"
-          style={styles.blurContainer}
+          style={styles.blurOverlay}
         >
-          <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollView}>
+          <ScrollView 
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+          >
             {/* Header */}
-            <View style={styles.headerContainer}>
+            <View style={styles.drawerHeader}>
               <View style={styles.headerLeft}>
-                <View style={[styles.modeIndicator, { backgroundColor: themeColors.accent }]}>
+                <View style={[styles.modeIcon, { backgroundColor: theme.primary }]}>
                   <Ionicons 
                     name={currentMode === 'astrology' ? 'planet' : 'musical-notes'} 
-                    size={18} 
+                    size={20} 
                     color="white" 
                   />
                 </View>
@@ -350,129 +328,40 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
               </View>
               
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <Ionicons name="close" size={26} color="white" />
+                <Ionicons name="close" size={24} color="white" />
               </TouchableOpacity>
             </View>
             
-            {/* Profil İçeriği */}
-            {renderProfileContent()}
+            {/* Profil Header */}
+            {renderProfileHeader()}
             
-            {/* Menü Seçenekleri */}
-            <View style={styles.menuContainer}>
+            {/* Menu */}
+            <View style={styles.menuSection}>
               <Text style={styles.sectionTitle}>Menü</Text>
               
-              <TouchableOpacity 
-                style={styles.menuItem}
-                onPress={navigateToProfile}
-              >
-                <View style={[styles.menuIcon, { 
-                  backgroundColor: `${themeColors.accent}15`,
-                }]}>
-                  <Ionicons name="person" size={26} color={themeColors.accent} />
-                </View>
-                <Text style={styles.menuText}>Profil</Text>
-                <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.6)" />
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={[styles.menuItem, purchasingPremium && styles.menuItemDisabled]}
-                onPress={handlePremiumPurchase}
-                disabled={purchasingPremium}
-              >
-                <View style={[styles.menuIcon, { 
-                  backgroundColor: 'rgba(255, 215, 0, 0.15)',
-                }]}>
-                  {purchasingPremium ? (
-                    <ActivityIndicator size="small" color="#FFD700" />
-                  ) : (
-                    <Ionicons name="diamond" size={26} color="#FFD700" />
-                  )}
-                </View>
-                <Text style={styles.menuText}>
-                  {isPremium ? 'Premium Yönetimi' : 'Premium'}
-                </Text>
-                {!purchasingPremium && (
-                  <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.6)" />
-                )}
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.menuItem}
-                onPress={() => {
-                  onClose();
-                  router.push('/settingsScreen' as any);
-                }}
-              >
-                <View style={[styles.menuIcon, { 
-                  backgroundColor: 'rgba(156, 163, 175, 0.15)',
-                }]}>
-                  <Ionicons name="settings" size={26} color="#9CA3AF" />
-                </View>
-                <Text style={styles.menuText}>Ayarlar</Text>
-                <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.6)" />
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={styles.menuItem}
-                onPress={() => {
-                  onClose();
-                  // Notifications page
-                }}
-              >
-                <View style={[styles.menuIcon, { 
-                  backgroundColor: 'rgba(59, 130, 246, 0.15)',
-                }]}>
-                  <Ionicons name="notifications" size={26} color="#3B82F6" />
-                </View>
-                <Text style={styles.menuText}>Bildirimler</Text>
-                <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.6)" />
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={styles.menuItem}
-                onPress={() => {
-                  onClose();
-                  // Privacy page
-                }}
-              >
-                <View style={[styles.menuIcon, { 
-                  backgroundColor: 'rgba(34, 197, 94, 0.15)',
-                }]}>
-                  <Ionicons name="shield-checkmark" size={26} color="#22C55E" />
-                </View>
-                <Text style={styles.menuText}>Gizlilik</Text>
-                <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.6)" />
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={styles.menuItem}
-                onPress={() => {
-                  onClose();
-                  // Help page
-                }}
-              >
-                <View style={[styles.menuIcon, { 
-                  backgroundColor: 'rgba(168, 85, 247, 0.15)',
-                }]}>
-                  <Ionicons name="help-circle" size={26} color="#A855F7" />
-                </View>
-                <Text style={styles.menuText}>Yardım</Text>
-                <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.6)" />
-              </TouchableOpacity>
+              {menuItems.map((item, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.menuItem}
+                  onPress={item.onPress}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.menuIcon, { backgroundColor: `${item.color}20` }]}>
+                    <Ionicons name={item.icon as any} size={22} color={item.color} />
+                  </View>
+                  <Text style={styles.menuTitle}>{item.title}</Text>
+                  <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.5)" />
+                </TouchableOpacity>
+              ))}
             </View>
             
-            {/* Çıkış */}
-            <View style={styles.logoutContainer}>
-              <TouchableOpacity 
-                style={styles.logoutButton}
-                onPress={handleLogout}
-              >
-                <Ionicons name="log-out-outline" size={20} color="#FF6B6B" />
-                <Text style={styles.logoutText}>Çıkış Yap</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.bottomSpacer} />
+            {/* Logout */}
+            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+              <Ionicons name="log-out-outline" size={20} color="#FF6B6B" />
+              <Text style={styles.logoutText}>Çıkış Yap</Text>
+            </TouchableOpacity>
+            
+            <View style={styles.bottomSpace} />
           </ScrollView>
         </BlurView>
       </Animated.View>
@@ -487,7 +376,7 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
   },
   drawer: {
     position: 'absolute',
@@ -496,382 +385,229 @@ const styles = StyleSheet.create({
     width: DRAWER_WIDTH,
     height: '100%',
     shadowColor: '#000',
-    shadowOffset: {
-      width: -8,
-      height: 0,
-    },
-    shadowOpacity: 0.6,
-    shadowRadius: 20,
-    elevation: 25,
+    shadowOffset: { width: -5, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 15,
+    elevation: 20,
   },
-  drawerGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+  drawerBackground: {
+    ...StyleSheet.absoluteFillObject,
   },
-  blurContainer: {
-    flex: 1,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(26, 26, 46, 0.95)',
-  },
-  scrollView: {
+  blurOverlay: {
     flex: 1,
   },
-  headerContainer: {
+  scrollContent: {
+    flexGrow: 1,
+  },
+  drawerHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    paddingTop: Platform.OS === 'ios' ? 60 : StatusBar.currentHeight ? StatusBar.currentHeight + 20 : 40,
+    paddingHorizontal: 24,
+    paddingTop: Platform.OS === 'ios' ? 60 : (StatusBar.currentHeight || 0) + 20,
+    paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: 'rgba(255,255,255,0.1)',
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  modeIndicator: {
+  modeIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileHeader: {
+    alignItems: 'center',
+    padding: 32,
+  },
+  avatarContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 3,
+    padding: 3,
+    marginBottom: 16,
+    position: 'relative',
+  },
+  avatarGradient: {
+    flex: 1,
+    borderRadius: 57,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 57,
+  },
+  onlineIndicator: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#4CAF50',
+    borderWidth: 3,
+    borderColor: 'white',
+  },
+  userName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  userHandle: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: 16,
+  },
+  premiumBadge: {
+    marginBottom: 16,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  premiumGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  premiumText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: 'white',
+    marginLeft: 6,
+    letterSpacing: 1,
+  },
+  zodiacCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 25,
+    borderWidth: 2,
+    marginBottom: 24,
+  },
+  zodiacEmoji: {
+    fontSize: 24,
+    marginRight: 8,
+  },
+  zodiacName: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    width: '100%',
+    justifyContent: 'space-between',
+  },
+  statCard: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    marginHorizontal: 4,
+    paddingVertical: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  statNumber: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.6)',
+    fontWeight: '500',
+  },
+  menuSection: {
+    padding: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 16,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    marginBottom: 8,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  menuIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'white',
-    letterSpacing: 0.5,
-  },
-  closeButton: {
-    padding: 10,
-    borderRadius: 25,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  profileSection: {
-    alignItems: 'center',
-    padding: 30,
-    paddingBottom: 25,
-  },
-  avatarContainer: {
-    width: 130,
-    height: 130,
-    borderRadius: 65,
-    borderWidth: 4,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    padding: 4,
-    marginBottom: 20,
-    position: 'relative',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.4,
-    shadowRadius: 15,
-    elevation: 15,
-  },
-  avatarGradient: {
-    flex: 1,
-    borderRadius: 61,
-    overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  profileImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 61,
-  },
-  onlineStatus: {
-    position: 'absolute',
-    bottom: 5,
-    right: 5,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#4CAF50',
-    borderWidth: 3,
-    borderColor: 'white',
-    shadowColor: '#4CAF50',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.6,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  profileName: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 6,
-    textAlign: 'center',
-    letterSpacing: 0.5,
-  },
-  profileUsername: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.6)',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  zodiacBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 30,
-    borderWidth: 2,
-    marginBottom: 25,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  zodiacEmoji: {
-    fontSize: 28,
-    marginRight: 10,
-  },
-  zodiacText: {
-    fontSize: 18,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 20,
-    padding: 25,
-    width: '100%',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 6,
-    letterSpacing: 0.5,
-  },
-  statLabel: {
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.6)',
-    fontWeight: '500',
-  },
-  statDivider: {
-    width: 1,
-    height: 35,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  menuContainer: {
-    padding: 25,
-    paddingTop: 30,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 20,
-    letterSpacing: 0.5,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  menuItemDisabled: {
-    opacity: 0.5,
-  },
-  menuIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
     marginRight: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 6,
   },
-  menuText: {
+  menuTitle: {
     flex: 1,
-    fontSize: 17,
+    fontSize: 16,
     color: 'white',
     fontWeight: '600',
-    letterSpacing: 0.3,
-  },
-  logoutContainer: {
-    padding: 25,
-    paddingTop: 15,
   },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 18,
+    marginHorizontal: 24,
+    paddingVertical: 16,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 107, 107, 0.12)',
+    backgroundColor: 'rgba(255, 107, 107, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 107, 107, 0.4)',
-    shadowColor: '#FF6B6B',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
+    borderColor: 'rgba(255, 107, 107, 0.3)',
   },
   logoutText: {
     fontSize: 16,
     color: '#FF6B6B',
-    fontWeight: '700',
-    marginLeft: 12,
-    letterSpacing: 0.5,
+    fontWeight: '600',
+    marginLeft: 8,
   },
-  bottomSpacer: {
+  bottomSpace: {
     height: 40,
   },
   loadingContainer: {
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 50,
+    padding: 40,
   },
   loadingText: {
-    marginTop: 20,
+    marginTop: 16,
     fontSize: 16,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  premiumBadgeLuxury: {
-    marginTop: 8,
-    marginBottom: 20,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255, 215, 0, 0.12)',
-    borderWidth: 2,
-    borderColor: '#FFD700',
-    shadowColor: '#FFD700',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.6,
-    shadowRadius: 12,
-    elevation: 15,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  premiumBadgeInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  premiumIconContainer: {
-    marginHorizontal: 8,
-  },
-  premiumTextLuxury: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFD700',
-    textAlign: 'center',
-    textShadowColor: '#FFD700',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 8,
-    letterSpacing: 2.5,
-    fontFamily: Platform.OS === 'ios' ? 'Helvetica-Bold' : 'sans-serif-medium',
-  },
-  premiumGradientBackground: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: 30,
-    backgroundColor: 'rgba(26, 26, 46, 0.8)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.3)',
-    zIndex: -3,
-  },
-  premiumGlowEffect: {
-    position: 'absolute',
-    top: -4,
-    left: -4,
-    right: -4,
-    bottom: -4,
-    borderRadius: 34,
-    backgroundColor: 'rgba(255, 215, 0, 0.15)',
-    zIndex: -2,
-  },
-  premiumInnerGlow: {
-    position: 'absolute',
-    top: -8,
-    left: -8,
-    right: -8,
-    bottom: -8,
-    borderRadius: 38,
-    backgroundColor: 'rgba(255, 215, 0, 0.08)',
-    zIndex: -1,
-  },
-  premiumShimmer: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    borderRadius: 30,
-    opacity: 0.6,
-    zIndex: 1,
+    color: 'white',
   },
 }); 
