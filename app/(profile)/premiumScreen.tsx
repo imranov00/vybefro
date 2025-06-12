@@ -23,18 +23,54 @@ import Animated, {
     withTiming
 } from 'react-native-reanimated';
 import { useAuth } from '../context/AuthContext';
-import { premiumApi, PremiumFeature, PremiumStatus } from '../services/api';
 
 const { width, height } = Dimensions.get('window');
 
+// Statik premium özellikler
+const premiumFeatures = [
+  {
+    id: '1',
+    title: 'Sınırsız Beğeni',
+    description: 'Günlük beğeni limitiniz olmayacak',
+    icon: 'heart'
+  },
+  {
+    id: '2',
+    title: 'Kimler Beğendi',
+    description: 'Sizi beğenen kişileri görün',
+    icon: 'eye'
+  },
+  {
+    id: '3',
+    title: 'Süper Beğeni',
+    description: 'Öne çıkmak için süper beğeni gönderin',
+    icon: 'star'
+  },
+  {
+    id: '4',
+    title: 'Gelişmiş Filtreler',
+    description: 'Daha detaylı arama kriterleri',
+    icon: 'options'
+  },
+  {
+    id: '5',
+    title: 'Reklamsız Deneyim',
+    description: 'Hiç reklam görmeden kullanın',
+    icon: 'remove-circle'
+  },
+  {
+    id: '6',
+    title: 'Öncelikli Destek',
+    description: '7/24 öncelikli müşteri desteği',
+    icon: 'headset'
+  }
+];
+
 export default function PremiumScreen() {
   const colorScheme = useColorScheme();
-  const { currentMode } = useAuth();
+  const { currentMode, isPremium, setPremium } = useAuth();
   const router = useRouter();
-  const [premiumStatus, setPremiumStatus] = useState<PremiumStatus | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('monthly');
   
   // Animasyon değerleri
   const shimmerAnim = useSharedValue(0);
@@ -54,8 +90,6 @@ export default function PremiumScreen() {
       -1,
       true
     );
-    
-    loadPremiumStatus();
   }, []);
 
   const animatedShimmerStyle = useAnimatedStyle(() => {
@@ -89,38 +123,27 @@ export default function PremiumScreen() {
 
   const themeColors = getThemeColors();
 
-  const loadPremiumStatus = async () => {
-    try {
-      setIsLoading(true);
-      const status = await premiumApi.getFeatures();
-      setPremiumStatus(status);
-    } catch (error: any) {
-      console.error('Premium durum yüklenemedi:', error);
-      Alert.alert('Hata', 'Premium bilgileri yüklenirken hata oluştu');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handlePurchase = async () => {
     try {
       setIsProcessing(true);
-      const response = await premiumApi.purchase({
-        plan: selectedPlan,
-        paymentMethod: 'card'
-      });
       
-      Alert.alert('Başarılı!', response.message, [
+      // Simülasyon için 2 saniye bekle
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Premium'u aktif et
+      setPremium(true);
+      
+      Alert.alert('Başarılı!', 'Premium üyeliğiniz aktif edildi!', [
         {
           text: 'Tamam',
           onPress: () => {
-            loadPremiumStatus(); // Durumu güncelle
+            router.back();
           }
         }
       ]);
     } catch (error: any) {
       console.error('Premium satın alma hatası:', error);
-      Alert.alert('Hata', error.response?.data?.message || 'Satın alma işlemi başarısız');
+      Alert.alert('Hata', 'Satın alma işlemi başarısız');
     } finally {
       setIsProcessing(false);
     }
@@ -138,19 +161,24 @@ export default function PremiumScreen() {
           onPress: async () => {
             try {
               setIsProcessing(true);
-              const response = await premiumApi.cancel();
               
-              Alert.alert('İptal Edildi', response.message, [
+              // Simülasyon için 2 saniye bekle
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              
+              // Premium'u iptal et
+              setPremium(false);
+              
+              Alert.alert('İptal Edildi', 'Premium üyeliğiniz iptal edildi.', [
                 {
                   text: 'Tamam',
                   onPress: () => {
-                    loadPremiumStatus(); // Durumu güncelle
+                    router.back();
                   }
                 }
               ]);
             } catch (error: any) {
               console.error('Premium iptal hatası:', error);
-              Alert.alert('Hata', error.response?.data?.message || 'İptal işlemi başarısız');
+              Alert.alert('Hata', 'İptal işlemi başarısız');
             } finally {
               setIsProcessing(false);
             }
@@ -164,7 +192,7 @@ export default function PremiumScreen() {
     router.back();
   };
 
-  const renderFeature = (feature: PremiumFeature) => (
+  const renderFeature = (feature: any) => (
     <View key={feature.id} style={styles.featureItem}>
       <View style={[styles.featureIcon, { backgroundColor: `${themeColors.accent}20` }]}>
         <Ionicons name={feature.icon as any} size={24} color={themeColors.accent} />
@@ -176,16 +204,6 @@ export default function PremiumScreen() {
       <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
     </View>
   );
-
-  if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <LinearGradient colors={themeColors.gradient} style={styles.background} />
-        <ActivityIndicator size="large" color={themeColors.accent} />
-        <Text style={styles.loadingText}>Premium bilgileri yükleniyor...</Text>
-      </View>
-    );
-  }
 
   return (
     <View style={styles.container}>
@@ -205,17 +223,14 @@ export default function PremiumScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* Premium Status */}
-        {premiumStatus?.isPremium ? (
+        {isPremium ? (
           <Animated.View style={[styles.statusCard, styles.premiumCard, animatedPulseStyle]}>
             <View style={styles.statusHeader}>
               <Ionicons name="diamond" size={32} color="#FFD700" />
               <Text style={styles.premiumStatusTitle}>Premium Aktif!</Text>
             </View>
             <Text style={styles.premiumStatusSubtitle}>
-              {premiumStatus.premiumUntil ? 
-                `Geçerlilik: ${new Date(premiumStatus.premiumUntil).toLocaleDateString('tr-TR')}` :
-                'Süresiz Premium Üyelik'
-              }
+              Premium özelliklerinin keyfini çıkarın!
             </Text>
             
             {/* Shimmer effect */}
@@ -237,42 +252,33 @@ export default function PremiumScreen() {
         <View style={styles.featuresSection}>
           <Text style={styles.sectionTitle}>Premium Özellikler</Text>
           
-          {premiumStatus?.features.map(renderFeature)}
+          {premiumFeatures.map(renderFeature)}
         </View>
 
         {/* Action Section */}
-        {!premiumStatus?.isPremium ? (
+        {!isPremium ? (
           <View style={styles.actionSection}>
             <Text style={styles.actionTitle}>Plan Seç</Text>
             
             {/* Plan Selection */}
             <View style={styles.planContainer}>
               <TouchableOpacity
-                style={[styles.planCard, selectedPlan === 'monthly' && styles.selectedPlan]}
-                onPress={() => setSelectedPlan('monthly')}
+                style={[styles.singlePlanCard, styles.selectedPlan]}
+                onPress={handlePurchase}
+                disabled={isProcessing}
               >
-                <Text style={[styles.planTitle, selectedPlan === 'monthly' && styles.selectedPlanText]}>
-                  Aylık
-                </Text>
-                <Text style={[styles.planPrice, selectedPlan === 'monthly' && styles.selectedPlanText]}>
-                  ₺29.99/ay
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.planCard, selectedPlan === 'yearly' && styles.selectedPlan]}
-                onPress={() => setSelectedPlan('yearly')}
-              >
-                <View style={styles.popularBadge}>
-                  <Text style={styles.popularText}>Popüler</Text>
+                <View style={styles.planHeader}>
+                  <Ionicons name="diamond" size={24} color="#FFD700" />
+                  <Text style={[styles.planTitle, styles.selectedPlanText]}>
+                    Premium Plan
+                  </Text>
                 </View>
-                <Text style={[styles.planTitle, selectedPlan === 'yearly' && styles.selectedPlanText]}>
-                  Yıllık
+                <Text style={[styles.planPrice, styles.selectedPlanText]}>
+                  ₺149.99/ay
                 </Text>
-                <Text style={[styles.planPrice, selectedPlan === 'yearly' && styles.selectedPlanText]}>
-                  ₺199.99/yıl
+                <Text style={styles.planDescription}>
+                  Tüm premium özellikler dahil
                 </Text>
-                <Text style={styles.planSavings}>%44 tasarruf!</Text>
               </TouchableOpacity>
             </View>
 
@@ -288,7 +294,7 @@ export default function PremiumScreen() {
                 <>
                   <Ionicons name="diamond" size={20} color="white" />
                   <Text style={styles.purchaseButtonText}>
-                    Premium'a Geç - {selectedPlan === 'monthly' ? '₺29.99' : '₺199.99'}
+                    Premium'a Geç - ₺149.99
                   </Text>
                 </>
               )}
@@ -312,6 +318,22 @@ export default function PremiumScreen() {
             </TouchableOpacity>
           </View>
         )}
+
+        {/* Güvenlik ve Garanti Bilgileri */}
+        <View style={styles.securitySection}>
+          <View style={styles.securityItem}>
+            <Ionicons name="shield-checkmark" size={20} color="#4CAF50" />
+            <Text style={styles.securityText}>Güvenli ödeme sistemi</Text>
+          </View>
+          <View style={styles.securityItem}>
+            <Ionicons name="refresh" size={20} color="#4CAF50" />
+            <Text style={styles.securityText}>İstediğin zaman iptal et</Text>
+          </View>
+          <View style={styles.securityItem}>
+            <Ionicons name="time" size={20} color="#4CAF50" />
+            <Text style={styles.securityText}>7 gün para iade garantisi</Text>
+          </View>
+        </View>
       </ScrollView>
     </View>
   );
@@ -327,16 +349,6 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    color: 'white',
-    fontSize: 16,
-    marginTop: 16,
   },
   header: {
     flexDirection: 'row',
@@ -472,12 +484,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   planContainer: {
-    flexDirection: 'row',
-    gap: 12,
     marginBottom: 24,
   },
-  planCard: {
-    flex: 1,
+  singlePlanCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 16,
     padding: 20,
@@ -486,28 +495,20 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.2)',
     position: 'relative',
   },
-  selectedPlan: {
-    borderColor: '#FFD700',
-    backgroundColor: 'rgba(255, 215, 0, 0.1)',
-  },
-  popularBadge: {
-    position: 'absolute',
-    top: -8,
-    backgroundColor: '#FF6B6B',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  popularText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: 'white',
+  planHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   planTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: 'white',
-    marginBottom: 8,
+    marginLeft: 8,
+  },
+  selectedPlan: {
+    borderColor: '#FFD700',
+    backgroundColor: 'rgba(255, 215, 0, 0.1)',
   },
   selectedPlanText: {
     color: '#FFD700',
@@ -518,10 +519,9 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.8)',
     marginBottom: 4,
   },
-  planSavings: {
-    fontSize: 12,
-    color: '#4CAF50',
-    fontWeight: '600',
+  planDescription: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
   },
   purchaseButton: {
     flexDirection: 'row',
@@ -551,5 +551,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#FF6B6B',
+  },
+  securitySection: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 16,
+    padding: 20,
+    marginTop: 8,
+  },
+  securityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  securityText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginLeft: 12,
   },
 }); 
