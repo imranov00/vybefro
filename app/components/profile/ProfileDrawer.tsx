@@ -4,23 +4,50 @@ import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Animated,
-    Dimensions,
-    Image,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  Image,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
+import ReanimatedAnimated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming
+} from 'react-native-reanimated';
 import { useAuth } from '../../context/AuthContext';
 import { UserProfile } from '../../context/ProfileContext';
 
 const { width, height } = Dimensions.get('window');
 const DRAWER_WIDTH = width * 0.85;
+
+// Burç adlarını İngilizce'den Türkçe'ye çeviren fonksiyon
+const translateZodiacSign = (englishSign: string): string => {
+  const zodiacTranslations: { [key: string]: string } = {
+    'Aries': 'Koç',
+    'Taurus': 'Boğa', 
+    'Gemini': 'İkizler',
+    'Cancer': 'Yengeç',
+    'Leo': 'Aslan',
+    'Virgo': 'Başak',
+    'Libra': 'Terazi',
+    'Scorpio': 'Akrep',
+    'Sagittarius': 'Yay',
+    'Capricorn': 'Oğlak',
+    'Aquarius': 'Kova',
+    'Pisces': 'Balık'
+  };
+  
+  return zodiacTranslations[englishSign] || englishSign;
+};
 
 type ProfileDrawerProps = {
   visible: boolean;
@@ -31,11 +58,14 @@ type ProfileDrawerProps = {
 
 export default function ProfileDrawer({ visible, onClose, user, isLoading = false }: ProfileDrawerProps) {
   const colorScheme = useColorScheme();
-  const { currentMode, switchMode, logout } = useAuth();
+  const { currentMode, switchMode, logout, isPremium } = useAuth();
   const isDark = colorScheme === 'dark';
   const animation = useRef(new Animated.Value(DRAWER_WIDTH)).current;
   const [isRendered, setIsRendered] = useState(visible);
   const router = useRouter();
+  
+  // Premium yazısı için animasyon
+  const premiumAnimation = useSharedValue(0);
   
   useEffect(() => {
     if (visible) {
@@ -51,7 +81,23 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
         setIsRendered(false);
       }
     });
-  }, [visible, animation]);
+    
+    // Premium animasyonunu başlat
+    if (isPremium) {
+      premiumAnimation.value = withRepeat(
+        withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        true
+      );
+    }
+  }, [visible, animation, isPremium]);
+
+  const animatedPremiumStyle = useAnimatedStyle(() => {
+    return {
+      opacity: 0.7 + premiumAnimation.value * 0.3,
+      transform: [{ scale: 0.95 + premiumAnimation.value * 0.1 }],
+    };
+  });
 
   if (!isRendered) {
     return null;
@@ -124,6 +170,13 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
           
           {/* Online Status */}
           <View style={[styles.onlineStatus, { backgroundColor: '#4CAF50' }]} />
+          
+          {/* Premium Badge */}
+          {isPremium && (
+            <ReanimatedAnimated.View style={[styles.premiumBadge, animatedPremiumStyle]}>
+              <ReanimatedAnimated.Text style={styles.premiumText}>PREMİUM</ReanimatedAnimated.Text>
+            </ReanimatedAnimated.View>
+          )}
         </View>
         
         {/* Profil Bilgileri */}
@@ -135,7 +188,7 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
           <View style={[styles.zodiacBadge, { backgroundColor: themeColors.light, borderColor: themeColors.accent }]}>
             <Ionicons name="planet" size={16} color={themeColors.accent} />
             <Text style={[styles.zodiacText, { color: themeColors.accent }]}>
-              {user.zodiacSignTurkish || user.zodiacSign || 'Burç Belirtilmemiş'}
+              {user.zodiacSignTurkish || translateZodiacSign(user.zodiacSign || '') || 'Burç Belirtilmemiş'}
             </Text>
           </View>
         )}
@@ -221,6 +274,20 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                   <Ionicons name="person-outline" size={20} color={themeColors.accent} />
                 </View>
                 <Text style={styles.menuText}>Profili Düzenle</Text>
+                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.6)" />
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.menuItem}
+                onPress={() => {
+                  onClose();
+                  router.push('/(profile)/premiumScreen' as any);
+                }}
+              >
+                <View style={[styles.menuIcon, { backgroundColor: '#FFD70020' }]}>
+                  <Ionicons name="diamond" size={20} color="#FFD700" />
+                </View>
+                <Text style={styles.menuText}>Premium</Text>
                 <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.6)" />
               </TouchableOpacity>
               
@@ -543,5 +610,29 @@ const styles = StyleSheet.create({
     marginTop: 15,
     fontSize: 16,
     fontWeight: '500',
+  },
+  premiumBadge: {
+    position: 'absolute',
+    bottom: -10,
+    left: '50%',
+    marginLeft: -30,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#FFD700',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  premiumText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#000',
+    textAlign: 'center',
   },
 }); 

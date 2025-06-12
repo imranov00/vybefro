@@ -114,6 +114,36 @@ export interface PhotoDescriptionRequest {
   description: string;
 }
 
+// Premium işlemleri için interface'ler
+export interface PremiumFeature {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+}
+
+export interface PremiumStatus {
+  isPremium: boolean;
+  premiumUntil: string | null;
+  features: PremiumFeature[];
+}
+
+export interface PremiumPurchaseRequest {
+  plan: 'monthly' | 'yearly';
+  paymentMethod: string;
+}
+
+export interface PremiumPurchaseResponse {
+  success: boolean;
+  message: string;
+  premiumUntil: string;
+}
+
+export interface PremiumCancelResponse {
+  success: boolean;
+  message: string;
+}
+
 // Çıkış isteği için interface
 export interface LogoutResponse {
   success: boolean;
@@ -294,6 +324,30 @@ export const userApi = {
   async updatePhotoDescription(photoId: string, data: PhotoDescriptionRequest): Promise<any> {
     const authHeader = await createAuthHeader();
     const response = await api.put(`/api/images/${photoId}/description`, data, authHeader);
+    return response.data;
+  }
+};
+
+// Premium işlemleri için API
+export const premiumApi = {
+  // Premium özelliklerini ve durumunu getirme
+  async getFeatures(): Promise<PremiumStatus> {
+    const authHeader = await createAuthHeader();
+    const response = await api.get('/api/premium/features', authHeader);
+    return response.data;
+  },
+  
+  // Premium satın alma
+  async purchase(data: PremiumPurchaseRequest): Promise<PremiumPurchaseResponse> {
+    const authHeader = await createAuthHeader();
+    const response = await api.post('/api/premium/purchase', data, authHeader);
+    return response.data;
+  },
+  
+  // Premium iptal etme
+  async cancel(): Promise<PremiumCancelResponse> {
+    const authHeader = await createAuthHeader();
+    const response = await api.post('/api/premium/cancel', {}, authHeader);
     return response.data;
   }
 };

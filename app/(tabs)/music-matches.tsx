@@ -102,8 +102,9 @@ const DAILY_MUSIC_SUGGESTIONS = [
 
 export default function MusicMatchesScreen() {
   const colorScheme = useColorScheme();
-  const [activeTab, setActiveTab] = useState<'matches' | 'suggestions' | 'playlists'>('matches');
+  const [activeTab, setActiveTab] = useState<'matches' | 'suggestions' | 'likes'>('matches');
   const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [isPremium, setIsPremium] = useState(false); // Premium durum kontrolü
   
   // Animasyon değerleri
   const fadeAnim = useSharedValue(1);
@@ -261,16 +262,16 @@ export default function MusicMatchesScreen() {
         </TouchableOpacity>
         
         <TouchableOpacity 
-          style={[styles.tab, activeTab === 'playlists' && styles.activeTab]}
-          onPress={() => setActiveTab('playlists')}
+          style={[styles.tab, activeTab === 'likes' && styles.activeTab]}
+          onPress={() => setActiveTab('likes')}
         >
           <Ionicons 
-            name="musical-notes" 
+            name="heart" 
             size={20} 
-            color={activeTab === 'playlists' ? '#FFFFFF' : 'rgba(255,255,255,0.6)'} 
+            color={activeTab === 'likes' ? '#FFFFFF' : 'rgba(255,255,255,0.6)'} 
           />
-          <Text style={[styles.tabText, activeTab === 'playlists' && styles.activeTabText]}>
-            Playlistler
+          <Text style={[styles.tabText, activeTab === 'likes' && styles.activeTabText]}>
+            Beğeniler
           </Text>
         </TouchableOpacity>
       </View>
@@ -301,14 +302,76 @@ export default function MusicMatchesScreen() {
           </ScrollView>
         )}
         
-        {activeTab === 'playlists' && (
-          <View style={styles.emptyState}>
-            <Ionicons name="musical-notes-outline" size={64} color="rgba(255,255,255,0.3)" />
-            <Text style={styles.emptyTitle}>Paylaşılan Playlist Yok</Text>
-            <Text style={styles.emptySubtitle}>
-              Eşleştiğin kişilerle playlist paylaşarak müzik zevkinizi keşfedin
-            </Text>
-          </View>
+        {activeTab === 'likes' && (
+          <ScrollView 
+            style={styles.scrollView}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+          >
+            {/* Premium Banner */}
+            {!isPremium && (
+              <View style={styles.premiumBanner}>
+                <Ionicons name="diamond" size={24} color="#FFD700" />
+                <View style={styles.premiumInfo}>
+                  <Text style={styles.premiumTitle}>Premium Özellik</Text>
+                  <Text style={styles.premiumSubtitle}>
+                    Seni beğenenleri görmek için premium üyeliğe geç
+                  </Text>
+                </View>
+                <TouchableOpacity style={styles.premiumButton}>
+                  <Text style={styles.premiumButtonText}>Yükselt</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Beğeni Listesi */}
+            <View style={styles.likesContainer}>
+              <Text style={styles.sectionTitle}>
+                {isPremium ? 'Seni Beğenenler' : 'Beğeni Alındı'}
+              </Text>
+              
+              {MUSIC_MATCHES_DATA.slice(0, 3).map((user, index) => (
+                <View key={user.id} style={[styles.likeCard, !isPremium && styles.blurredCard]}>
+                  <View style={styles.likeCardContent}>
+                    <View style={styles.likeImageContainer}>
+                      <Text style={styles.musicIcon}>{user.musicGenre}</Text>
+                    </View>
+                    
+                    <View style={styles.likeUserInfo}>
+                      <Text style={[styles.likeUserName, !isPremium && styles.blurredText]}>
+                        {isPremium ? `${user.name}, ${user.age}` : '••••••, ••'}
+                      </Text>
+                      <Text style={[styles.likeGenreText, !isPremium && styles.blurredText]}>
+                        {isPremium ? `${user.genreName} • ${user.favoriteArtist}` : '•••••• • ••••••'}
+                      </Text>
+                      <Text style={styles.likeTimeText}>1 saat önce</Text>
+                    </View>
+                    
+                    <View style={styles.likeCompatibility}>
+                      <Text style={styles.likeCompatibilityText}>
+                        %{user.compatibility}
+                      </Text>
+                    </View>
+                  </View>
+                  
+                  {!isPremium && (
+                    <View style={styles.blurOverlay}>
+                      <Ionicons name="lock-closed" size={24} color="white" />
+                    </View>
+                  )}
+                </View>
+              ))}
+              
+              {!isPremium && (
+                <TouchableOpacity style={styles.viewMoreButton}>
+                  <Ionicons name="add" size={20} color="white" />
+                  <Text style={styles.viewMoreText}>
+                    Daha fazla beğeni görmek için premium'a geç
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </ScrollView>
         )}
       </Animated.View>
     </View>
@@ -575,5 +638,136 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  // Premium ve Beğeni Stilleri
+  premiumBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 215, 0, 0.1)',
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+  },
+  premiumInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  premiumTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFD700',
+    marginBottom: 4,
+  },
+  premiumSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  premiumButton: {
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  premiumButtonText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#000',
+  },
+  likesContainer: {
+    paddingHorizontal: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 16,
+  },
+  likeCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    position: 'relative',
+  },
+  blurredCard: {
+    opacity: 0.7,
+  },
+  likeCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  likeImageContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  likeUserInfo: {
+    flex: 1,
+  },
+  likeUserName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 2,
+  },
+  likeGenreText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginBottom: 2,
+  },
+  likeTimeText: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+  likeCompatibility: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  likeCompatibilityText: {
+    fontSize: 12,
+    color: 'white',
+    fontWeight: '600',
+  },
+  blurredText: {
+    fontFamily: 'monospace',
+  },
+  blurOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderStyle: 'dashed',
+  },
+  viewMoreText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginLeft: 8,
   },
 }); 
