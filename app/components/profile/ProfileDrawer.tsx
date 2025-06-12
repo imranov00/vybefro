@@ -137,32 +137,31 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
 
   // Premium satın alma fonksiyonu
   const handlePremiumPurchase = async () => {
-    if (isPremium) {
-      // Zaten premium ise premium sayfasına git
-      onClose();
+    // Premium ise veya değilse her durumda premium sayfasına yönlendir
+    onClose();
+    setTimeout(() => {
       router.push('/(profile)/premiumScreen' as any);
-      return;
-    }
+    }, 300);
+  };
 
+  // Premium iptal fonksiyonu
+  const handlePremiumCancel = async () => {
     try {
       setPurchasingPremium(true);
       
-      // Premium satın alma API çağrısı
-      const response = await premiumApi.purchase({
-        plan: 'monthly',
-        paymentMethod: 'credit_card'
-      });
+      // Premium iptal API çağrısı
+      const response = await premiumApi.cancel();
 
       if (response.success) {
         // Premium durumunu güncelle
-        setPremium(true);
+        setPremium(false);
         
         Alert.alert(
-          '🎉 Tebrikler!',
-          'Premium üyeliğiniz başarıyla aktifleştirildi! Artık tüm premium özelliklerden yararlanabilirsiniz.',
+          'İptal Edildi',
+          'Premium üyeliğiniz başarıyla iptal edildi.',
           [
             {
-              text: 'Harika!',
+              text: 'Tamam',
               style: 'default'
             }
           ]
@@ -170,15 +169,15 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
       } else {
         Alert.alert(
           'Hata',
-          response.message || 'Premium satın alma işlemi başarısız oldu.',
+          response.message || 'Premium iptal işlemi başarısız oldu.',
           [{ text: 'Tamam', style: 'default' }]
         );
       }
     } catch (error) {
-      console.error('Premium purchase error:', error);
+      console.error('Premium cancel error:', error);
       Alert.alert(
         'Hata',
-        'Premium satın alma sırasında bir hata oluştu. Lütfen tekrar deneyin.',
+        'Premium iptal sırasında bir hata oluştu. Lütfen tekrar deneyin.',
         [{ text: 'Tamam', style: 'default' }]
       );
     } finally {
@@ -247,16 +246,15 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                   emoji: getZodiacEmoji(user.zodiacSign || '')
                 });
                 
-                // Yeni sistem ile burç gösterimi
-                if (user.zodiacSignTurkish) {
-                  // Eski sistem - sadece Türkçe isim
-                  const emoji = getZodiacEmoji(user.zodiacSign || '');
-                  return `${emoji} ${user.zodiacSignTurkish}`;
-                }
-                
+                // Burç gösterimi düzeltildi
                 if (user.zodiacSign) {
                   // Yeni sistem - enum'dan tam display
                   return getZodiacDisplay(user.zodiacSign);
+                }
+                
+                if (user.zodiacSignTurkish) {
+                  // Eski sistem - sadece Türkçe isim
+                  return user.zodiacSignTurkish;
                 }
                 
                 return 'Burç Belirtilmemiş';
@@ -361,16 +359,16 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                 onPress={navigateToProfile}
               >
                 <View style={[styles.menuIcon, { 
-                  backgroundColor: `${themeColors.accent}40`,
+                  backgroundColor: `${themeColors.accent}20`,
                   shadowColor: themeColors.accent,
-                  shadowOpacity: 0.4,
-                  shadowRadius: 6,
-                  elevation: 6
+                  shadowOpacity: 0.6,
+                  shadowRadius: 8,
+                  elevation: 8
                 }]}>
-                  <Ionicons name="person-outline" size={22} color={themeColors.accent} />
+                  <Ionicons name="person" size={24} color={themeColors.accent} />
                 </View>
-                <Text style={styles.menuText}>Profili Düzenle</Text>
-                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.8)" />
+                <Text style={styles.menuText}>Profil</Text>
+                <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.8)" />
               </TouchableOpacity>
 
               <TouchableOpacity 
@@ -379,23 +377,23 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                 disabled={purchasingPremium}
               >
                 <View style={[styles.menuIcon, { 
-                  backgroundColor: '#FFD70040',
+                  backgroundColor: '#FFD70020',
                   shadowColor: '#FFD700',
-                  shadowOpacity: 0.5,
-                  shadowRadius: 8,
-                  elevation: 8
+                  shadowOpacity: 0.8,
+                  shadowRadius: 10,
+                  elevation: 10
                 }]}>
                   {purchasingPremium ? (
                     <ActivityIndicator size="small" color="#FFD700" />
                   ) : (
-                    <Ionicons name="diamond" size={22} color="#FFD700" />
+                    <Ionicons name="diamond" size={24} color="#FFD700" />
                   )}
                 </View>
                 <Text style={styles.menuText}>
-                  {isPremium ? 'Premium Yönetimi' : purchasingPremium ? 'Satın Alınıyor...' : 'Premium'}
+                  {isPremium ? 'Premium Yönetimi' : 'Premium'}
                 </Text>
                 {!purchasingPremium && (
-                  <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.8)" />
+                  <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.8)" />
                 )}
               </TouchableOpacity>
               
@@ -407,16 +405,16 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                 }}
               >
                 <View style={[styles.menuIcon, { 
-                  backgroundColor: `${themeColors.accent}40`,
+                  backgroundColor: `${themeColors.accent}20`,
                   shadowColor: themeColors.accent,
-                  shadowOpacity: 0.4,
-                  shadowRadius: 6,
-                  elevation: 6
+                  shadowOpacity: 0.6,
+                  shadowRadius: 8,
+                  elevation: 8
                 }]}>
-                  <Ionicons name="settings-outline" size={22} color={themeColors.accent} />
+                  <Ionicons name="settings" size={24} color={themeColors.accent} />
                 </View>
                 <Text style={styles.menuText}>Ayarlar</Text>
-                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.8)" />
+                <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.8)" />
               </TouchableOpacity>
 
               <TouchableOpacity 
@@ -427,16 +425,16 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                 }}
               >
                 <View style={[styles.menuIcon, { 
-                  backgroundColor: `${themeColors.accent}40`,
+                  backgroundColor: `${themeColors.accent}20`,
                   shadowColor: themeColors.accent,
-                  shadowOpacity: 0.4,
-                  shadowRadius: 6,
-                  elevation: 6
+                  shadowOpacity: 0.6,
+                  shadowRadius: 8,
+                  elevation: 8
                 }]}>
-                  <Ionicons name="notifications-outline" size={22} color={themeColors.accent} />
+                  <Ionicons name="notifications" size={24} color={themeColors.accent} />
                 </View>
                 <Text style={styles.menuText}>Bildirimler</Text>
-                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.8)" />
+                <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.8)" />
               </TouchableOpacity>
 
               <TouchableOpacity 
@@ -447,16 +445,16 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                 }}
               >
                 <View style={[styles.menuIcon, { 
-                  backgroundColor: `${themeColors.accent}40`,
+                  backgroundColor: `${themeColors.accent}20`,
                   shadowColor: themeColors.accent,
-                  shadowOpacity: 0.4,
-                  shadowRadius: 6,
-                  elevation: 6
+                  shadowOpacity: 0.6,
+                  shadowRadius: 8,
+                  elevation: 8
                 }]}>
-                  <Ionicons name="shield-outline" size={22} color={themeColors.accent} />
+                  <Ionicons name="shield-checkmark" size={24} color={themeColors.accent} />
                 </View>
                 <Text style={styles.menuText}>Gizlilik</Text>
-                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.8)" />
+                <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.8)" />
               </TouchableOpacity>
 
               <TouchableOpacity 
@@ -467,16 +465,16 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                 }}
               >
                 <View style={[styles.menuIcon, { 
-                  backgroundColor: `${themeColors.accent}40`,
+                  backgroundColor: `${themeColors.accent}20`,
                   shadowColor: themeColors.accent,
-                  shadowOpacity: 0.4,
-                  shadowRadius: 6,
-                  elevation: 6
+                  shadowOpacity: 0.6,
+                  shadowRadius: 8,
+                  elevation: 8
                 }]}>
-                  <Ionicons name="help-circle-outline" size={22} color={themeColors.accent} />
+                  <Ionicons name="help-circle" size={24} color={themeColors.accent} />
                 </View>
                 <Text style={styles.menuText}>Yardım</Text>
-                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.8)" />
+                <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.8)" />
               </TouchableOpacity>
             </View>
             

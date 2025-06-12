@@ -127,24 +127,32 @@ export default function PremiumScreen() {
     try {
       setIsProcessing(true);
       
-      // Simülasyon için 2 saniye bekle
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Gerçek API çağrısı
+      const { premiumApi } = await import('../services/api');
+      const response = await premiumApi.purchase({
+        plan: 'monthly',
+        paymentMethod: 'credit_card'
+      });
       
-      // Premium'u aktif et
-      setPremium(true);
-      
-      Alert.alert('Başarılı!', 'Premium üyeliğiniz aktif edildi!', [
-        {
-          text: 'Tamam',
-          onPress: () => {
-            // Kullanıcıyı ana sayfaya yönlendir, mode değişmeyecek
-            router.replace('/(tabs)/' as any);
+      if (response.success) {
+        // Premium'u aktif et
+        setPremium(true);
+        
+        Alert.alert('🎉 Tebrikler!', response.message || 'Premium üyeliğiniz başarıyla aktifleştirildi! Artık tüm premium özelliklerden yararlanabilirsiniz.', [
+          {
+            text: 'Harika!',
+            onPress: () => {
+              // Kullanıcıyı ana sayfaya yönlendir, mode değişmeyecek
+              router.replace('/(tabs)/' as any);
+            }
           }
-        }
-      ]);
+        ]);
+      } else {
+        Alert.alert('Hata', response.message || 'Premium satın alma işlemi başarısız oldu.');
+      }
     } catch (error: any) {
       console.error('Premium satın alma hatası:', error);
-      Alert.alert('Hata', 'Satın alma işlemi başarısız');
+      Alert.alert('Hata', 'Premium satın alma sırasında bir hata oluştu. Lütfen tekrar deneyin.');
     } finally {
       setIsProcessing(false);
     }
@@ -163,24 +171,29 @@ export default function PremiumScreen() {
             try {
               setIsProcessing(true);
               
-              // Simülasyon için 2 saniye bekle
-              await new Promise(resolve => setTimeout(resolve, 2000));
+              // Gerçek API çağrısı
+              const { premiumApi } = await import('../services/api');
+              const response = await premiumApi.cancel();
               
-              // Premium'u iptal et
-              setPremium(false);
-              
-              Alert.alert('İptal Edildi', 'Premium üyeliğiniz iptal edildi.', [
-                {
-                  text: 'Tamam',
-                  onPress: () => {
-                    // Kullanıcıyı ana sayfaya yönlendir, mode değişmeyecek
-                    router.replace('/(tabs)/' as any);
+              if (response.success) {
+                // Premium'u iptal et
+                setPremium(false);
+                
+                Alert.alert('İptal Edildi', response.message || 'Premium üyeliğiniz başarıyla iptal edildi.', [
+                  {
+                    text: 'Tamam',
+                    onPress: () => {
+                      // Kullanıcıyı ana sayfaya yönlendir, mode değişmeyecek
+                      router.replace('/(tabs)/' as any);
+                    }
                   }
-                }
-              ]);
+                ]);
+              } else {
+                Alert.alert('Hata', response.message || 'Premium iptal işlemi başarısız oldu.');
+              }
             } catch (error: any) {
               console.error('Premium iptal hatası:', error);
-              Alert.alert('Hata', 'İptal işlemi başarısız');
+              Alert.alert('Hata', 'Premium iptal sırasında bir hata oluştu. Lütfen tekrar deneyin.');
             } finally {
               setIsProcessing(false);
             }
