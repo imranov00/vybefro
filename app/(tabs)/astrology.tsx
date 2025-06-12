@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 20,
     paddingTop: (StatusBar.currentHeight || 0) + 80,
-    paddingBottom: Platform.OS === 'ios' ? 140 : 115,
+    paddingBottom: Platform.OS === 'ios' ? 160 : 135,
   },
   header: {
     alignItems: 'center',
