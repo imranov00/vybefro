@@ -3,30 +3,30 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
 import {
-    Dimensions,
-    Image,
-    Platform,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Dimensions,
+  Image,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import Animated, {
-    Extrapolate,
-    interpolate,
-    runOnJS,
-    useAnimatedGestureHandler,
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
-    withTiming
+  Extrapolate,
+  interpolate,
+  runOnJS,
+  useAnimatedGestureHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming
 } from 'react-native-reanimated';
 import { PotentialMatch } from '../../services/api';
 import {
-    getCompatibilityColor,
-    getCompatibilityLabel,
-    getCompatibilityLevel
+  getCompatibilityColor,
+  getCompatibilityLabel,
+  getCompatibilityLevel
 } from '../../types/compatibility';
 import { getZodiacDisplay, getZodiacEmoji } from '../../types/zodiac';
 
@@ -162,10 +162,8 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, onPress, isTop = f
   return (
     <PanGestureHandler onGestureEvent={gestureHandler}>
       <Animated.View style={[styles.card, cardStyle]}>
-        <TouchableOpacity 
-          style={styles.cardContent} 
-          onPress={onPress}
-          activeOpacity={0.95}
+        <View 
+          style={styles.cardContent}
         >
           {/* Fotoğraf */}
           <View style={styles.imageContainer}>
@@ -189,10 +187,12 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, onPress, isTop = f
                 <TouchableOpacity 
                   style={styles.photoNavLeft} 
                   onPress={prevPhoto}
+                  activeOpacity={1}
                 />
                 <TouchableOpacity 
                   style={styles.photoNavRight} 
                   onPress={nextPhoto}
+                  activeOpacity={1}
                 />
                 
                 {/* Fotoğraf göstergeleri */}
@@ -282,7 +282,7 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, onPress, isTop = f
               <Text style={[styles.overlayText, { color: '#2196F3' }]}>SÜPER BEĞENİ</Text>
             </BlurView>
           </Animated.View>
-        </TouchableOpacity>
+        </View>
       </Animated.View>
     </PanGestureHandler>
   );

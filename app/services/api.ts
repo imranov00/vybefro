@@ -184,6 +184,7 @@ export interface PotentialMatch {
   zodiacSign: ZodiacSign | string;
   compatibilityScore: number;
   compatibilityDescription: string;
+  compatibilityMessage?: string;
   distance?: number;
   isOnline?: boolean;
   lastSeen?: string;

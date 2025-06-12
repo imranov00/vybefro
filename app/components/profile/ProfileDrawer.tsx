@@ -52,12 +52,12 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
   const premiumGlow = useSharedValue(0);
   const premiumScale = useSharedValue(1);
   
-  // Login durumu değiştiğinde profil bilgilerini yenile
+  // Sadece login durumu değiştiğinde profil bilgilerini yenile
   useEffect(() => {
     if (isLoggedIn && visible) {
       fetchUserProfile();
     }
-  }, [isLoggedIn, visible, fetchUserProfile]);
+  }, [isLoggedIn]); // fetchUserProfile ve visible dependency'sini kaldırdık
 
   useEffect(() => {
     if (visible) {

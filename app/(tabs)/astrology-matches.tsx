@@ -70,23 +70,21 @@ export default function AstrologyMatchesScreen() {
       
       console.log('🔄 Kullanıcılar yükleniyor...', { currentPage, hasMore });
       
-      // Gerçek API çağrısı
+      // Gerçek API çağrısı - Backend dokümantasyonuna göre
       const response = await swipeApi.getPotentialMatches(currentPage, 10);
       
       console.log('✅ API Response:', response);
       
       if (response.users && response.users.length > 0) {
-        // Uyumluluk skorlarını hesapla
+        // Backend'den gelen kullanıcıları direkt kullan (uyumluluk skorları zaten geliyor)
         const newMatches = response.users.map(user => ({
           ...user,
-          compatibilityScore: calculateCompatibility(
-            userProfile.zodiacSign as any, 
-            user.zodiacSign as any
-          ),
-          compatibilityDescription: getCompatibilityDescription(
+          photos: user.photos && user.photos.length > 0 ? user.photos : (user.profileImageUrl ? [user.profileImageUrl] : []),
+          // Backend'den compatibilityScore ve compatibilityMessage geliyor
+          compatibilityDescription: user.compatibilityMessage || getCompatibilityDescription(
             userProfile.zodiacSign as any,
             user.zodiacSign as any,
-            calculateCompatibility(userProfile.zodiacSign as any, user.zodiacSign as any)
+            user.compatibilityScore || 50
           )
         }));
         
@@ -108,34 +106,42 @@ export default function AstrologyMatchesScreen() {
       const userZodiac = userProfile.zodiacSign || 'ARIES';
       const compatibility = calculateCompatibility(userZodiac as any, randomZodiac as any);
       
-      const mockUsers: PotentialMatch[] = Array.from({ length: 5 }, (_, index) => ({
-        id: potentialMatches.length + index + 1,
-        username: `user_${potentialMatches.length + index + 1}`,
-        firstName: ['Ayşe', 'Fatma', 'Zeynep', 'Mehmet', 'Ali', 'Ahmet', 'Elif', 'Deniz'][Math.floor(Math.random() * 8)],
-        lastName: ['Yılmaz', 'Kaya', 'Demir', 'Çelik', 'Şahin', 'Özkan', 'Arslan', 'Doğan'][Math.floor(Math.random() * 8)],
-        age: Math.floor(Math.random() * 15) + 20,
-        profileImageUrl: `https://picsum.photos/400/600?random=${potentialMatches.length + index + 100}`,
-        photos: [`https://picsum.photos/400/600?random=${potentialMatches.length + index + 100}`],
-        bio: [
-          'Hayatı dolu dolu yaşamayı seven biriyim.',
-          'Doğa sevgisi ve kitap okuma tutkum var.',
-          'Müzik ve sanat dünyasında kaybolmayı seviyorum.',
-          'Yeni yerler keşfetmek ve macera aramak benim işim.',
-          'Spor yapmayı ve sağlıklı yaşamayı seviyorum.',
-          'Kahve tutkunu, film sevdalısı.',
-          'Yoga ve meditasyon ile iç huzuru arıyorum.',
-          'Fotoğrafçılık hobim, anları ölümsüzleştiriyorum.'
-        ][Math.floor(Math.random() * 8)],
-        zodiacSign: randomZodiac,
-        compatibilityScore: compatibility,
-        compatibilityDescription: getCompatibilityDescription(
-          userZodiac as any,
-          randomZodiac as any,
-          compatibility
-        ),
-        distance: Math.floor(Math.random() * 20) + 1,
-        isOnline: Math.random() > 0.5
-      }));
+      const mockUsers: PotentialMatch[] = Array.from({ length: 5 }, (_, index) => {
+        const baseId = potentialMatches.length + index + 100;
+        const photoCount = Math.floor(Math.random() * 4) + 1; // 1-4 fotoğraf
+        const photos = Array.from({ length: photoCount }, (_, photoIndex) => 
+          `https://picsum.photos/400/600?random=${baseId + photoIndex}`
+        );
+        
+        return {
+          id: potentialMatches.length + index + 1,
+          username: `user_${potentialMatches.length + index + 1}`,
+          firstName: ['Ayşe', 'Fatma', 'Zeynep', 'Mehmet', 'Ali', 'Ahmet', 'Elif', 'Deniz'][Math.floor(Math.random() * 8)],
+          lastName: ['Yılmaz', 'Kaya', 'Demir', 'Çelik', 'Şahin', 'Özkan', 'Arslan', 'Doğan'][Math.floor(Math.random() * 8)],
+          age: Math.floor(Math.random() * 15) + 20,
+          profileImageUrl: photos[0], // İlk fotoğraf profil fotoğrafı
+          photos: photos,
+          bio: [
+            'Hayatı dolu dolu yaşamayı seven biriyim.',
+            'Doğa sevgisi ve kitap okuma tutkum var.',
+            'Müzik ve sanat dünyasında kaybolmayı seviyorum.',
+            'Yeni yerler keşfetmek ve macera aramak benim işim.',
+            'Spor yapmayı ve sağlıklı yaşamayı seviyorum.',
+            'Kahve tutkunu, film sevdalısı.',
+            'Yoga ve meditasyon ile iç huzuru arıyorum.',
+            'Fotoğrafçılık hobim, anları ölümsüzleştiriyorum.'
+          ][Math.floor(Math.random() * 8)],
+          zodiacSign: randomZodiac,
+          compatibilityScore: compatibility,
+          compatibilityDescription: getCompatibilityDescription(
+            userZodiac as any,
+            randomZodiac as any,
+            compatibility
+          ),
+          distance: Math.floor(Math.random() * 20) + 1,
+          isOnline: Math.random() > 0.5
+        };
+      });
       
       setPotentialMatches(prev => [...prev, ...mockUsers]);
       setCurrentPage(prev => prev + 1);
@@ -194,12 +200,15 @@ export default function AstrologyMatchesScreen() {
 
   // Swipe işlemi
   const handleSwipe = async (direction: 'left' | 'right' | 'up', userId: number) => {
-    console.log(`Swiped ${direction} on user ${userId}`);
+    console.log(`🎯 SWIPE: ${direction} on user ${userId}`, {
+      currentCardIndex,
+      potentialMatchesLength: potentialMatches.length
+    });
     
     try {
       setIsLoading(true);
       
-      // API'ye swipe gönder
+      // API'ye swipe gönder - Backend dokümantasyonuna göre
       const swipeAction: 'LIKE' | 'SUPER_LIKE' | 'DISLIKE' = direction === 'right' ? 'LIKE' : direction === 'up' ? 'SUPER_LIKE' : 'DISLIKE';
       
       const swipeRequest = {
@@ -207,8 +216,11 @@ export default function AstrologyMatchesScreen() {
         action: swipeAction
       };
 
+      console.log('📤 Sending swipe request:', swipeRequest);
+
       // Gerçek API çağrısı
       const response = await swipeApi.swipe(swipeRequest);
+      console.log('📥 Swipe response:', response);
 
       if (response.isMatch && response.matchId) {
         // Match oluştu!
@@ -231,16 +243,20 @@ export default function AstrologyMatchesScreen() {
             matchedAt: new Date().toISOString()
           };
           
+          console.log('🎉 MATCH FOUND!', newMatch);
           setCurrentMatch(newMatch);
           setShowMatchModal(true);
         }
       }
 
       // Sonraki karta geç
-      setCurrentCardIndex(prev => prev + 1);
+      const newIndex = currentCardIndex + 1;
+      console.log('➡️ Moving to next card:', newIndex);
+      setCurrentCardIndex(newIndex);
       
       // Kartlar biterse yenilerini yükle
-      if (currentCardIndex >= potentialMatches.length - 2) {
+      if (newIndex >= potentialMatches.length - 2) {
+        console.log('🔄 Loading more matches...');
         await loadMoreMatches();
       }
       
@@ -256,6 +272,8 @@ export default function AstrologyMatchesScreen() {
         matchId: direction !== 'left' && Math.random() > 0.7 ? Math.floor(Math.random() * 1000) : undefined,
         message: direction !== 'left' && Math.random() > 0.7 ? 'Eşleşme gerçekleşti!' : 'Swipe başarılı'
       };
+
+      console.log('🎲 Mock response:', mockResponse);
 
       if (mockResponse.isMatch && mockResponse.matchId) {
         // Match oluştu!
@@ -278,16 +296,20 @@ export default function AstrologyMatchesScreen() {
             matchedAt: new Date().toISOString()
           };
           
+          console.log('🎉 MOCK MATCH FOUND!', newMatch);
           setCurrentMatch(newMatch);
           setShowMatchModal(true);
         }
       }
 
       // Sonraki karta geç
-      setCurrentCardIndex(prev => prev + 1);
+      const newIndex = currentCardIndex + 1;
+      console.log('➡️ Moving to next card (after error):', newIndex);
+      setCurrentCardIndex(newIndex);
       
       // Kartlar biterse yenilerini yükle
-      if (currentCardIndex >= potentialMatches.length - 2) {
+      if (newIndex >= potentialMatches.length - 2) {
+        console.log('🔄 Loading more matches (after error)...');
         await loadMoreMatches();
       }
     } finally {
@@ -494,6 +516,13 @@ export default function AstrologyMatchesScreen() {
   };
 
   const renderSwipeCards = () => {
+    console.log('🎯 renderSwipeCards called:', {
+      isInitialLoading,
+      potentialMatchesLength: potentialMatches.length,
+      currentCardIndex,
+      hasMore
+    });
+
     if (isInitialLoading) {
       return (
         <View style={styles.loadingContainer}>
@@ -504,6 +533,7 @@ export default function AstrologyMatchesScreen() {
     }
 
     const cardsToShow = potentialMatches.slice(currentCardIndex, currentCardIndex + 3);
+    console.log('🃏 Cards to show:', cardsToShow.length, 'cards');
     
     return (
       <View style={styles.cardsContainer}>
@@ -526,14 +556,17 @@ export default function AstrologyMatchesScreen() {
             )}
           </View>
         ) : (
-          cardsToShow.map((user, index) => (
-            <SwipeCard
-              key={user.id}
-              user={user}
-              onSwipe={handleSwipe}
-              isTop={index === 0}
-            />
-          ))
+          cardsToShow.map((user, index) => {
+            console.log(`🎴 Rendering card ${index} for user:`, user.firstName, 'isTop:', index === 0);
+            return (
+              <SwipeCard
+                key={user.id}
+                user={user}
+                onSwipe={handleSwipe}
+                isTop={index === 0}
+              />
+            );
+          })
         )}
       </View>
     );
@@ -660,7 +693,7 @@ export default function AstrologyMatchesScreen() {
       </View>
 
       {/* Action Buttons - Fixed at bottom for swipe tab */}
-      {activeTab === 'swipe' && !isInitialLoading && (
+      {activeTab === 'swipe' && potentialMatches.length > 0 && (
         <View style={styles.fixedActionButtons}>
           {renderActionButtons()}
         </View>
