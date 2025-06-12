@@ -10,6 +10,7 @@ import {
   Image,
   PanResponder,
   Platform,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -309,45 +310,115 @@ export default function AstrologyScreen() {
   const loadPotentialMatches = async () => {
     try {
       setIsLoading(true);
-      console.log('🔄 Potansiyel eşleşmeler yükleniyor...');
+      console.log('🔄 Gerçek kullanıcılar yükleniyor...');
       
       let response = null;
+      let apiSuccess = false;
       
-      // API endpoint'lerini dene
+      // 1. Ana endpoint'i dene - Potansiyel eşleşmeler
       try {
+        console.log('🔄 Ana endpoint deneniyor: /api/swipes/potential-matches');
         response = await swipeApi.getPotentialMatches(1, 20);
         console.log('✅ Ana endpoint başarılı:', response);
+        apiSuccess = true;
       } catch (error) {
-        console.log('❌ Ana endpoint başarısız, alternatif deneniyor...');
+        console.log('❌ Ana endpoint başarısız:', error);
+      }
+      
+      // 2. Alternatif endpoint - Tüm kullanıcılar
+      if (!apiSuccess) {
         try {
+          console.log('🔄 Alternatif endpoint deneniyor: /api/users');
           response = await swipeApi.getAllUsers(1, 20);
           console.log('✅ Alternatif endpoint başarılı:', response);
-        } catch (altError) {
-          console.log('❌ Alternatif endpoint de başarısız, mock data kullanılıyor...');
-          generateMockData();
-          return;
+          apiSuccess = true;
+        } catch (error) {
+          console.log('❌ Alternatif endpoint başarısız:', error);
+        }
+      }
+      
+      // 3. Son çare - Discover endpoint
+      if (!apiSuccess) {
+        try {
+          console.log('🔄 Discover endpoint deneniyor: /api/discover');
+          response = await swipeApi.getDiscoverUsers(1, 20);
+          console.log('✅ Discover endpoint başarılı:', response);
+          apiSuccess = true;
+        } catch (error) {
+          console.log('❌ Discover endpoint de başarısız:', error);
         }
       }
 
-      if (response?.users && response.users.length > 0) {
-        const processedUsers = response.users.map((user: any) => ({
-          ...user,
-          age: typeof user.age === 'number' ? user.age : 
-               user.birthDate ? new Date().getFullYear() - new Date(user.birthDate).getFullYear() : 25,
-          photos: user.photos?.length > 0 ? user.photos : 
-                  user.profileImageUrl ? [user.profileImageUrl] : ['https://picsum.photos/400/600'],
-          compatibilityScore: user.compatibilityScore || 
-                             calculateCompatibility(userProfile.zodiacSign as any, user.zodiacSign as any),
-          compatibilityDescription: user.compatibilityMessage || 
-                                   getCompatibilityDescription(
-                                     userProfile.zodiacSign as any,
-                                     user.zodiacSign as any,
-                                     user.compatibilityScore || 50
-                                   ),
-          zodiacSign: user.zodiacSign || 'ARIES',
-          distance: user.distance || Math.floor(Math.random() * 20) + 1,
-          isOnline: user.isOnline ?? Math.random() > 0.5
-        }));
+      if (apiSuccess && response?.users && response.users.length > 0) {
+        console.log('📊 Ham API yanıtı:', response.users[0]); // İlk kullanıcıyı logla
+        
+        const processedUsers = response.users.map((user: any) => {
+          // Yaş hesaplama
+          let calculatedAge = user.age;
+          if (typeof user.age !== 'number' && user.birthDate) {
+            const birthYear = new Date(user.birthDate).getFullYear();
+            calculatedAge = new Date().getFullYear() - birthYear;
+          }
+          if (!calculatedAge || calculatedAge < 18) {
+            calculatedAge = 25; // Varsayılan yaş
+          }
+
+          // Fotoğraf dizisi oluşturma
+          let photos = [];
+          if (user.photos && Array.isArray(user.photos) && user.photos.length > 0) {
+            photos = user.photos;
+          } else if (user.profileImageUrl) {
+            photos = [user.profileImageUrl];
+          } else {
+            photos = ['https://picsum.photos/400/600?random=' + user.id];
+          }
+
+          // Uyumluluk skoru hesaplama
+          let compatibilityScore = user.compatibilityScore;
+          if (!compatibilityScore || isNaN(compatibilityScore)) {
+            compatibilityScore = calculateCompatibility(
+              userProfile.zodiacSign as any,
+              (user.zodiacSign || 'ARIES') as any
+            );
+          }
+
+          // Uyumluluk açıklaması
+          let compatibilityDescription = user.compatibilityDescription || user.compatibilityMessage;
+          if (!compatibilityDescription) {
+            compatibilityDescription = getCompatibilityDescription(
+              userProfile.zodiacSign as any,
+              (user.zodiacSign || 'ARIES') as any,
+              compatibilityScore
+            );
+          }
+
+          const processedUser = {
+            id: user.id,
+            username: user.username || `user_${user.id}`,
+            firstName: user.firstName || 'İsimsiz',
+            lastName: user.lastName || 'Kullanıcı',
+            age: calculatedAge,
+            profileImageUrl: user.profileImageUrl,
+            photos: photos,
+            bio: user.bio || null,
+            zodiacSign: user.zodiacSign || 'ARIES',
+            compatibilityScore: compatibilityScore,
+            compatibilityDescription: compatibilityDescription,
+            distance: user.distance || Math.floor(Math.random() * 20) + 1,
+            isOnline: user.isOnline ?? Math.random() > 0.5,
+            lastSeen: user.lastSeen
+          };
+
+          console.log('✅ İşlenmiş kullanıcı:', {
+            id: processedUser.id,
+            firstName: processedUser.firstName,
+            age: processedUser.age,
+            photosCount: processedUser.photos.length,
+            compatibilityScore: processedUser.compatibilityScore
+          });
+
+          return processedUser;
+        });
 
         setPotentialMatches(processedUsers);
         
@@ -358,66 +429,27 @@ export default function AstrologyScreen() {
         });
         setPhotoIndexes(indexes);
         
-        console.log('✅ Kullanıcılar işlendi:', processedUsers.length);
+        console.log('✅ Toplam kullanıcı yüklendi:', processedUsers.length);
       } else {
-        generateMockData();
+        console.log('⚠️ Hiç kullanıcı bulunamadı veya tüm APIler başarısız');
+        setPotentialMatches([]);
+        Alert.alert(
+          'Kullanıcı Bulunamadı',
+          'Şu anda gösterilecek kullanıcı bulunmuyor. Lütfen daha sonra tekrar deneyin.',
+          [{ text: 'Tamam', style: 'default' }]
+        );
       }
     } catch (error) {
-      console.error('❌ Potansiyel eşleşme yükleme hatası:', error);
-      generateMockData();
+      console.error('❌ Kullanıcı yükleme genel hatası:', error);
+      setPotentialMatches([]);
+      Alert.alert(
+        'Bağlantı Hatası',
+        'Kullanıcılar yüklenirken bir hata oluştu. İnternet bağlantınızı kontrol edin.',
+        [{ text: 'Tamam', style: 'default' }]
+      );
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const generateMockData = () => {
-    const mockZodiacSigns = ['ARIES', 'TAURUS', 'GEMINI', 'CANCER', 'LEO', 'VIRGO', 'LIBRA', 'SCORPIO', 'SAGITTARIUS', 'CAPRICORN', 'AQUARIUS', 'PISCES'];
-    const userZodiac = userProfile.zodiacSign || 'ARIES';
-    
-    const mockUsers: PotentialMatch[] = Array.from({ length: 15 }, (_, index) => {
-      const randomZodiac = mockZodiacSigns[Math.floor(Math.random() * mockZodiacSigns.length)];
-      const compatibility = calculateCompatibility(userZodiac as any, randomZodiac as any);
-      const photoCount = Math.floor(Math.random() * 4) + 1;
-      const photos = Array.from({ length: photoCount }, (_, photoIndex) => 
-        `https://picsum.photos/400/600?random=${index * 10 + photoIndex}`
-      );
-      
-      return {
-        id: index + 1,
-        username: `user_${index + 1}`,
-        firstName: ['Ayşe', 'Fatma', 'Zeynep', 'Mehmet', 'Ali', 'Ahmet', 'Elif', 'Deniz', 'Selin', 'Burak', 'Cem', 'Duygu', 'Ece', 'Furkan', 'Gizem'][index],
-        lastName: ['Yılmaz', 'Kaya', 'Demir', 'Çelik', 'Şahin', 'Özkan', 'Arslan', 'Doğan', 'Aydın', 'Koç', 'Güneş', 'Ay', 'Yıldız', 'Bulut', 'Deniz'][index],
-        age: Math.floor(Math.random() * 15) + 20,
-        profileImageUrl: photos[0],
-        photos: photos,
-        bio: [
-          'Hayatı dolu dolu yaşamayı seven biriyim 🌟',
-          'Doğa sevgisi ve kitap okuma tutkum var 📚',
-          'Müzik ve sanat dünyasında kaybolmayı seviyorum 🎵',
-          'Yeni yerler keşfetmek ve macera aramak benim işim ✈️',
-          'Spor yapmayı ve sağlıklı yaşamayı seviyorum 💪',
-          'Kahve tutkunu, film sevdalısı ☕',
-          'Yoga ve meditasyon ile iç huzuru arıyorum 🧘‍♀️',
-          'Fotoğrafçılık hobim, anları ölümsüzleştiriyorum 📸'
-        ][index % 8],
-        zodiacSign: randomZodiac,
-        compatibilityScore: compatibility,
-        compatibilityDescription: getCompatibilityDescription(userZodiac as any, randomZodiac as any, compatibility),
-        distance: Math.floor(Math.random() * 20) + 1,
-        isOnline: Math.random() > 0.5
-      };
-    });
-    
-    setPotentialMatches(mockUsers);
-    
-    // Photo index'lerini initialize et
-    const indexes: Record<number, number> = {};
-    mockUsers.forEach(user => {
-      indexes[user.id] = 0;
-    });
-    setPhotoIndexes(indexes);
-    
-    console.log('✅ Mock data yüklendi:', mockUsers.length);
   };
 
   const handleSwipe = async (direction: 'left' | 'right' | 'up', userId: number) => {
@@ -547,34 +579,74 @@ export default function AstrologyScreen() {
         ))}
       </Animated.View>
 
-      {/* Header */}
+      {/* Header - Fixed */}
       <View style={styles.header}>
         <Text style={styles.title}>Burç Eşleşmeleri</Text>
         <Text style={styles.subtitle}>Yıldızların rehberliğinde aşkı keşfet</Text>
       </View>
 
-      {/* Cards Container */}
-      <View style={styles.cardsContainer}>
-        {cardsToShow.map((user, index) => (
-          <SwipeCard
-            key={user.id}
-            user={user}
-            onSwipe={handleSwipe}
-            style={{
-              zIndex: cardsToShow.length - index,
-              transform: [
-                { scale: 1 - index * 0.02 },
-                { translateY: index * -10 }
-              ]
-            }}
-            isTop={index === 0}
-            photoIndex={photoIndexes[user.id] || 0}
-            setPhotoIndex={(newIndex: number) => setPhotoIndex(user.id, newIndex)}
-          />
-        ))}
-      </View>
+      {/* Scrollable Content */}
+      <ScrollView 
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        {/* Cards Container */}
+        <View style={styles.cardsContainer}>
+          {cardsToShow.map((user, index) => (
+            <SwipeCard
+              key={user.id}
+              user={user}
+              onSwipe={handleSwipe}
+              style={{
+                zIndex: cardsToShow.length - index,
+                transform: [
+                  { scale: 1 - index * 0.02 },
+                  { translateY: index * -10 }
+                ]
+              }}
+              isTop={index === 0}
+              photoIndex={photoIndexes[user.id] || 0}
+              setPhotoIndex={(newIndex: number) => setPhotoIndex(user.id, newIndex)}
+            />
+          ))}
+        </View>
 
-      {/* Action Buttons */}
+        {/* Extra content space for scrolling */}
+        <View style={styles.extraContent}>
+          <View style={styles.infoCard}>
+            <Text style={styles.infoTitle}>✨ Bugünün Burç Yorumu</Text>
+            <Text style={styles.infoText}>
+              Yeni tanışacağınız kişilerle güçlü bir bağ kurabilirsiniz. 
+              Astrolojik enerjiler bugün aşk konusunda size yardımcı olacak.
+            </Text>
+          </View>
+
+          <View style={styles.infoCard}>
+            <Text style={styles.infoTitle}>🔮 Uyumluluk İpuçları</Text>
+            <Text style={styles.infoText}>
+              Burç uyumluluğu sadece güneş burcuna bağlı değildir. 
+              Yükselen burç ve ay burcunuz da önemli rol oynar.
+            </Text>
+          </View>
+
+          <View style={styles.infoCard}>
+            <Text style={styles.infoTitle}>💫 Swipe İpuçları</Text>
+            <Text style={styles.infoText}>
+              • Sağa kaydır: Beğen{'\n'}
+              • Sola kaydır: Geç{'\n'}
+              • Yukarı kaydır: Süper beğeni{'\n'}
+              • Fotoğrafları görmek için dokun
+            </Text>
+          </View>
+        </View>
+
+        {/* Bottom spacing for footer */}
+        <View style={styles.bottomSpacing} />
+      </ScrollView>
+
+      {/* Action Buttons - Fixed Footer */}
       <View style={styles.actionButtons}>
         <TouchableOpacity 
           style={[styles.actionButton, styles.dislikeButton]}
@@ -697,10 +769,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  cardsContainer: {
+  scrollContainer: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: Platform.OS === 'ios' ? 120 : 100, // Footer için alan
+  },
+  cardsContainer: {
+    height: CARD_HEIGHT + 50, // Kartlar için sabit yükseklik
     alignItems: 'center',
     justifyContent: 'center',
+    marginVertical: 20,
   },
   card: {
     position: 'absolute',
@@ -892,12 +972,15 @@ const styles = StyleSheet.create({
   },
   actionButtons: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 100 : 80,
+    bottom: Platform.OS === 'ios' ? 40 : 20, // Tab bar'ın üstünde
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    width: '100%',
     paddingHorizontal: 40,
+    backgroundColor: 'transparent',
+    paddingVertical: 10,
   },
   actionButton: {
     width: 60,
@@ -936,5 +1019,28 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(76, 175, 80, 0.1)',
     borderWidth: 2,
     borderColor: '#4CAF50',
+  },
+  extraContent: {
+    padding: 20,
+  },
+  infoCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  infoTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 10,
+  },
+  infoText: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
+    lineHeight: 22,
+  },
+  bottomSpacing: {
+    height: 80,
   },
 }); 
