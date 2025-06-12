@@ -21,6 +21,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useAuth } from '../context/AuthContext';
 import { userApi, UserWhoLikedMe } from '../services/api';
+import { getZodiacDisplay, getZodiacEmoji } from '../types/zodiac';
 
 const { width, height } = Dimensions.get('window');
 
@@ -329,7 +330,9 @@ export default function AstrologyMatchesScreen() {
                   <View key={like.id} style={[styles.likeCard, !isPremium && styles.blurredCard]}>
                     <View style={styles.likeCardContent}>
                       <View style={styles.likeImageContainer}>
-                        <Text style={styles.zodiacIcon}>{like.zodiacSign}</Text>
+                        <Text style={styles.zodiacIcon}>
+                          {getZodiacEmoji(like.zodiacSign || '')}
+                        </Text>
                       </View>
                       
                       <View style={styles.likeUserInfo}>
@@ -337,7 +340,7 @@ export default function AstrologyMatchesScreen() {
                           {isPremium ? `${like.firstName} ${like.lastName}, ${like.age}` : '••••••, ••'}
                         </Text>
                         <Text style={[styles.likeZodiacText, !isPremium && styles.blurredText]}>
-                          {isPremium ? (like.zodiacSignTurkish || 'Burç yok') : '••••••'}
+                          {isPremium ? getZodiacDisplay(like.zodiacSign || '') : '••••••'}
                         </Text>
                         <Text style={styles.likeTimeText}>
                           {new Date(like.likedAt).toLocaleDateString('tr-TR')}

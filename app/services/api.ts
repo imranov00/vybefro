@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { ZodiacSign } from '../types/zodiac';
 import { getToken, saveToken } from '../utils/tokenStorage';
 
 const API_URL = 'https://f92a-95-70-131-250.ngrok-free.app';
@@ -64,7 +65,7 @@ export interface RegisterMusicRequest {
 
 export interface ConfirmZodiacRequest {
   userId: number;
-  zodiacSign: string;
+  zodiacSign: ZodiacSign | string;
 }
 
 export interface LoginRequest {
@@ -80,7 +81,7 @@ export interface UserProfileResponse {
   lastName: string;
   birthDate: string;
   gender: string;
-  zodiacSign: string;
+  zodiacSign: ZodiacSign | string;
   zodiacSignTurkish?: string;
   zodiacSignEmoji?: string;
   zodiacSignDisplayName?: string;
@@ -152,7 +153,7 @@ export interface UserWhoLikedMe {
   lastName: string;
   profileImageUrl: string | null;
   age: number;
-  zodiacSign?: string;
+  zodiacSign?: ZodiacSign | string;
   zodiacSignTurkish?: string;
   compatibility?: number;
   likedAt: string;

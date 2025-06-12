@@ -25,42 +25,10 @@ import ReanimatedAnimated, {
 } from 'react-native-reanimated';
 import { useAuth } from '../../context/AuthContext';
 import { UserProfile } from '../../context/ProfileContext';
+import { getZodiacDisplay, getZodiacEmoji } from '../../types/zodiac';
 
 const { width, height } = Dimensions.get('window');
 const DRAWER_WIDTH = width * 0.85;
-
-// Burç adlarını İngilizce'den Türkçe'ye çeviren fonksiyon
-const translateZodiacSign = (englishSign: string): string => {
-  const zodiacTranslations: { [key: string]: string } = {
-    'Aries': 'Koç',
-    'Taurus': 'Boğa', 
-    'Gemini': 'İkizler',
-    'Cancer': 'Yengeç',
-    'Leo': 'Aslan',
-    'Virgo': 'Başak',
-    'Libra': 'Terazi',
-    'Scorpio': 'Akrep',
-    'Sagittarius': 'Yay',
-    'Capricorn': 'Oğlak',
-    'Aquarius': 'Kova',
-    'Pisces': 'Balık',
-    // Küçük harfli versiyonlar
-    'aries': 'Koç',
-    'taurus': 'Boğa', 
-    'gemini': 'İkizler',
-    'cancer': 'Yengeç',
-    'leo': 'Aslan',
-    'virgo': 'Başak',
-    'libra': 'Terazi',
-    'scorpio': 'Akrep',
-    'sagittarius': 'Yay',
-    'capricorn': 'Oğlak',
-    'aquarius': 'Kova',
-    'pisces': 'Balık'
-  };
-  
-  return zodiacTranslations[englishSign] || englishSign;
-};
 
 type ProfileDrawerProps = {
   visible: boolean;
@@ -199,13 +167,37 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
             shadowRadius: 8,
             elevation: 8
           }]}>
-            <Ionicons name="planet" size={18} color={themeColors.accent} />
+            <Text style={[styles.zodiacEmoji, { color: themeColors.accent }]}>
+              {getZodiacEmoji(user.zodiacSign || '')}
+            </Text>
             <Text style={[styles.zodiacText, { 
               color: themeColors.accent,
               fontWeight: '700',
               fontSize: 15
             }]}>
-              {user.zodiacSignTurkish || translateZodiacSign(user.zodiacSign || '') || 'Burç Belirtilmemiş'}
+              {(() => {
+                // Debug için console log
+                console.log('Zodiac Debug:', {
+                  zodiacSign: user.zodiacSign,
+                  zodiacSignTurkish: user.zodiacSignTurkish,
+                  display: getZodiacDisplay(user.zodiacSign || ''),
+                  emoji: getZodiacEmoji(user.zodiacSign || '')
+                });
+                
+                // Yeni sistem ile burç gösterimi
+                if (user.zodiacSignTurkish) {
+                  // Eski sistem - sadece Türkçe isim
+                  const emoji = getZodiacEmoji(user.zodiacSign || '');
+                  return `${emoji} ${user.zodiacSignTurkish}`;
+                }
+                
+                if (user.zodiacSign) {
+                  // Yeni sistem - enum'dan tam display
+                  return getZodiacDisplay(user.zodiacSign);
+                }
+                
+                return 'Burç Belirtilmemiş';
+              })()}
             </Text>
           </View>
         )}
@@ -568,6 +560,10 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 10,
   },
+  zodiacEmoji: {
+    fontSize: 24,
+    marginRight: 8,
+  },
   zodiacText: {
     fontSize: 16,
     fontWeight: '700',
@@ -684,7 +680,8 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   premiumBadgeLuxury: {
-    marginTop: 12,
+    marginTop: 4,
+    marginBottom: 16,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,

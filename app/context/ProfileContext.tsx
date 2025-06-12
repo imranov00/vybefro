@@ -1,5 +1,6 @@
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import { userApi, UserProfileResponse } from '../services/api';
+import { ZodiacSign } from '../types/zodiac';
 import { hasToken } from '../utils/tokenStorage';
 
 // User profili için tip tanımı
@@ -12,9 +13,9 @@ export type UserProfile = {
   lastName?: string;
   birthDate?: string;
   gender?: string;
-  zodiacSign?: string;
-  zodiacSignEmoji?: string;
-  zodiacSignTurkish?: string;
+  zodiacSign?: ZodiacSign | string; // Enum veya string
+  zodiacSignEmoji?: string; // Legacy destek
+  zodiacSignTurkish?: string; // Legacy destek
   profileImage: string;
   bio: string;
 };
