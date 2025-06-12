@@ -444,19 +444,22 @@ export const premiumApi = {
 export const swipeApi = {
   // Potansiyel eşleşmeleri getir
   getPotentialMatches: async (page: number = 1, limit: number = 10): Promise<PotentialMatchesResponse> => {
-    const response = await api.get(`/api/swipes/potential-matches?page=${page}&limit=${limit}`);
+    const authHeader = await createAuthHeader();
+    const response = await api.get(`/api/swipes/potential-matches?page=${page}&limit=${limit}`, authHeader);
     return response.data;
   },
 
   // Swipe işlemi yap
   swipe: async (swipeData: SwipeRequest): Promise<SwipeResponse> => {
-    const response = await api.post('/api/swipes', swipeData);
+    const authHeader = await createAuthHeader();
+    const response = await api.post('/api/swipes', swipeData, authHeader);
     return response.data;
   },
 
   // Yüksek uyumluluk eşleşmeleri
   getHighCompatibilityMatches: async (minScore: number = 70): Promise<HighCompatibilityMatchesResponse> => {
-    const response = await api.get(`/api/matches/high-compatibility?minScore=${minScore}`);
+    const authHeader = await createAuthHeader();
+    const response = await api.get(`/api/matches/high-compatibility?minScore=${minScore}`, authHeader);
     return response.data;
   }
 };
@@ -465,19 +468,22 @@ export const swipeApi = {
 export const matchApi = {
   // Tüm eşleşmeleri getir
   getMatches: async (): Promise<Match[]> => {
-    const response = await api.get('/api/matches');
+    const authHeader = await createAuthHeader();
+    const response = await api.get('/api/matches', authHeader);
     return response.data;
   },
 
   // Belirli bir eşleşme detayı
   getMatchDetail: async (matchId: number): Promise<Match> => {
-    const response = await api.get(`/api/matches/${matchId}`);
+    const authHeader = await createAuthHeader();
+    const response = await api.get(`/api/matches/${matchId}`, authHeader);
     return response.data;
   },
 
   // Eşleşmeyi sil
   deleteMatch: async (matchId: number): Promise<{ success: boolean }> => {
-    const response = await api.delete(`/api/matches/${matchId}`);
+    const authHeader = await createAuthHeader();
+    const response = await api.delete(`/api/matches/${matchId}`, authHeader);
     return response.data;
   }
 };

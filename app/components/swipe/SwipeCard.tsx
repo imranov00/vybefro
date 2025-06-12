@@ -299,16 +299,18 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: 'white',
+    backgroundColor: '#1a1a2e',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.3,
-        shadowRadius: 20,
+        shadowOffset: { width: 0, height: 15 },
+        shadowOpacity: 0.5,
+        shadowRadius: 25,
       },
       android: {
-        elevation: 15,
+        elevation: 20,
       },
     }),
   },
@@ -323,7 +325,7 @@ const styles = StyleSheet.create({
   placeholderImage: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#E0E0E0',
+    backgroundColor: '#2a2a3e',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -357,12 +359,16 @@ const styles = StyleSheet.create({
   photoIndicator: {
     flex: 1,
     height: 3,
-    backgroundColor: 'rgba(255,255,255,0.3)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
     marginHorizontal: 2,
     borderRadius: 2,
   },
   activePhotoIndicator: {
-    backgroundColor: 'white',
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    shadowColor: '#fff',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
   },
   compatibilityBadge: {
     position: 'absolute',

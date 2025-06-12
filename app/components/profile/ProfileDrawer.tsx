@@ -222,30 +222,15 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
         {/* Burç Bilgisi */}
         {(user.zodiacSign || user.zodiacSignTurkish) && (
           <View style={[styles.zodiacBadge, { 
-            backgroundColor: themeColors.light, 
             borderColor: themeColors.accent,
-            shadowColor: themeColors.accent,
-            shadowOpacity: 0.3,
-            shadowRadius: 8,
-            elevation: 8
           }]}>
-            <Text style={[styles.zodiacEmoji, { color: themeColors.accent }]}>
+            <Text style={styles.zodiacEmoji}>
               {getZodiacEmoji(user.zodiacSign || '')}
             </Text>
             <Text style={[styles.zodiacText, { 
               color: themeColors.accent,
-              fontWeight: '700',
-              fontSize: 15
             }]}>
               {(() => {
-                // Debug için console log
-                console.log('Zodiac Debug:', {
-                  zodiacSign: user.zodiacSign,
-                  zodiacSignTurkish: user.zodiacSignTurkish,
-                  display: getZodiacDisplay(user.zodiacSign || ''),
-                  emoji: getZodiacEmoji(user.zodiacSign || '')
-                });
-                
                 // Burç gösterimi düzeltildi
                 if (user.zodiacSign) {
                   // Yeni sistem - enum'dan tam display
@@ -359,16 +344,12 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                 onPress={navigateToProfile}
               >
                 <View style={[styles.menuIcon, { 
-                  backgroundColor: `${themeColors.accent}20`,
-                  shadowColor: themeColors.accent,
-                  shadowOpacity: 0.6,
-                  shadowRadius: 8,
-                  elevation: 8
+                  backgroundColor: `${themeColors.accent}15`,
                 }]}>
-                  <Ionicons name="person" size={24} color={themeColors.accent} />
+                  <Ionicons name="person" size={26} color={themeColors.accent} />
                 </View>
                 <Text style={styles.menuText}>Profil</Text>
-                <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.8)" />
+                <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.6)" />
               </TouchableOpacity>
 
               <TouchableOpacity 
@@ -377,23 +358,19 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                 disabled={purchasingPremium}
               >
                 <View style={[styles.menuIcon, { 
-                  backgroundColor: '#FFD70020',
-                  shadowColor: '#FFD700',
-                  shadowOpacity: 0.8,
-                  shadowRadius: 10,
-                  elevation: 10
+                  backgroundColor: 'rgba(255, 215, 0, 0.15)',
                 }]}>
                   {purchasingPremium ? (
                     <ActivityIndicator size="small" color="#FFD700" />
                   ) : (
-                    <Ionicons name="diamond" size={24} color="#FFD700" />
+                    <Ionicons name="diamond" size={26} color="#FFD700" />
                   )}
                 </View>
                 <Text style={styles.menuText}>
                   {isPremium ? 'Premium Yönetimi' : 'Premium'}
                 </Text>
                 {!purchasingPremium && (
-                  <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.8)" />
+                  <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.6)" />
                 )}
               </TouchableOpacity>
               
@@ -405,16 +382,12 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                 }}
               >
                 <View style={[styles.menuIcon, { 
-                  backgroundColor: `${themeColors.accent}20`,
-                  shadowColor: themeColors.accent,
-                  shadowOpacity: 0.6,
-                  shadowRadius: 8,
-                  elevation: 8
+                  backgroundColor: 'rgba(156, 163, 175, 0.15)',
                 }]}>
-                  <Ionicons name="settings" size={24} color={themeColors.accent} />
+                  <Ionicons name="settings" size={26} color="#9CA3AF" />
                 </View>
                 <Text style={styles.menuText}>Ayarlar</Text>
-                <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.8)" />
+                <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.6)" />
               </TouchableOpacity>
 
               <TouchableOpacity 
@@ -425,16 +398,12 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                 }}
               >
                 <View style={[styles.menuIcon, { 
-                  backgroundColor: `${themeColors.accent}20`,
-                  shadowColor: themeColors.accent,
-                  shadowOpacity: 0.6,
-                  shadowRadius: 8,
-                  elevation: 8
+                  backgroundColor: 'rgba(59, 130, 246, 0.15)',
                 }]}>
-                  <Ionicons name="notifications" size={24} color={themeColors.accent} />
+                  <Ionicons name="notifications" size={26} color="#3B82F6" />
                 </View>
                 <Text style={styles.menuText}>Bildirimler</Text>
-                <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.8)" />
+                <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.6)" />
               </TouchableOpacity>
 
               <TouchableOpacity 
@@ -445,16 +414,12 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                 }}
               >
                 <View style={[styles.menuIcon, { 
-                  backgroundColor: `${themeColors.accent}20`,
-                  shadowColor: themeColors.accent,
-                  shadowOpacity: 0.6,
-                  shadowRadius: 8,
-                  elevation: 8
+                  backgroundColor: 'rgba(34, 197, 94, 0.15)',
                 }]}>
-                  <Ionicons name="shield-checkmark" size={24} color={themeColors.accent} />
+                  <Ionicons name="shield-checkmark" size={26} color="#22C55E" />
                 </View>
                 <Text style={styles.menuText}>Gizlilik</Text>
-                <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.8)" />
+                <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.6)" />
               </TouchableOpacity>
 
               <TouchableOpacity 
@@ -465,16 +430,12 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                 }}
               >
                 <View style={[styles.menuIcon, { 
-                  backgroundColor: `${themeColors.accent}20`,
-                  shadowColor: themeColors.accent,
-                  shadowOpacity: 0.6,
-                  shadowRadius: 8,
-                  elevation: 8
+                  backgroundColor: 'rgba(168, 85, 247, 0.15)',
                 }]}>
-                  <Ionicons name="help-circle" size={24} color={themeColors.accent} />
+                  <Ionicons name="help-circle" size={26} color="#A855F7" />
                 </View>
                 <Text style={styles.menuText}>Yardım</Text>
-                <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.8)" />
+                <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.6)" />
               </TouchableOpacity>
             </View>
             
@@ -504,7 +465,7 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
   },
   drawer: {
     position: 'absolute',
@@ -514,12 +475,12 @@ const styles = StyleSheet.create({
     height: '100%',
     shadowColor: '#000',
     shadowOffset: {
-      width: -5,
+      width: -8,
       height: 0,
     },
-    shadowOpacity: 0.4,
-    shadowRadius: 15,
-    elevation: 20,
+    shadowOpacity: 0.6,
+    shadowRadius: 20,
+    elevation: 25,
   },
   drawerGradient: {
     position: 'absolute',
@@ -531,6 +492,7 @@ const styles = StyleSheet.create({
   blurContainer: {
     flex: 1,
     overflow: 'hidden',
+    backgroundColor: 'rgba(26, 26, 46, 0.95)',
   },
   scrollView: {
     flex: 1,
@@ -541,92 +503,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     paddingTop: Platform.OS === 'ios' ? 60 : StatusBar.currentHeight ? StatusBar.currentHeight + 20 : 40,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   modeIndicator: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  closeButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  profileSection: {
-    alignItems: 'center',
-    padding: 25,
-    paddingBottom: 30,
-  },
-  avatarContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 3,
-    padding: 3,
-    marginBottom: 20,
-    position: 'relative',
-  },
-  avatarGradient: {
-    flex: 1,
-    borderRadius: 57,
-    overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  profileImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 57,
-  },
-  onlineStatus: {
-    position: 'absolute',
-    bottom: 8,
-    right: 8,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 3,
-    borderColor: 'white',
-  },
-  profileName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 5,
-  },
-  profileUsername: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.7)',
-    marginBottom: 15,
-  },
-  zodiacBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 25,
-    borderWidth: 3,
-    marginBottom: 20,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -634,146 +524,269 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.4,
     shadowRadius: 8,
-    elevation: 10,
+    elevation: 8,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'white',
+    letterSpacing: 0.5,
+  },
+  closeButton: {
+    padding: 10,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  profileSection: {
+    alignItems: 'center',
+    padding: 30,
+    paddingBottom: 25,
+  },
+  avatarContainer: {
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    borderWidth: 4,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    padding: 4,
+    marginBottom: 20,
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.4,
+    shadowRadius: 15,
+    elevation: 15,
+  },
+  avatarGradient: {
+    flex: 1,
+    borderRadius: 61,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 61,
+  },
+  onlineStatus: {
+    position: 'absolute',
+    bottom: 5,
+    right: 5,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#4CAF50',
+    borderWidth: 3,
+    borderColor: 'white',
+    shadowColor: '#4CAF50',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.6,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  profileName: {
+    fontSize: 26,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 6,
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
+  profileUsername: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  zodiacBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 30,
+    borderWidth: 2,
+    marginBottom: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   zodiacEmoji: {
-    fontSize: 24,
-    marginRight: 8,
+    fontSize: 28,
+    marginRight: 10,
   },
   zodiacText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
-    marginLeft: 8,
+    letterSpacing: 0.5,
   },
   statsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 20,
+    padding: 25,
     width: '100%',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
   },
   statItem: {
     flex: 1,
     alignItems: 'center',
   },
   statNumber: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
     color: 'white',
-    marginBottom: 4,
+    marginBottom: 6,
+    letterSpacing: 0.5,
   },
   statLabel: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontWeight: '500',
   },
   statDivider: {
     width: 1,
-    height: 30,
-    opacity: 0.3,
+    height: 35,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   menuContainer: {
-    padding: 20,
-    paddingTop: 0,
+    padding: 25,
+    paddingTop: 30,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: 'white',
-    marginBottom: 15,
+    marginBottom: 20,
+    letterSpacing: 0.5,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 18,
-    borderRadius: 18,
+    padding: 20,
+    borderRadius: 16,
     marginBottom: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
     elevation: 3,
   },
   menuItemDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   menuIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
+    marginRight: 16,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowRadius: 6,
+    elevation: 6,
   },
   menuText: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 17,
     color: 'white',
-    fontWeight: '500',
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
   logoutContainer: {
-    padding: 20,
-    paddingTop: 10,
+    padding: 25,
+    paddingTop: 15,
   },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    padding: 18,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+    backgroundColor: 'rgba(255, 107, 107, 0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 107, 107, 0.3)',
+    borderColor: 'rgba(255, 107, 107, 0.4)',
+    shadowColor: '#FF6B6B',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
   },
   logoutText: {
     fontSize: 16,
     color: '#FF6B6B',
-    fontWeight: '600',
-    marginLeft: 10,
+    fontWeight: '700',
+    marginLeft: 12,
+    letterSpacing: 0.5,
   },
   bottomSpacer: {
-    height: 30,
+    height: 40,
   },
   loadingContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 40,
+    padding: 50,
   },
   loadingText: {
-    marginTop: 15,
+    marginTop: 20,
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.8)',
   },
   premiumBadgeLuxury: {
-    marginTop: 4,
-    marginBottom: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 25,
-    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    marginTop: 8,
+    marginBottom: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 215, 0, 0.12)',
     borderWidth: 2,
     borderColor: '#FFD700',
     shadowColor: '#FFD700',
     shadowOffset: {
       width: 0,
-      height: 0,
+      height: 4,
     },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
+    shadowOpacity: 0.6,
+    shadowRadius: 12,
     elevation: 15,
     position: 'relative',
     overflow: 'hidden',
@@ -784,7 +797,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   premiumIconContainer: {
-    marginHorizontal: 6,
+    marginHorizontal: 8,
   },
   premiumTextLuxury: {
     fontSize: 16,
@@ -794,7 +807,7 @@ const styles = StyleSheet.create({
     textShadowColor: '#FFD700',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 8,
-    letterSpacing: 2,
+    letterSpacing: 2.5,
     fontFamily: Platform.OS === 'ios' ? 'Helvetica-Bold' : 'sans-serif-medium',
   },
   premiumGlowEffect: {
@@ -803,9 +816,9 @@ const styles = StyleSheet.create({
     left: -2,
     right: -2,
     bottom: -2,
-    borderRadius: 27,
+    borderRadius: 32,
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.3)',
+    borderColor: 'rgba(255, 215, 0, 0.4)',
   },
 }); 
