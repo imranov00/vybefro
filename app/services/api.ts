@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { getToken, saveToken } from '../utils/tokenStorage';
 
-const API_URL = 'https://483f-95-70-164-193.ngrok-free.app';
+const API_URL = 'https://f92a-95-70-131-250.ngrok-free.app';
 
 // API isteği için bir axios örneği oluşturuluyor
 const api = axios.create({
