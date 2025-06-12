@@ -1,7 +1,7 @@
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import { userApi, UserProfileResponse } from '../services/api';
 import { ZodiacSign } from '../types/zodiac';
-import { hasToken } from '../utils/tokenStorage';
+import { getToken, hasToken } from '../utils/tokenStorage';
 
 // User profili için tip tanımı
 export type UserProfile = {
@@ -28,8 +28,10 @@ type ProfileContextType = {
   userProfile: UserProfile;
   updateUserProfile: (profile: Partial<UserProfile>) => void;
   fetchUserProfile: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
   isLoading: boolean;
   error: string | null;
+  currentUserId: string | null;
 };
 
 // Varsayılan değerler
@@ -68,10 +70,17 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const [userProfile, setUserProfile] = useState<UserProfile>(defaultUserProfile);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [lastFetchTime, setLastFetchTime] = useState<number>(0);
+
+  // Cache süresi (5 dakika)
+  const CACHE_DURATION = 5 * 60 * 1000;
 
   // Profil drawer'ını göster
   const showProfile = () => {
     setIsProfileVisible(true);
+    // Drawer açıldığında profili kontrol et (cache'e göre)
+    checkAndFetchProfile();
   };
 
   // Profil drawer'ını gizle
@@ -82,6 +91,35 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   // Kullanıcı profilini güncelle
   const updateUserProfile = (profile: Partial<UserProfile>) => {
     setUserProfile(prevProfile => ({ ...prevProfile, ...profile }));
+  };
+
+  // Mevcut kullanıcı ID'sini kontrol et
+  const getCurrentUserId = async (): Promise<string | null> => {
+    try {
+      const token = await getToken();
+      if (!token) return null;
+      
+      // JWT token'dan kullanıcı ID'sini parse et (basit yöntem)
+      // Gerçek uygulamada daha güvenli bir yöntem kullanılmalı
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.sub || payload.userId || payload.id || null;
+    } catch (error) {
+      console.error('Token parse hatası:', error);
+      return null;
+    }
+  };
+
+  // Cache kontrolü ile profil getir
+  const checkAndFetchProfile = async (force = false) => {
+    const now = Date.now();
+    const cacheValid = (now - lastFetchTime) < CACHE_DURATION;
+    
+    if (!force && cacheValid && userProfile.id) {
+      console.log('Profil cache\'den alındı');
+      return;
+    }
+    
+    await fetchUserProfile();
   };
 
   // Kullanıcı profilini API'den çek
@@ -95,6 +133,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       
       if (!isLoggedIn) {
         setError('Oturum açık değil');
+        setUserProfile(defaultUserProfile);
+        setCurrentUserId(null);
         setIsLoading(false);
         return;
       }
@@ -140,6 +180,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       console.log('Güncellenmiş profil bilgisi:', JSON.stringify(mappedProfile, null, 2));
       // Güncellenen profil bilgisini state'e kaydet
       setUserProfile(mappedProfile);
+      setLastFetchTime(Date.now());
+      
+      // Kullanıcı ID'sini güncelle
+      const userId = await getCurrentUserId();
+      setCurrentUserId(userId);
+      
     } catch (error: any) {
       console.error('Profil çekme hatası:', error);
       if (error.response) {
@@ -152,9 +198,49 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Uygulama başladığında profil bilgilerini çek
+  // Zorla profil yenile (cache'i bypass et)
+  const refreshProfile = async () => {
+    setLastFetchTime(0); // Cache'i invalidate et
+    await fetchUserProfile();
+  };
+
+  // Kullanıcı değişikliğini kontrol et
   useEffect(() => {
-    fetchUserProfile();
+    const checkUserChange = async () => {
+      const newUserId = await getCurrentUserId();
+      
+      if (newUserId !== currentUserId) {
+        console.log('Kullanıcı değişti:', { eski: currentUserId, yeni: newUserId });
+        setCurrentUserId(newUserId);
+        
+        if (newUserId) {
+          // Yeni kullanıcı için profil getir
+          await fetchUserProfile();
+        } else {
+          // Logout durumu
+          setUserProfile(defaultUserProfile);
+          setError(null);
+        }
+      }
+    };
+
+    // Sadece giriş durumu kontrol edilmesi gereken durumlarda çalıştır
+    let interval: NodeJS.Timeout | null = null;
+    
+    const startChecking = async () => {
+      await checkUserChange(); // İlk kontrol
+      
+      // Her 3 saniyede bir kontrol et (performans için)
+      interval = setInterval(checkUserChange, 3000);
+    };
+
+    startChecking();
+
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
   }, []);
 
   return (
@@ -166,8 +252,10 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         userProfile,
         updateUserProfile,
         fetchUserProfile,
+        refreshProfile,
         isLoading,
         error,
+        currentUserId,
       }}
     >
       {children}

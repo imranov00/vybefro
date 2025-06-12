@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useSegments } from 'expo-router';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import { premiumApi } from '../services/api';
 import { hasToken, removeToken } from '../utils/tokenStorage';
 
 // Context değer tipi
@@ -70,8 +71,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     await removeToken();
     await AsyncStorage.removeItem('user_mode');
+    await AsyncStorage.removeItem('user_premium');
     setIsLoggedIn(false);
     setCurrentMode('astrology');
+    setIsPremium(false);
     router.replace('/(auth)/login');
   };
 
@@ -88,6 +91,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (savedMode === 'music' || savedMode === 'astrology') {
           setCurrentMode(savedMode);
         }
+
+        // Premium durumunu kontrol et
+        const savedPremium = await AsyncStorage.getItem('user_premium');
+        if (savedPremium === 'true') {
+          setIsPremium(true);
+        }
+
+        // Eğer kullanıcı giriş yapmışsa, sunucudan premium durumunu da kontrol et
+        if (hasStoredToken) {
+          try {
+            const premiumStatus = await premiumApi.getFeatures();
+            setIsPremium(premiumStatus.isPremium);
+            // Güncel durumu storage'a kaydet
+            await AsyncStorage.setItem('user_premium', premiumStatus.isPremium.toString());
+          } catch (error) {
+            console.error('Premium durum kontrolü sırasında hata:', error);
+            // API hatası varsa, local storage'daki değeri kullan
+          }
+        }
       } catch (error) {
         console.error('Token kontrolü sırasında hata:', error);
         setIsLoggedIn(false);
@@ -99,8 +121,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkToken();
   }, []);
 
-  const setPremium = (premium: boolean) => {
+  const setPremium = async (premium: boolean) => {
     setIsPremium(premium);
+    // Premium durumunu AsyncStorage'a kaydet
+    await AsyncStorage.setItem('user_premium', premium.toString());
   };
 
   return (

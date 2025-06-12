@@ -41,8 +41,8 @@ type ProfileDrawerProps = {
 
 export default function ProfileDrawer({ visible, onClose, user, isLoading = false }: ProfileDrawerProps) {
   const colorScheme = useColorScheme();
-  const { currentMode, switchMode, logout, isPremium, isLoggedIn } = useAuth();
-  const { fetchUserProfile } = useProfile();
+  const { currentMode, switchMode, logout, isPremium, isLoggedIn, setPremium } = useAuth();
+  const { showProfile } = useProfile();
   const router = useRouter();
   const [isRendered, setIsRendered] = useState(visible);
   
@@ -52,15 +52,15 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
   // Premium animasyon
   const premiumGlow = useSharedValue(0);
   
-  useEffect(() => {
-    if (isLoggedIn && visible) {
-      fetchUserProfile();
-    }
-  }, [isLoggedIn]);
-
+  // ProfileContext artık otomatik olarak kullanıcı değişikliğini takip ediyor
+  // showProfile çağrısı cache kontrolü yapıp gerekirse profili günceller
+  
   useEffect(() => {
     if (visible) {
       setIsRendered(true);
+      // Drawer açıldığında profil context'e bildir (cache kontrolü yapar)
+      showProfile();
+      
       // Slide ve fade animasyonlarını paralel çalıştır
       Animated.parallel([
         Animated.timing(slideAnimation, {
@@ -253,6 +253,21 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
       color: '#FFD700',
       onPress: handlePremiumPress,
     },
+    // TEST BUTONU - Premium aktifleştirme için
+    ...(!isPremium ? [{
+      icon: 'flash',
+      title: '[TEST] Premium Aktifleştir',
+      color: '#FF6B35',
+      onPress: async () => {
+        try {
+          await setPremium(true);
+          onClose();
+          Alert.alert('Test', 'Premium başarıyla aktifleştirildi! (Test amaçlı)');
+        } catch (error) {
+          console.error('Premium test hatası:', error);
+        }
+      },
+    }] : []),
     {
       icon: 'settings',
       title: 'Ayarlar',
