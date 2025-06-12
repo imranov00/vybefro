@@ -1,7 +1,6 @@
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -27,10 +26,11 @@ import ReanimatedAnimated, {
 } from 'react-native-reanimated';
 import { useAuth } from '../../context/AuthContext';
 import { useProfile, UserProfile } from '../../context/ProfileContext';
+import { premiumApi } from '../../services/api';
 import { getZodiacDisplay, getZodiacEmoji } from '../../types/zodiac';
 
 const { width, height } = Dimensions.get('window');
-const DRAWER_WIDTH = width * 0.88;
+const DRAWER_WIDTH = width * 0.85;
 
 type ProfileDrawerProps = {
   visible: boolean;
@@ -48,17 +48,16 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
   const animation = useRef(new Animated.Value(DRAWER_WIDTH)).current;
   const [isRendered, setIsRendered] = useState(visible);
   
-  // Animasyon değerleri
+  // Premium badge animasyonu
   const premiumGlow = useSharedValue(0);
   const premiumScale = useSharedValue(1);
-  const sparkleAnimation = useSharedValue(0);
   
   // Sadece login durumu değiştiğinde profil bilgilerini yenile
   useEffect(() => {
     if (isLoggedIn && visible) {
       fetchUserProfile();
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn]); // fetchUserProfile ve visible dependency'sini kaldırdık
 
   useEffect(() => {
     if (visible) {
@@ -67,7 +66,7 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
     
     Animated.timing(animation, {
       toValue: visible ? 0 : DRAWER_WIDTH,
-      duration: 400,
+      duration: 350,
       useNativeDriver: true,
     }).start(() => {
       if (!visible) {
@@ -75,43 +74,29 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
       }
     });
     
-    // Premium animasyonları
+    // Premium animasyonunu başlat
     if (isPremium) {
+      // Neon glow animasyonu
       premiumGlow.value = withRepeat(
-        withTiming(1, { duration: 2500, easing: Easing.inOut(Easing.sin) }),
+        withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.sin) }),
         -1,
         true
       );
       
+      // Hafif scale animasyonu
       premiumScale.value = withRepeat(
-        withTiming(1.03, { duration: 4000, easing: Easing.inOut(Easing.sin) }),
+        withTiming(1.05, { duration: 3000, easing: Easing.inOut(Easing.sin) }),
         -1,
         true
-      );
-
-      sparkleAnimation.value = withRepeat(
-        withTiming(1, { duration: 3000, easing: Easing.linear }),
-        -1,
-        false
       );
     }
   }, [visible, animation, isPremium]);
 
   const animatedPremiumStyle = useAnimatedStyle(() => {
     return {
-      shadowOpacity: 0.5 + (premiumGlow.value * 0.3),
-      shadowRadius: 12 + (premiumGlow.value * 8),
+      shadowOpacity: 0.6 + (premiumGlow.value * 0.4),
+      shadowRadius: 8 + (premiumGlow.value * 12),
       transform: [{ scale: premiumScale.value }],
-    };
-  });
-
-  const sparkleStyle = useAnimatedStyle(() => {
-    return {
-      opacity: 0.6 + (sparkleAnimation.value * 0.4),
-      transform: [
-        { rotate: `${sparkleAnimation.value * 360}deg` },
-        { scale: 0.8 + (sparkleAnimation.value * 0.4) }
-      ],
     };
   });
 
@@ -119,32 +104,30 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
     return null;
   }
 
-  // Mode'a göre tema renkleri
+  // Mode'a göre renkler
   const getThemeColors = () => {
     if (currentMode === 'music') {
       return {
-        gradient: ['#1DB954', '#1E7E34', '#0D4F1C'],
+        gradient: ['#1DB954', '#1E7E34', '#145A24'],
         accent: '#1DB954',
         secondary: '#FFD700',
-        light: 'rgba(29, 185, 84, 0.15)',
-        border: 'rgba(255, 215, 0, 0.4)',
-        overlay: 'rgba(29, 185, 84, 0.9)'
+        light: 'rgba(29, 185, 84, 0.1)',
+        border: 'rgba(255, 215, 0, 0.3)'
       };
     } else {
       return {
         gradient: ['#8000FF', '#5B00B5', '#3D007A'],
         accent: '#8000FF',
         secondary: '#FFFFFF',
-        light: 'rgba(128, 0, 255, 0.15)',
-        border: 'rgba(255, 255, 255, 0.4)',
-        overlay: 'rgba(128, 0, 255, 0.9)'
+        light: 'rgba(128, 0, 255, 0.1)',
+        border: 'rgba(255, 255, 255, 0.3)'
       };
     }
   };
 
   const themeColors = getThemeColors();
 
-  // Navigation fonksiyonları
+  // Profil ekranına yönlendir - mode'a göre doğru ekrana yönlendir
   const navigateToProfile = () => {
     onClose();
     setTimeout(() => {
@@ -152,34 +135,65 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
     }, 300);
   };
 
+  // Çıkış yap
   const handleLogout = () => {
-    Alert.alert(
-      '🚪 Çıkış Yap',
-      'Hesabınızdan çıkmak istediğinizden emin misiniz?',
-      [
-        { text: 'İptal', style: 'cancel' },
-        { 
-          text: 'Çıkış Yap', 
-          style: 'destructive',
-          onPress: () => {
-            onClose();
-            setTimeout(() => {
-              logout();
-            }, 300);
-          }
-        }
-      ]
-    );
+    onClose();
+    setTimeout(() => {
+      logout();
+    }, 300);
   };
 
+  // Premium satın alma fonksiyonu
   const handlePremiumPurchase = async () => {
+    // Premium ise veya değilse her durumda premium sayfasına yönlendir
     onClose();
     setTimeout(() => {
       router.push('/(profile)/premiumScreen' as any);
     }, 300);
   };
 
-  // Profil içerik renderer
+  // Premium iptal fonksiyonu
+  const handlePremiumCancel = async () => {
+    try {
+      setPurchasingPremium(true);
+      
+      // Premium iptal API çağrısı
+      const response = await premiumApi.cancel();
+
+      if (response.success) {
+        // Premium durumunu güncelle
+        setPremium(false);
+        
+        Alert.alert(
+          'İptal Edildi',
+          'Premium üyeliğiniz başarıyla iptal edildi.',
+          [
+            {
+              text: 'Tamam',
+              style: 'default'
+            }
+          ]
+        );
+      } else {
+        Alert.alert(
+          'Hata',
+          response.message || 'Premium iptal işlemi başarısız oldu.',
+          [{ text: 'Tamam', style: 'default' }]
+        );
+      }
+    } catch (error) {
+      console.error('Premium cancel error:', error);
+      Alert.alert(
+        'Hata',
+        'Premium iptal sırasında bir hata oluştu. Lütfen tekrar deneyin.',
+        [{ text: 'Tamam', style: 'default' }]
+      );
+    } finally {
+      setPurchasingPremium(false);
+    }
+  };
+
+  // Profil fotoğrafı ve bilgileri görünümü
   const renderProfileContent = () => {
     if (isLoading) {
       return (
@@ -194,148 +208,117 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
 
     return (
       <View style={styles.profileSection}>
-        {/* Profil Header */}
-        <View style={styles.profileHeader}>
-          {/* Avatar Container */}
-          <View style={[styles.avatarContainer, { 
-            shadowColor: themeColors.accent,
-            shadowOpacity: 0.4,
-            shadowRadius: 15,
-            elevation: 10
-          }]}>
-            <LinearGradient
-              colors={[themeColors.accent, `${themeColors.accent}80`]}
-              style={styles.avatarGradient}
-            >
-              <Image
-                source={{ uri: user.profileImage || 'https://via.placeholder.com/120' }}
-                style={styles.profileImage}
-              />
-              {/* Online Status */}
-              <View style={styles.onlineStatus}>
-                <View style={styles.onlineIndicator} />
-              </View>
-            </LinearGradient>
-            
-            {/* Sparkle Efektleri */}
-            {isPremium && (
-              <>
-                <ReanimatedAnimated.View style={[styles.sparkle, styles.sparkle1, sparkleStyle]}>
-                  <Ionicons name="diamond" size={12} color="#FFD700" />
-                </ReanimatedAnimated.View>
-                <ReanimatedAnimated.View style={[styles.sparkle, styles.sparkle2, sparkleStyle]}>
-                  <Ionicons name="star" size={10} color="#FFF" />
-                </ReanimatedAnimated.View>
-                <ReanimatedAnimated.View style={[styles.sparkle, styles.sparkle3, sparkleStyle]}>
-                  <Ionicons name="diamond" size={8} color="#FFD700" />
-                </ReanimatedAnimated.View>
-              </>
-            )}
+        {/* Profil Avatar */}
+        <View style={[styles.avatarContainer, { borderColor: themeColors.accent }]}>
+          <View
+            style={[styles.avatarGradient, { backgroundColor: themeColors.accent }]}
+          >
+            <Image
+              source={{ uri: user.profileImage || 'https://via.placeholder.com/120' }}
+              style={styles.profileImage}
+            />
           </View>
           
-          {/* Profil Bilgileri */}
-          <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{user.name}</Text>
-            <Text style={styles.profileUsername}>@{user.username}</Text>
-            
-            {/* Burç Badge */}
-            {(user.zodiacSign || user.zodiacSignTurkish) && (
-              <View style={[styles.zodiacBadge, { 
-                borderColor: themeColors.accent,
-                backgroundColor: `${themeColors.accent}20`
-              }]}>
-                <Text style={styles.zodiacEmoji}>
-                  {getZodiacEmoji(user.zodiacSign || '')}
-                </Text>
-                <Text style={[styles.zodiacText, { 
-                  color: themeColors.accent,
-                }]}>
-                  {(() => {
-                    if (user.zodiacSign) {
-                      return getZodiacDisplay(user.zodiacSign);
-                    }
-                    if (user.zodiacSignTurkish) {
-                      return user.zodiacSignTurkish;
-                    }
-                    return 'Burç Belirtilmemiş';
-                  })()}
-                </Text>
-              </View>
-            )}
-
-            {/* Premium Badge */}
-            {isPremium && (
-              <ReanimatedAnimated.View style={[styles.premiumBadge, animatedPremiumStyle]}>
-                <LinearGradient
-                  colors={['#FFD700', '#FFA500', '#FF8C00']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.premiumGradient}
-                >
-                  <View style={styles.premiumContent}>
-                    <Ionicons name="diamond" size={16} color="#000" />
-                    <Text style={styles.premiumText}>PREMIUM</Text>
-                    <Ionicons name="diamond" size={16} color="#000" />
-                  </View>
-                </LinearGradient>
-              </ReanimatedAnimated.View>
-            )}
-          </View>
+          {/* Online Status */}
+          <View style={[styles.onlineStatus, { backgroundColor: '#4CAF50' }]} />
         </View>
+        
+        {/* Profil Bilgileri */}
+        <Text style={styles.profileName}>{user.name}</Text>
+        <Text style={styles.profileUsername}>@{user.username}</Text>
+        
+        {/* Burç Bilgisi */}
+        {(user.zodiacSign || user.zodiacSignTurkish) && (
+          <View style={[styles.zodiacBadge, { 
+            borderColor: themeColors.accent,
+          }]}>
+            <Text style={styles.zodiacEmoji}>
+              {getZodiacEmoji(user.zodiacSign || '')}
+            </Text>
+            <Text style={[styles.zodiacText, { 
+              color: themeColors.accent,
+            }]}>
+              {(() => {
+                // Burç gösterimi düzeltildi
+                if (user.zodiacSign) {
+                  // Yeni sistem - enum'dan tam display
+                  return getZodiacDisplay(user.zodiacSign);
+                }
+                
+                if (user.zodiacSignTurkish) {
+                  // Eski sistem - sadece Türkçe isim
+                  return user.zodiacSignTurkish;
+                }
+                
+                return 'Burç Belirtilmemiş';
+              })()}
+            </Text>
+          </View>
+        )}
 
-        {/* İstatistikler */}
-        <View style={[styles.statsContainer, { backgroundColor: `${themeColors.accent}10` }]}>
+        {/* Premium Badge - Burç altında */}
+        {isPremium && (
+          <ReanimatedAnimated.View style={[styles.premiumBadgeLuxury, animatedPremiumStyle]}>
+            {/* Arka plan gradient efekti */}
+            <View style={styles.premiumGradientBackground} />
+            
+            {/* Ana içerik */}
+            <View style={styles.premiumBadgeInner}>
+              <View style={styles.premiumIconContainer}>
+                <Ionicons name="diamond" size={18} color="#FFD700" />
+              </View>
+              <ReanimatedAnimated.Text style={[styles.premiumTextLuxury, animatedPremiumStyle]}>
+                PREMIUM
+              </ReanimatedAnimated.Text>
+              <View style={styles.premiumIconContainer}>
+                <Ionicons name="diamond" size={18} color="#FFD700" />
+              </View>
+            </View>
+            
+            {/* Çoklu glow efektleri */}
+            <View style={styles.premiumGlowEffect} />
+            <View style={styles.premiumInnerGlow} />
+            
+            {/* Shimmer efekti */}
+            <ReanimatedAnimated.View style={[styles.premiumShimmer, {
+              transform: [{
+                translateX: premiumGlow.value * 200 - 100
+              }]
+            }]} />
+          </ReanimatedAnimated.View>
+        )}
+
+        {/* Stats */}
+        <View style={styles.statsContainer}>
           <View style={styles.statItem}>
-            <Text style={[styles.statNumber, { color: themeColors.accent }]}>42</Text>
-            <Text style={styles.statLabel}>Eşleşme</Text>
+            <Text style={styles.statNumber}>42</Text>
+            <Text style={styles.statLabel}>Eşleşmeler</Text>
           </View>
           <View style={[styles.statDivider, { backgroundColor: themeColors.border }]} />
           <View style={styles.statItem}>
-            <Text style={[styles.statNumber, { color: themeColors.accent }]}>18</Text>
-            <Text style={styles.statLabel}>Beğeni</Text>
+            <Text style={styles.statNumber}>18</Text>
+            <Text style={styles.statLabel}>Beğeniler</Text>
           </View>
           <View style={[styles.statDivider, { backgroundColor: themeColors.border }]} />
           <View style={styles.statItem}>
-            <Text style={[styles.statNumber, { color: themeColors.accent }]}>95%</Text>
-            <Text style={styles.statLabel}>Uyum</Text>
+            <Text style={styles.statNumber}>95%</Text>
+            <Text style={styles.statLabel}>Uyumluluk</Text>
           </View>
         </View>
       </View>
     );
   };
 
-  // Menü öğesi renderer
-  const renderMenuItem = (icon: string, title: string, onPress: () => void, iconColor: string, isLoading = false) => (
-    <TouchableOpacity 
-      style={[styles.menuItem, isLoading && styles.menuItemDisabled]}
-      onPress={onPress}
-      disabled={isLoading}
-      activeOpacity={0.7}
-    >
-      <View style={[styles.menuIcon, { backgroundColor: `${iconColor}20` }]}>
-        {isLoading ? (
-          <ActivityIndicator size="small" color={iconColor} />
-        ) : (
-          <Ionicons name={icon as any} size={24} color={iconColor} />
-        )}
-      </View>
-      <Text style={styles.menuText}>{title}</Text>
-      {!isLoading && (
-        <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.5)" />
-      )}
-    </TouchableOpacity>
-  );
-
   return (
     <View style={styles.container}>
-      {/* Backdrop */}
+      {/* Karartılmış arka plan */}
       <TouchableOpacity 
         style={styles.backdrop} 
         activeOpacity={1} 
         onPress={onClose}
       />
       
-      {/* Drawer */}
+      {/* Drawer paneli */}
       <Animated.View 
         style={[
           styles.drawer,
@@ -343,102 +326,153 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
         ]}
       >
         {/* Arka plan gradyanı */}
-        <LinearGradient
-          colors={[`${themeColors.accent}15`, `${themeColors.accent}05`, 'transparent']}
-          style={styles.drawerGradient}
+        <View
+          style={[styles.drawerGradient, { backgroundColor: themeColors.accent }]}
         />
         
         <BlurView
-          intensity={Platform.OS === 'ios' ? 50 : 90}
+          intensity={Platform.OS === 'ios' ? 40 : 80}
           tint="dark"
           style={styles.blurContainer}
         >
-          <ScrollView 
-            showsVerticalScrollIndicator={false} 
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
-          >
+          <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollView}>
             {/* Header */}
             <View style={styles.headerContainer}>
               <View style={styles.headerLeft}>
                 <View style={[styles.modeIndicator, { backgroundColor: themeColors.accent }]}>
                   <Ionicons 
                     name={currentMode === 'astrology' ? 'planet' : 'musical-notes'} 
-                    size={20} 
+                    size={18} 
                     color="white" 
                   />
                 </View>
-                <Text style={styles.headerTitle}>VybeFro</Text>
-                <Text style={styles.headerSubtitle}>
-                  {currentMode === 'astrology' ? 'Astroloji Modu' : 'Müzik Modu'}
-                </Text>
+                <Text style={styles.headerTitle}>Profil</Text>
               </View>
               
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <Ionicons name="close" size={28} color="white" />
+                <Ionicons name="close" size={26} color="white" />
               </TouchableOpacity>
             </View>
             
             {/* Profil İçeriği */}
             {renderProfileContent()}
             
-            {/* Menü */}
+            {/* Menü Seçenekleri */}
             <View style={styles.menuContainer}>
               <Text style={styles.sectionTitle}>Menü</Text>
               
-              {renderMenuItem('person-outline', 'Profil Düzenle', navigateToProfile, themeColors.accent)}
-              {renderMenuItem('diamond-outline', isPremium ? 'Premium Yönetimi' : 'Premium Ol', handlePremiumPurchase, '#FFD700', purchasingPremium)}
-              {renderMenuItem('settings-outline', 'Ayarlar', () => { onClose(); router.push('/settingsScreen' as any); }, '#9CA3AF')}
-              {renderMenuItem('notifications-outline', 'Bildirimler', () => { onClose(); }, '#3B82F6')}
-              {renderMenuItem('shield-checkmark-outline', 'Gizlilik', () => { onClose(); }, '#22C55E')}
-              {renderMenuItem('help-circle-outline', 'Yardım', () => { onClose(); }, '#F59E0B')}
-            </View>
+              <TouchableOpacity 
+                style={styles.menuItem}
+                onPress={navigateToProfile}
+              >
+                <View style={[styles.menuIcon, { 
+                  backgroundColor: `${themeColors.accent}15`,
+                }]}>
+                  <Ionicons name="person" size={26} color={themeColors.accent} />
+                </View>
+                <Text style={styles.menuText}>Profil</Text>
+                <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.6)" />
+              </TouchableOpacity>
 
-            {/* Mode Switch */}
-            <View style={styles.modeSection}>
-              <Text style={styles.sectionTitle}>Mod Değiştir</Text>
-              <TouchableOpacity
-                style={[styles.modeSwitchButton, { borderColor: themeColors.accent }]}
+              <TouchableOpacity 
+                style={[styles.menuItem, purchasingPremium && styles.menuItemDisabled]}
+                onPress={handlePremiumPurchase}
+                disabled={purchasingPremium}
+              >
+                <View style={[styles.menuIcon, { 
+                  backgroundColor: 'rgba(255, 215, 0, 0.15)',
+                }]}>
+                  {purchasingPremium ? (
+                    <ActivityIndicator size="small" color="#FFD700" />
+                  ) : (
+                    <Ionicons name="diamond" size={26} color="#FFD700" />
+                  )}
+                </View>
+                <Text style={styles.menuText}>
+                  {isPremium ? 'Premium Yönetimi' : 'Premium'}
+                </Text>
+                {!purchasingPremium && (
+                  <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.6)" />
+                )}
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.menuItem}
                 onPress={() => {
-                  const newMode = currentMode === 'astrology' ? 'music' : 'astrology';
-                  switchMode(newMode);
-                  if (newMode === 'astrology') {
-                    router.push('/astrology');
-                  } else {
-                    router.push('/music');
-                  }
+                  onClose();
+                  router.push('/settingsScreen' as any);
                 }}
               >
-                <LinearGradient
-                  colors={currentMode === 'astrology' ? 
-                    ['#1DB954', '#1E7E34'] : 
-                    ['#8000FF', '#5B00B5']
-                  }
-                  style={styles.modeSwitchGradient}
-                >
-                  <Ionicons
-                    name={currentMode === 'astrology' ? 'musical-notes' : 'planet'}
-                    size={24}
-                    color="white"
-                  />
-                  <Text style={styles.modeSwitchText}>
-                    {currentMode === 'astrology' ? 'Müzik Moduna Geç' : 'Astroloji Moduna Geç'}
-                  </Text>
-                </LinearGradient>
+                <View style={[styles.menuIcon, { 
+                  backgroundColor: 'rgba(156, 163, 175, 0.15)',
+                }]}>
+                  <Ionicons name="settings" size={26} color="#9CA3AF" />
+                </View>
+                <Text style={styles.menuText}>Ayarlar</Text>
+                <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.6)" />
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.menuItem}
+                onPress={() => {
+                  onClose();
+                  // Notifications page
+                }}
+              >
+                <View style={[styles.menuIcon, { 
+                  backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                }]}>
+                  <Ionicons name="notifications" size={26} color="#3B82F6" />
+                </View>
+                <Text style={styles.menuText}>Bildirimler</Text>
+                <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.6)" />
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.menuItem}
+                onPress={() => {
+                  onClose();
+                  // Privacy page
+                }}
+              >
+                <View style={[styles.menuIcon, { 
+                  backgroundColor: 'rgba(34, 197, 94, 0.15)',
+                }]}>
+                  <Ionicons name="shield-checkmark" size={26} color="#22C55E" />
+                </View>
+                <Text style={styles.menuText}>Gizlilik</Text>
+                <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.6)" />
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.menuItem}
+                onPress={() => {
+                  onClose();
+                  // Help page
+                }}
+              >
+                <View style={[styles.menuIcon, { 
+                  backgroundColor: 'rgba(168, 85, 247, 0.15)',
+                }]}>
+                  <Ionicons name="help-circle" size={26} color="#A855F7" />
+                </View>
+                <Text style={styles.menuText}>Yardım</Text>
+                <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.6)" />
+              </TouchableOpacity>
+            </View>
+            
+            {/* Çıkış */}
+            <View style={styles.logoutContainer}>
+              <TouchableOpacity 
+                style={styles.logoutButton}
+                onPress={handleLogout}
+              >
+                <Ionicons name="log-out-outline" size={20} color="#FF6B6B" />
+                <Text style={styles.logoutText}>Çıkış Yap</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Çıkış */}
-            <TouchableOpacity 
-              style={styles.logoutButton}
-              onPress={handleLogout}
-            >
-              <Ionicons name="log-out-outline" size={22} color="#FF6B6B" />
-              <Text style={styles.logoutText}>Çıkış Yap</Text>
-            </TouchableOpacity>
-
-            {/* Bottom Spacing */}
-            <View style={{ height: 50 }} />
+            <View style={styles.bottomSpacer} />
           </ScrollView>
         </BlurView>
       </Animated.View>
@@ -448,35 +482,27 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
 
 const styles = StyleSheet.create({
   container: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    ...StyleSheet.absoluteFillObject,
     zIndex: 1000,
   },
   backdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
   },
   drawer: {
     position: 'absolute',
     top: 0,
     right: 0,
     width: DRAWER_WIDTH,
-    height: height,
-    borderTopLeftRadius: 25,
-    borderBottomLeftRadius: 25,
-    overflow: 'hidden',
+    height: '100%',
     shadowColor: '#000',
-    shadowOffset: { width: -5, height: 0 },
-    shadowOpacity: 0.3,
+    shadowOffset: {
+      width: -8,
+      height: 0,
+    },
+    shadowOpacity: 0.6,
     shadowRadius: 20,
-    elevation: 15,
+    elevation: 25,
   },
   drawerGradient: {
     position: 'absolute',
@@ -487,256 +513,219 @@ const styles = StyleSheet.create({
   },
   blurContainer: {
     flex: 1,
-    backgroundColor: 'rgba(15, 15, 15, 0.85)',
+    overflow: 'hidden',
+    backgroundColor: 'rgba(26, 26, 46, 0.95)',
   },
   scrollView: {
     flex: 1,
   },
-  scrollContent: {
-    paddingTop: Platform.OS === 'ios' ? StatusBar.currentHeight || 44 : 25,
-  },
-  
-  // Header Styles
   headerContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
+    padding: 20,
+    paddingTop: Platform.OS === 'ios' ? 60 : StatusBar.currentHeight ? StatusBar.currentHeight + 20 : 40,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-    marginBottom: 20,
   },
   headerLeft: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   modeIndicator: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: 'white',
-    marginBottom: 2,
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontWeight: '500',
-  },
-  closeButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
   },
-
-  // Loading Styles
-  loadingContainer: {
-    alignItems: 'center',
-    paddingVertical: 40,
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'white',
+    letterSpacing: 0.5,
   },
-  loadingText: {
-    marginTop: 15,
-    fontSize: 16,
-    fontWeight: '600',
+  closeButton: {
+    padding: 10,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
-
-  // Profile Styles
   profileSection: {
-    paddingHorizontal: 20,
-    marginBottom: 30,
-  },
-  profileHeader: {
     alignItems: 'center',
-    marginBottom: 25,
+    padding: 30,
+    paddingBottom: 25,
   },
   avatarContainer: {
     width: 130,
     height: 130,
     borderRadius: 65,
+    borderWidth: 4,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    padding: 4,
     marginBottom: 20,
     position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.4,
+    shadowRadius: 15,
+    elevation: 15,
   },
   avatarGradient: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 65,
-    padding: 4,
+    flex: 1,
+    borderRadius: 61,
+    overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
   },
   profileImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    width: '100%',
+    height: '100%',
+    borderRadius: 61,
   },
   onlineStatus: {
     position: 'absolute',
-    bottom: 8,
-    right: 8,
+    bottom: 5,
+    right: 5,
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: 'white',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
+    backgroundColor: '#4CAF50',
+    borderWidth: 3,
+    borderColor: 'white',
+    shadowColor: '#4CAF50',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.6,
     shadowRadius: 4,
     elevation: 5,
   },
-  onlineIndicator: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#4CAF50',
-  },
-  
-  // Sparkle Efektleri
-  sparkle: {
-    position: 'absolute',
-  },
-  sparkle1: {
-    top: 10,
-    right: 20,
-  },
-  sparkle2: {
-    top: 30,
-    left: 15,
-  },
-  sparkle3: {
-    bottom: 20,
-    right: 10,
-  },
-
-  profileInfo: {
-    alignItems: 'center',
-  },
   profileName: {
-    fontSize: 28,
-    fontWeight: '800',
+    fontSize: 26,
+    fontWeight: 'bold',
     color: 'white',
     marginBottom: 6,
     textAlign: 'center',
+    letterSpacing: 0.5,
   },
   profileUsername: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.7)',
-    marginBottom: 15,
-    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginBottom: 20,
+    textAlign: 'center',
   },
   zodiacBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    marginBottom: 15,
-  },
-  zodiacEmoji: {
-    fontSize: 20,
-    marginRight: 8,
-  },
-  zodiacText: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-
-  // Premium Badge
-  premiumBadge: {
-    borderRadius: 25,
-    shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 30,
+    borderWidth: 2,
+    marginBottom: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
     elevation: 8,
   },
-  premiumGradient: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 25,
+  zodiacEmoji: {
+    fontSize: 28,
+    marginRight: 10,
   },
-  premiumContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+  zodiacText: {
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
-  premiumText: {
-    color: '#000',
-    fontSize: 12,
-    fontWeight: '900',
-    marginHorizontal: 8,
-    letterSpacing: 1,
-  },
-
-  // Stats
   statsContainer: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: 20,
-    paddingVertical: 20,
-    paddingHorizontal: 10,
-    marginTop: 10,
+    padding: 25,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
   },
   statItem: {
     flex: 1,
     alignItems: 'center',
   },
   statNumber: {
-    fontSize: 24,
-    fontWeight: '800',
-    marginBottom: 4,
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 6,
+    letterSpacing: 0.5,
   },
   statLabel: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontWeight: '600',
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontWeight: '500',
   },
   statDivider: {
     width: 1,
-    height: 40,
-    opacity: 0.3,
+    height: 35,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
-
-  // Menu Styles
   menuContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 30,
+    padding: 25,
+    paddingTop: 30,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: 'bold',
     color: 'white',
-    marginBottom: 15,
-    marginLeft: 5,
+    marginBottom: 20,
+    letterSpacing: 0.5,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 15,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 15,
-    marginBottom: 10,
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
   },
   menuItemDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   menuIcon: {
     width: 44,
@@ -744,56 +733,145 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
+    marginRight: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 6,
   },
   menuText: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 17,
+    color: 'white',
     fontWeight: '600',
-    color: 'white',
+    letterSpacing: 0.3,
   },
-
-  // Mode Section
-  modeSection: {
-    paddingHorizontal: 20,
-    marginBottom: 30,
+  logoutContainer: {
+    padding: 25,
+    paddingTop: 15,
   },
-  modeSwitchButton: {
-    borderRadius: 20,
-    borderWidth: 2,
-    overflow: 'hidden',
-  },
-  modeSwitchGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-  },
-  modeSwitchText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '700',
-    marginLeft: 12,
-  },
-
-  // Logout
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    marginHorizontal: 20,
-    backgroundColor: 'rgba(255, 107, 107, 0.15)',
-    borderRadius: 15,
+    padding: 18,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 107, 107, 0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 107, 107, 0.3)',
+    borderColor: 'rgba(255, 107, 107, 0.4)',
+    shadowColor: '#FF6B6B',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
   },
   logoutText: {
+    fontSize: 16,
     color: '#FF6B6B',
+    fontWeight: '700',
+    marginLeft: 12,
+    letterSpacing: 0.5,
+  },
+  bottomSpacer: {
+    height: 40,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 50,
+  },
+  loadingText: {
+    marginTop: 20,
     fontSize: 16,
     fontWeight: '600',
-    marginLeft: 10,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  premiumBadgeLuxury: {
+    marginTop: 8,
+    marginBottom: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 215, 0, 0.12)',
+    borderWidth: 2,
+    borderColor: '#FFD700',
+    shadowColor: '#FFD700',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.6,
+    shadowRadius: 12,
+    elevation: 15,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  premiumBadgeInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  premiumIconContainer: {
+    marginHorizontal: 8,
+  },
+  premiumTextLuxury: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFD700',
+    textAlign: 'center',
+    textShadowColor: '#FFD700',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
+    letterSpacing: 2.5,
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica-Bold' : 'sans-serif-medium',
+  },
+  premiumGradientBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 30,
+    backgroundColor: 'rgba(26, 26, 46, 0.8)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+    zIndex: -3,
+  },
+  premiumGlowEffect: {
+    position: 'absolute',
+    top: -4,
+    left: -4,
+    right: -4,
+    bottom: -4,
+    borderRadius: 34,
+    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    zIndex: -2,
+  },
+  premiumInnerGlow: {
+    position: 'absolute',
+    top: -8,
+    left: -8,
+    right: -8,
+    bottom: -8,
+    borderRadius: 38,
+    backgroundColor: 'rgba(255, 215, 0, 0.08)',
+    zIndex: -1,
+  },
+  premiumShimmer: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderRadius: 30,
+    opacity: 0.6,
+    zIndex: 1,
   },
 }); 
