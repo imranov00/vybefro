@@ -726,6 +726,7 @@ export default function AstrologyMatchesScreen() {
                 user={user}
                 onSwipe={handleSwipe}
                 isTop={index === 0}
+                index={index}
               />
             );
           })

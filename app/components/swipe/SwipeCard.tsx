@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
 import {
@@ -23,86 +22,105 @@ import Animated, {
     withTiming
 } from 'react-native-reanimated';
 import { PotentialMatch } from '../../services/api';
-import {
-    getCompatibilityColor,
-    getCompatibilityLabel,
-    getCompatibilityLevel
-} from '../../types/compatibility';
+import { getCompatibilityColor, getCompatibilityLabel } from '../../types/compatibility';
 import { getZodiacDisplay, getZodiacEmoji } from '../../types/zodiac';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-const CARD_WIDTH = screenWidth * 0.9;
-const CARD_HEIGHT = screenHeight * 0.7;
-const SWIPE_THRESHOLD = screenWidth * 0.25;
+const CARD_WIDTH = screenWidth * 0.85;
+const CARD_HEIGHT = screenHeight * 0.65;
+const SWIPE_THRESHOLD = screenWidth * 0.3;
+const ROTATION_STRENGTH = 0.1;
 
 interface SwipeCardProps {
   user: PotentialMatch;
   onSwipe: (direction: 'left' | 'right' | 'up', userId: number) => void;
-  onPress?: () => void;
   isTop?: boolean;
+  index?: number;
 }
 
-const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, onPress, isTop = false }) => {
+const SwipeCard: React.FC<SwipeCardProps> = ({ 
+  user, 
+  onSwipe, 
+  isTop = false, 
+  index = 0 
+}) => {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const rotate = useSharedValue(0);
-  const scale = useSharedValue(isTop ? 1 : 0.95);
-  const opacity = useSharedValue(isTop ? 1 : 0.8);
+  const scale = useSharedValue(isTop ? 1 : 0.95 - index * 0.02);
+  const opacity = useSharedValue(isTop ? 1 : 0.8 - index * 0.1);
 
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
-  const photos = user.photos && user.photos.length > 0 ? user.photos : [user.profileImageUrl].filter(Boolean);
+  
+  // Fotoğraf dizisini düzenle
+  const photos = user.photos && user.photos.length > 0 
+    ? user.photos 
+    : user.profileImageUrl 
+      ? [user.profileImageUrl] 
+      : [];
 
-  const compatibilityLevel = getCompatibilityLevel(user.compatibilityScore);
   const compatibilityColor = getCompatibilityColor(user.compatibilityScore);
   const compatibilityLabel = getCompatibilityLabel(user.compatibilityScore);
 
+  // Gesture handler
   const gestureHandler = useAnimatedGestureHandler({
     onStart: () => {
+      'worklet';
       if (!isTop) return;
     },
     onActive: (event) => {
+      'worklet';
       if (!isTop) return;
       
       translateX.value = event.translationX;
       translateY.value = event.translationY;
+      
+      // Rotasyon hesaplama
       rotate.value = interpolate(
         event.translationX,
-        [-screenWidth, screenWidth],
-        [-30, 30],
+        [-screenWidth / 2, screenWidth / 2],
+        [-15, 15],
         Extrapolate.CLAMP
       );
     },
     onEnd: (event) => {
+      'worklet';
       if (!isTop) return;
 
-      const { translationX, translationY, velocityX, velocityY } = event;
+      const { translationX, translationY, velocityX } = event;
 
-      // Super like (yukarı kaydırma)
-      if (translationY < -100 && Math.abs(translationX) < 50) {
-        translateY.value = withTiming(-screenHeight);
-        translateX.value = withTiming(0);
-        rotate.value = withTiming(0);
+      // Super like kontrolü (yukarı kaydırma)
+      if (translationY < -120 && Math.abs(translationX) < 100) {
+        translateY.value = withTiming(-screenHeight * 1.5, { duration: 300 });
+        translateX.value = withTiming(0, { duration: 300 });
+        rotate.value = withTiming(0, { duration: 300 });
         runOnJS(onSwipe)('up', user.id);
         return;
       }
 
-      // Sağa veya sola kaydırma
-      if (Math.abs(translationX) > SWIPE_THRESHOLD || Math.abs(velocityX) > 500) {
+      // Sağa/sola kaydırma kontrolü
+      const shouldSwipe = Math.abs(translationX) > SWIPE_THRESHOLD || Math.abs(velocityX) > 800;
+      
+      if (shouldSwipe) {
         const direction = translationX > 0 ? 'right' : 'left';
-        const targetX = direction === 'right' ? screenWidth : -screenWidth;
+        const targetX = direction === 'right' ? screenWidth * 1.5 : -screenWidth * 1.5;
+        const targetRotation = direction === 'right' ? 30 : -30;
         
-        translateX.value = withTiming(targetX);
-        rotate.value = withTiming(direction === 'right' ? 30 : -30);
+        translateX.value = withTiming(targetX, { duration: 300 });
+        rotate.value = withTiming(targetRotation, { duration: 300 });
+        opacity.value = withTiming(0, { duration: 300 });
+        
         runOnJS(onSwipe)(direction, user.id);
       } else {
         // Geri dön
-        translateX.value = withSpring(0);
-        translateY.value = withSpring(0);
-        rotate.value = withSpring(0);
+        translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
+        translateY.value = withSpring(0, { damping: 15, stiffness: 150 });
+        rotate.value = withSpring(0, { damping: 15, stiffness: 150 });
       }
     },
   });
 
+  // Animasyon stilleri
   const cardStyle = useAnimatedStyle(() => {
     return {
       transform: [
@@ -112,9 +130,11 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, onPress, isTop = f
         { scale: scale.value },
       ],
       opacity: opacity.value,
+      zIndex: isTop ? 1000 : 999 - index,
     };
   });
 
+  // Overlay animasyonları
   const likeOverlayStyle = useAnimatedStyle(() => {
     const opacity = interpolate(
       translateX.value,
@@ -138,13 +158,14 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, onPress, isTop = f
   const superLikeOverlayStyle = useAnimatedStyle(() => {
     const opacity = interpolate(
       translateY.value,
-      [-100, 0],
+      [-120, 0],
       [1, 0],
       Extrapolate.CLAMP
     );
     return { opacity };
   });
 
+  // Fotoğraf navigasyonu
   const nextPhoto = () => {
     if (photos.length > 1) {
       setCurrentPhotoIndex((prev) => (prev + 1) % photos.length);
@@ -157,15 +178,14 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, onPress, isTop = f
     }
   };
 
-  const age = typeof user.age === 'number' ? user.age : new Date().getFullYear() - new Date(user.age).getFullYear();
+  // Yaş hesaplama
+  const age = typeof user.age === 'number' ? user.age : 25;
 
   return (
-    <PanGestureHandler onGestureEvent={gestureHandler}>
-      <Animated.View style={[styles.card, cardStyle]}>
-        <View 
-          style={styles.cardContent}
-        >
-          {/* Fotoğraf */}
+    <PanGestureHandler onGestureEvent={gestureHandler} enabled={isTop}>
+      <Animated.View style={[styles.cardContainer, cardStyle]}>
+        <View style={styles.card}>
+          {/* Ana fotoğraf alanı */}
           <View style={styles.imageContainer}>
             {photos.length > 0 && photos[currentPhotoIndex] ? (
               <Image 
@@ -174,14 +194,18 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, onPress, isTop = f
                 resizeMode="cover"
               />
             ) : (
-              <View style={styles.placeholderImage}>
+              <LinearGradient
+                colors={['#8000FF', '#5B00B5', '#3D007A']}
+                style={styles.placeholderImage}
+              >
                 <Text style={styles.zodiacEmoji}>
                   {getZodiacEmoji(user.zodiacSign)}
                 </Text>
-              </View>
+                <Text style={styles.placeholderText}>Fotoğraf Yok</Text>
+              </LinearGradient>
             )}
 
-            {/* Fotoğraf navigasyon */}
+            {/* Fotoğraf navigasyon alanları */}
             {photos.length > 1 && (
               <>
                 <TouchableOpacity 
@@ -197,12 +221,12 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, onPress, isTop = f
                 
                 {/* Fotoğraf göstergeleri */}
                 <View style={styles.photoIndicators}>
-                  {photos.map((_, index) => (
+                  {photos.map((_, photoIndex) => (
                     <View
-                      key={index}
+                      key={photoIndex}
                       style={[
                         styles.photoIndicator,
-                        index === currentPhotoIndex && styles.activePhotoIndicator
+                        photoIndex === currentPhotoIndex && styles.activePhotoIndicator
                       ]}
                     />
                   ))}
@@ -210,77 +234,80 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, onPress, isTop = f
               </>
             )}
 
-            {/* Uyumluluk Badge */}
+            {/* Uyumluluk badge */}
             <View style={[styles.compatibilityBadge, { backgroundColor: compatibilityColor }]}>
               <Text style={styles.compatibilityScore}>%{user.compatibilityScore}</Text>
-              <Text style={styles.compatibilityText}>{compatibilityLabel}</Text>
+              <Text style={styles.compatibilityLabel}>{compatibilityLabel}</Text>
             </View>
 
-            {/* Online durumu */}
+            {/* Online göstergesi */}
             {user.isOnline && (
               <View style={styles.onlineIndicator}>
                 <View style={styles.onlineDot} />
+                <Text style={styles.onlineText}>Çevrimiçi</Text>
               </View>
             )}
           </View>
 
           {/* Kullanıcı bilgileri */}
           <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.8)']}
+            colors={['transparent', 'rgba(0,0,0,0.9)']}
             style={styles.infoGradient}
           >
             <View style={styles.userInfo}>
               <View style={styles.nameRow}>
                 <Text style={styles.userName}>
-                  {user.firstName} {user.lastName}, {age}
+                  {user.firstName} {user.lastName}
                 </Text>
+                <Text style={styles.userAge}>{age}</Text>
+              </View>
+              
+              <View style={styles.zodiacRow}>
                 <Text style={styles.zodiacDisplay}>
                   {getZodiacDisplay(user.zodiacSign)}
                 </Text>
+                {user.distance && (
+                  <View style={styles.distanceContainer}>
+                    <Ionicons name="location-outline" size={14} color="rgba(255,255,255,0.8)" />
+                    <Text style={styles.distance}>{user.distance} km</Text>
+                  </View>
+                )}
               </View>
-              
+
               {user.bio && (
                 <Text style={styles.bio} numberOfLines={2}>
                   {user.bio}
                 </Text>
               )}
 
-              {user.distance && (
-                <View style={styles.distanceRow}>
-                  <Ionicons name="location-outline" size={16} color="rgba(255,255,255,0.8)" />
-                  <Text style={styles.distance}>{user.distance} km uzakta</Text>
-                </View>
-              )}
-
-              {/* Uyumluluk açıklaması */}
-              <View style={styles.compatibilityInfo}>
+              {user.compatibilityDescription && (
                 <Text style={styles.compatibilityDescription} numberOfLines={2}>
                   {user.compatibilityDescription}
                 </Text>
-              </View>
+              )}
             </View>
           </LinearGradient>
 
-          {/* Swipe Overlays */}
+          {/* Swipe overlay'leri */}
           <Animated.View style={[styles.overlay, styles.likeOverlay, likeOverlayStyle]}>
-            <BlurView intensity={20} style={styles.overlayBlur}>
-              <Ionicons name="heart" size={60} color="#4CAF50" />
+            <View style={styles.overlayContent}>
+              <Ionicons name="heart" size={50} color="#4CAF50" />
               <Text style={[styles.overlayText, { color: '#4CAF50' }]}>BEĞENDİM</Text>
-            </BlurView>
+            </View>
           </Animated.View>
 
           <Animated.View style={[styles.overlay, styles.dislikeOverlay, dislikeOverlayStyle]}>
-            <BlurView intensity={20} style={styles.overlayBlur}>
-              <Ionicons name="close" size={60} color="#F44336" />
+            <View style={styles.overlayContent}>
+              <Ionicons name="close" size={50} color="#F44336" />
               <Text style={[styles.overlayText, { color: '#F44336' }]}>HAYIR</Text>
-            </BlurView>
+            </View>
           </Animated.View>
 
           <Animated.View style={[styles.overlay, styles.superLikeOverlay, superLikeOverlayStyle]}>
-            <BlurView intensity={20} style={styles.overlayBlur}>
-              <Ionicons name="star" size={60} color="#2196F3" />
-              <Text style={[styles.overlayText, { color: '#2196F3' }]}>SÜPER BEĞENİ</Text>
-            </BlurView>
+            <View style={styles.overlayContent}>
+              <Ionicons name="star" size={50} color="#FFD700" />
+              <Text style={[styles.overlayText, { color: '#FFD700' }]}>SÜPER BEĞENİ</Text>
+            </View>
           </Animated.View>
         </View>
       </Animated.View>
@@ -289,29 +316,28 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, onPress, isTop = f
 };
 
 const styles = StyleSheet.create({
-  card: {
+  cardContainer: {
     position: 'absolute',
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
     alignSelf: 'center',
-    zIndex: 1,
   },
-  cardContent: {
+  card: {
     flex: 1,
     borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: '#1a1a2e',
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.1)',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 15 },
-        shadowOpacity: 0.5,
-        shadowRadius: 25,
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.3,
+        shadowRadius: 20,
       },
       android: {
-        elevation: 20,
+        elevation: 15,
       },
     }),
   },
@@ -326,91 +352,102 @@ const styles = StyleSheet.create({
   placeholderImage: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#2a2a3e',
     alignItems: 'center',
     justifyContent: 'center',
   },
   zodiacEmoji: {
-    fontSize: 80,
+    fontSize: 60,
+    marginBottom: 10,
+  },
+  placeholderText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 16,
+    fontWeight: '600',
   },
   photoNavLeft: {
     position: 'absolute',
     left: 0,
     top: 0,
     bottom: 0,
-    width: '50%',
-    zIndex: 2,
+    width: '40%',
+    zIndex: 10,
   },
   photoNavRight: {
     position: 'absolute',
     right: 0,
     top: 0,
     bottom: 0,
-    width: '50%',
-    zIndex: 2,
+    width: '40%',
+    zIndex: 10,
   },
   photoIndicators: {
     position: 'absolute',
-    top: 20,
-    left: 20,
-    right: 20,
+    top: 15,
+    left: 15,
+    right: 15,
     flexDirection: 'row',
-    zIndex: 3,
+    zIndex: 5,
   },
   photoIndicator: {
     flex: 1,
     height: 3,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    marginHorizontal: 2,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    marginHorizontal: 1,
     borderRadius: 2,
   },
   activePhotoIndicator: {
     backgroundColor: 'rgba(255,255,255,0.9)',
-    shadowColor: '#fff',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
   },
   compatibilityBadge: {
     position: 'absolute',
-    top: 20,
-    right: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
+    top: 15,
+    right: 15,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 15,
     alignItems: 'center',
-    zIndex: 3,
+    zIndex: 5,
   },
   compatibilityScore: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
   },
-  compatibilityText: {
+  compatibilityLabel: {
     color: 'white',
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '600',
   },
   onlineIndicator: {
     position: 'absolute',
-    bottom: 20,
-    right: 20,
-    zIndex: 3,
+    bottom: 15,
+    right: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    zIndex: 5,
   },
   onlineDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: '#4CAF50',
-    borderWidth: 2,
-    borderColor: 'white',
+    marginRight: 4,
+  },
+  onlineText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: '600',
   },
   infoGradient: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: 200,
+    height: 160,
     justifyContent: 'flex-end',
   },
   userInfo: {
@@ -420,43 +457,50 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 5,
   },
   userName: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: 'white',
     flex: 1,
   },
-  zodiacDisplay: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.9)',
-    fontWeight: '600',
+  userAge: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: 'white',
   },
-  bio: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.9)',
-    lineHeight: 22,
-    marginBottom: 8,
-  },
-  distanceRow: {
+  zodiacRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
   },
-  distance: {
+  zodiacDisplay: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-    marginLeft: 4,
+    color: 'rgba(255,255,255,0.9)',
+    fontWeight: '600',
   },
-  compatibilityInfo: {
-    marginTop: 8,
+  distanceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  distance: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+    marginLeft: 2,
+  },
+  bio: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.9)',
+    lineHeight: 18,
+    marginBottom: 6,
   },
   compatibilityDescription: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.7)',
     fontStyle: 'italic',
-    lineHeight: 18,
+    lineHeight: 16,
   },
   overlay: {
     position: 'absolute',
@@ -468,24 +512,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   likeOverlay: {
-    transform: [{ rotate: '-20deg' }],
+    transform: [{ rotate: '-15deg' }],
   },
   dislikeOverlay: {
-    transform: [{ rotate: '20deg' }],
+    transform: [{ rotate: '15deg' }],
   },
   superLikeOverlay: {
     transform: [{ rotate: '0deg' }],
   },
-  overlayBlur: {
+  overlayContent: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 20,
-    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderRadius: 15,
+    borderWidth: 3,
+    borderColor: 'currentColor',
   },
   overlayText: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: 'bold',
-    marginTop: 10,
+    marginTop: 5,
     textAlign: 'center',
   },
 });
