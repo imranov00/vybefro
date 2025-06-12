@@ -129,7 +129,7 @@ export default function AstrologyScreen() {
         console.log('❌ Token bulunamadı');
         Alert.alert('Oturum Hatası', 'Lütfen önce giriş yapın.');
         return;
-      }
+      }  
       
       try {
         // Yeni discover API'sini kullan
