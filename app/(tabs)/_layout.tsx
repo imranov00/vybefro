@@ -62,45 +62,45 @@ export default function TabLayout() {
           headerTitleStyle: {
             color: 'white',
           },
-          headerRight: () => (
+          headerLeft: () => (
             <TouchableOpacity
-              style={{ marginRight: 15, flexDirection: 'row', alignItems: 'center' }}
+              style={{ marginLeft: 15 }}
               onPress={showProfile}
             >
               <Ionicons 
                 name="person-circle-outline" 
                 size={28} 
                 color="white"
-                style={{ marginRight: 10 }}
               />
-              {/* Platform Değiştirme Butonu */}
-              <TouchableOpacity
-                onPress={() => {
-                  const newMode = currentMode === 'astrology' ? 'music' : 'astrology';
-                  switchMode(newMode);
-                  // Mode değiştirildikten sonra doğru ekrana yönlendir
-                  if (newMode === 'astrology') {
-                    router.push('/astrology');
-                  } else {
-                    router.push('/music');
-                  }
-                }}
-                style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.25)',
-                  borderRadius: 22,
-                  paddingHorizontal: 14,
-                  paddingVertical: 8,
-                  marginLeft: 5,
-                  borderWidth: 1,
-                  borderColor: 'rgba(255, 255, 255, 0.3)',
-                }}
-              >
-                <Ionicons
-                  name={currentMode === 'astrology' ? 'musical-notes' : 'planet'}
-                  size={18}
-                  color="white"
-                />
-              </TouchableOpacity>
+            </TouchableOpacity>
+          ),
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => {
+                const newMode = currentMode === 'astrology' ? 'music' : 'astrology';
+                switchMode(newMode);
+                // Mode değiştirildikten sonra doğru ekrana yönlendir
+                if (newMode === 'astrology') {
+                  router.push('/astrology');
+                } else {
+                  router.push('/music');
+                }
+              }}
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                borderRadius: 22,
+                paddingHorizontal: 14,
+                paddingVertical: 8,
+                marginRight: 15,
+                borderWidth: 1,
+                borderColor: 'rgba(255, 255, 255, 0.3)',
+              }}
+            >
+              <Ionicons
+                name={currentMode === 'astrology' ? 'musical-notes' : 'planet'}
+                size={18}
+                color="white"
+              />
             </TouchableOpacity>
           ),
           tabBarBackground: () => (
@@ -158,8 +158,6 @@ export default function TabLayout() {
             shadowOpacity: 0.3,
             shadowRadius: 3,
           },
-          // Geri dönüş tuşunu gizleyerek giriş ekranına dönüşü engelle
-          headerLeft: () => null,
         }}>
         
         {/* Astrology Tab */}

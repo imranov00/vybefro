@@ -4,17 +4,17 @@ import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Animated,
-  Dimensions,
-  Image,
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Animated,
+    Dimensions,
+    Image,
+    Platform,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { UserProfile } from '../../context/ProfileContext';
@@ -80,7 +80,7 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
 
   const themeColors = getThemeColors();
 
-  // Profil ekranına yönlendir
+  // Profil ekranına yönlendir - mode'a göre doğru ekrana yönlendir
   const navigateToProfile = () => {
     onClose();
     setTimeout(() => {
@@ -131,11 +131,11 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
         <Text style={styles.profileUsername}>@{user.username}</Text>
         
         {/* Burç Bilgisi */}
-        {user.zodiacSign && (
+        {(user.zodiacSign || user.zodiacSignTurkish) && (
           <View style={[styles.zodiacBadge, { backgroundColor: themeColors.light, borderColor: themeColors.accent }]}>
             <Ionicons name="planet" size={16} color={themeColors.accent} />
             <Text style={[styles.zodiacText, { color: themeColors.accent }]}>
-              {user.zodiacSign}
+              {user.zodiacSignTurkish || user.zodiacSign || 'Burç Belirtilmemiş'}
             </Text>
           </View>
         )}
@@ -194,7 +194,7 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                 <View style={[styles.modeIndicator, { backgroundColor: themeColors.accent }]}>
                   <Ionicons 
                     name={currentMode === 'astrology' ? 'planet' : 'musical-notes'} 
-                    size={16} 
+                    size={18} 
                     color="white" 
                   />
                 </View>
@@ -217,7 +217,7 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                 style={styles.menuItem}
                 onPress={navigateToProfile}
               >
-                <View style={[styles.menuIcon, { backgroundColor: themeColors.light }]}>
+                <View style={[styles.menuIcon, { backgroundColor: `${themeColors.accent}20` }]}>
                   <Ionicons name="person-outline" size={20} color={themeColors.accent} />
                 </View>
                 <Text style={styles.menuText}>Profili Düzenle</Text>
@@ -231,7 +231,7 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                   router.push('/settingsScreen' as any);
                 }}
               >
-                <View style={[styles.menuIcon, { backgroundColor: themeColors.light }]}>
+                <View style={[styles.menuIcon, { backgroundColor: `${themeColors.accent}20` }]}>
                   <Ionicons name="settings-outline" size={20} color={themeColors.accent} />
                 </View>
                 <Text style={styles.menuText}>Ayarlar</Text>
@@ -245,7 +245,7 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                   // Notifications page
                 }}
               >
-                <View style={[styles.menuIcon, { backgroundColor: themeColors.light }]}>
+                <View style={[styles.menuIcon, { backgroundColor: `${themeColors.accent}20` }]}>
                   <Ionicons name="notifications-outline" size={20} color={themeColors.accent} />
                 </View>
                 <Text style={styles.menuText}>Bildirimler</Text>
@@ -259,7 +259,7 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                   // Privacy page
                 }}
               >
-                <View style={[styles.menuIcon, { backgroundColor: themeColors.light }]}>
+                <View style={[styles.menuIcon, { backgroundColor: `${themeColors.accent}20` }]}>
                   <Ionicons name="shield-outline" size={20} color={themeColors.accent} />
                 </View>
                 <Text style={styles.menuText}>Gizlilik</Text>
@@ -273,7 +273,7 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
                   // Help page
                 }}
               >
-                <View style={[styles.menuIcon, { backgroundColor: themeColors.light }]}>
+                <View style={[styles.menuIcon, { backgroundColor: `${themeColors.accent}20` }]}>
                   <Ionicons name="help-circle-outline" size={20} color={themeColors.accent} />
                 </View>
                 <Text style={styles.menuText}>Yardım</Text>
@@ -350,12 +350,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modeIndicator: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
   headerTitle: {
     fontSize: 22,
@@ -418,10 +426,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: 20,
-    borderWidth: 1,
+    borderWidth: 2,
     marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
   zodiacText: {
     fontSize: 14,
@@ -480,6 +496,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 15,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
   menuText: {
     flex: 1,

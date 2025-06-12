@@ -5,19 +5,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  FlatList,
-  Image,
-  Platform,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    FlatList,
+    Image,
+    Platform,
+    RefreshControl,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 
 const { width, height } = Dimensions.get('window');
@@ -190,9 +190,9 @@ export default function ProfileScreen() {
     router.push('/(tabs)/' as any);
   };
 
-  // Geri git
+  // Geri git - mode'a göre doğru sekmeye yönlendir
   const handleGoBack = () => {
-    router.back();
+    router.push('/(tabs)/' as any);
   };
 
   // Yeni fotoğraf ekle
