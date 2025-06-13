@@ -158,11 +158,24 @@ export default function ZodiacSwipeScreen() {
 
   // Fotoğraf indeksi güncelle
   const setPhotoIndex = useCallback((userId: number, index: number) => {
-    setPhotoIndexes(prev => ({
-      ...prev,
-      [userId]: index
-    }));
-  }, []);
+    console.log(`🔄 [MAIN] setPhotoIndex çağrıldı:`, {
+      userId,
+      newIndex: index,
+      currentIndexes: photoIndexes
+    });
+    
+    setPhotoIndexes(prev => {
+      const newIndexes = {
+        ...prev,
+        [userId]: index
+      };
+      console.log(`📝 [MAIN] photoIndexes güncellendi:`, {
+        previous: prev,
+        new: newIndexes
+      });
+      return newIndexes;
+    });
+  }, [photoIndexes]);
 
   // Panel gesture handler
   const panelGestureHandler = useAnimatedGestureHandler({

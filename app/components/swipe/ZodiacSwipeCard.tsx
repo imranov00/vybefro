@@ -70,6 +70,13 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
       });
     }
     
+    // TEST: Eğer tek fotoğraf varsa, test için çoğalt
+    if (__DEV__ && allPhotos.length === 1) {
+      console.log(`🧪 [${user.firstName}] TEST: Tek fotoğraf tespit edildi, test için çoğaltılıyor`);
+      allPhotos.push(allPhotos[0] + '?test=2');
+      allPhotos.push(allPhotos[0] + '?test=3');
+    }
+    
     return allPhotos;
   };
 
@@ -105,17 +112,15 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
         translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
         rotate.value = withSpring(0, { damping: 15, stiffness: 150 });
         
-        runOnJS((userPhotos: Array<{ imageUrl: string }>, profileImageUrl: string | null, currentIndex: number) => {
+        runOnJS((userPhotos: Array<{ imageUrl: string }>, profileImageUrl: string | null, currentIndex: number, userId: number) => {
           const allPhotos = createPhotoList(userPhotos, profileImageUrl);
           
           if (allPhotos.length > 1) {
             const nextIndex = (currentIndex + 1) % allPhotos.length;
-            if (__DEV__) {
-              console.log(`📸 [${user.firstName}] Aşağı swipe: ${currentIndex} → ${nextIndex}`);
-            }
+            console.log(`📸 [Aşağı swipe] Index değişimi: ${currentIndex} → ${nextIndex}`);
             setPhotoIndex(nextIndex);
           }
-        })(user.photos, user.profileImageUrl, photoIndex);
+        })(user.photos, user.profileImageUrl, photoIndex, user.id);
         return;
       }
 
@@ -126,17 +131,15 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
         translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
         rotate.value = withSpring(0, { damping: 15, stiffness: 150 });
         
-        runOnJS((userPhotos: Array<{ imageUrl: string }>, profileImageUrl: string | null, currentIndex: number) => {
+        runOnJS((userPhotos: Array<{ imageUrl: string }>, profileImageUrl: string | null, currentIndex: number, userId: number) => {
           const allPhotos = createPhotoList(userPhotos, profileImageUrl);
           
           if (allPhotos.length > 1) {
             const prevIndex = currentIndex === 0 ? allPhotos.length - 1 : currentIndex - 1;
-            if (__DEV__) {
-              console.log(`📸 [${user.firstName}] Yukarı swipe: ${currentIndex} → ${prevIndex}`);
-            }
+            console.log(`📸 [Yukarı swipe] Index değişimi: ${currentIndex} → ${prevIndex}`);
             setPhotoIndex(prevIndex);
           }
-        })(user.photos, user.profileImageUrl, photoIndex);
+        })(user.photos, user.profileImageUrl, photoIndex, user.id);
         return;
       }
 
@@ -208,20 +211,18 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
   const handlePhotoTap = (side: 'left' | 'right') => {
     const allPhotos = createPhotoList(user.photos, user.profileImageUrl);
     
-    // Debug bilgisi - sadece gerektiğinde
-    if (__DEV__) {
-      console.log(`📸 [${user.firstName}] Fotoğraf navigasyonu:`, {
-        side,
-        currentIndex: photoIndex,
-        totalPhotos: allPhotos.length,
-        photos: allPhotos
-      });
-    }
+    // Detaylı debug bilgisi
+    console.log(`🔥 [${user.firstName}] FOTOĞRAF TAP DEBUG:`, {
+      side: side,
+      currentIndex: photoIndex,
+      totalPhotos: allPhotos.length,
+      allPhotos: allPhotos,
+      userPhotos: user.photos,
+      profileImageUrl: user.profileImageUrl
+    });
     
     if (allPhotos.length <= 1) {
-      if (__DEV__) {
-        console.log(`📸 [${user.firstName}] Tek fotoğraf var, navigasyon yapılmıyor`);
-      }
+      console.log(`❌ [${user.firstName}] Tek fotoğraf var, navigasyon yapılmıyor`);
       return;
     }
     
@@ -230,16 +231,24 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
     if (side === 'left') {
       // Sol tıklama - önceki fotoğraf (döngüsel)
       newIndex = photoIndex > 0 ? photoIndex - 1 : allPhotos.length - 1;
+      console.log(`⬅️ [${user.firstName}] Sol tıklama: ${photoIndex} → ${newIndex}`);
     } else if (side === 'right') {
       // Sağ tıklama - sonraki fotoğraf (döngüsel)
       newIndex = photoIndex < allPhotos.length - 1 ? photoIndex + 1 : 0;
+      console.log(`➡️ [${user.firstName}] Sağ tıklama: ${photoIndex} → ${newIndex}`);
     }
     
     if (newIndex !== photoIndex) {
-      if (__DEV__) {
-        console.log(`📸 [${user.firstName}] Index değişimi: ${photoIndex} → ${newIndex}`);
-      }
+      console.log(`✅ [${user.firstName}] Index değişimi: ${photoIndex} → ${newIndex}`);
+      console.log(`📸 [${user.firstName}] setPhotoIndex çağrılıyor:`, { userId: user.id, newIndex });
       setPhotoIndex(newIndex);
+      
+      // Test için 1 saniye sonra kontrol et
+      setTimeout(() => {
+        console.log(`🔍 [${user.firstName}] 1 saniye sonra photoIndex:`, photoIndex);
+      }, 1000);
+    } else {
+      console.log(`❌ [${user.firstName}] Index değişmedi: ${photoIndex}`);
     }
   };
 
@@ -255,17 +264,24 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
 
   // Debug: Sadece kullanıcı değiştiğinde fotoğraf bilgilerini logla
   React.useEffect(() => {
-    if (__DEV__) {
-      console.log(`🎯 [${user.firstName}] Kullanıcı fotoğraf sistemi:`, {
-        userId: user.id,
-        profileImageUrl: user.profileImageUrl,
-        photosArray: user.photos,
-        allPhotos: allPhotos,
-        currentIndex: photoIndex,
-        currentPhoto: currentPhotoUrl
-      });
-    }
+    console.log(`🎯 [${user.firstName}] KULLANICI FOTOĞRAF SİSTEMİ:`, {
+      userId: user.id,
+      profileImageUrl: user.profileImageUrl,
+      photosArray: user.photos,
+      allPhotos: allPhotos,
+      currentIndex: photoIndex,
+      currentPhoto: currentPhotoUrl
+    });
   }, [user.id, allPhotos.length]); // Kullanıcı veya fotoğraf sayısı değiştiğinde
+
+  // Debug: photoIndex değişimlerini takip et
+  React.useEffect(() => {
+    console.log(`📊 [${user.firstName}] PHOTO INDEX DEĞİŞTİ:`, {
+      newIndex: photoIndex,
+      totalPhotos: allPhotos.length,
+      newPhoto: allPhotos[photoIndex]
+    });
+  }, [photoIndex]); // photoIndex her değiştiğinde
 
   const zodiacEmoji = getZodiacEmoji(user.zodiacSign);
   const zodiacDisplay = getZodiacDisplay(user.zodiacSign);
@@ -329,6 +345,26 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
                   }}
                 >
                   <Text style={styles.debugButtonText}>📸</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.debugButton, { marginTop: 5 }]}
+                  onPress={() => {
+                    console.log(`🔄 [${user.firstName}] Manuel test: Sonraki fotoğraf`);
+                    handlePhotoTap('right');
+                  }}
+                >
+                  <Text style={styles.debugButtonText}>➡️</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.debugButton, { marginTop: 5 }]}
+                  onPress={() => {
+                    console.log(`🔄 [${user.firstName}] Manuel test: Önceki fotoğraf`);
+                    handlePhotoTap('left');
+                  }}
+                >
+                  <Text style={styles.debugButtonText}>⬅️</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -506,6 +542,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: '40%',
     zIndex: 10,
+    backgroundColor: __DEV__ ? 'rgba(255,0,0,0.1)' : 'transparent',
   },
   photoNavRight: {
     position: 'absolute',
@@ -514,6 +551,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: '40%',
     zIndex: 10,
+    backgroundColor: __DEV__ ? 'rgba(0,255,0,0.1)' : 'transparent',
   },
   photoIndicators: {
     position: 'absolute',
