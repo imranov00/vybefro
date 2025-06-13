@@ -251,23 +251,17 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
               </LinearGradient>
             )}
 
-            {/* Fotoğraf navigation alanları - Debug için görünür yapıyoruz */}
+            {/* Fotoğraf navigation alanları */}
             <TouchableOpacity
-              style={[styles.photoNavLeft, { backgroundColor: 'rgba(255, 0, 0, 0.3)' }]} // Debug için kırmızı
-              onPress={() => {
-                console.log('🔴 Sol tıklama algılandı!');
-                handlePhotoTap('left');
-              }}
+              style={styles.photoNavLeft}
+              onPress={() => handlePhotoTap('left')}
             />
             <TouchableOpacity
-              style={[styles.photoNavRight, { backgroundColor: 'rgba(0, 255, 0, 0.3)' }]} // Debug için yeşil
-              onPress={() => {
-                console.log('🟢 Sağ tıklama algılandı!');
-                handlePhotoTap('right');
-              }}
+              style={styles.photoNavRight}
+              onPress={() => handlePhotoTap('right')}
             />
 
-            {/* Fotoğraf göstergeleri - Daha görünür yapıyoruz */}
+            {/* Fotoğraf göstergeleri */}
             {allPhotos.length > 1 && (
               <View style={styles.photoIndicators}>
                 {allPhotos.map((_, index) => (
@@ -439,7 +433,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: '40%',
-    zIndex: 20,
+    zIndex: 10,
   },
   photoNavRight: {
     position: 'absolute',
@@ -447,7 +441,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: '40%',
-    zIndex: 20,
+    zIndex: 10,
   },
   photoIndicators: {
     position: 'absolute',
@@ -455,23 +449,17 @@ const styles = StyleSheet.create({
     left: 15,
     right: 15,
     flexDirection: 'row',
-    zIndex: 15,
-    justifyContent: 'center',
+    zIndex: 5,
   },
   photoIndicator: {
     flex: 1,
-    height: 4,
-    backgroundColor: 'rgba(255,255,255,0.4)',
-    marginHorizontal: 2,
+    height: 3,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    marginHorizontal: 1,
     borderRadius: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
   },
   activePhotoIndicator: {
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    shadowOpacity: 0.5,
+    backgroundColor: 'rgba(255,255,255,0.9)',
   },
   zodiacBadge: {
     position: 'absolute',

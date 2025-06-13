@@ -1,3 +1,5 @@
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -7,6 +9,7 @@ import {
     StatusBar,
     StyleSheet,
     Text,
+    TouchableOpacity,
     View
 } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
@@ -76,6 +79,7 @@ export default function ZodiacSwipeScreen() {
   
   // Animation values
   const panelTranslateY = useSharedValue(PANEL_POSITIONS[PanelState.CLOSED]);
+  const headerOpacity = useSharedValue(1);
   
   // Kullanıcıları yükle
   const loadUsers = useCallback(async () => {
@@ -224,6 +228,10 @@ export default function ZodiacSwipeScreen() {
     transform: [{ translateY: panelTranslateY.value }],
   }));
 
+  const headerAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+  }));
+
   // Mod değiştirme
   const handleModeSwitch = useCallback(() => {
     const newMode = currentMode === 'astrology' ? 'music' : 'astrology';
@@ -258,6 +266,29 @@ export default function ZodiacSwipeScreen() {
         colors={['#1a1a2e', '#16213e', '#0f3460']}
         style={styles.background}
       />
+
+      {/* Header */}
+      <Animated.View style={[styles.header, headerAnimatedStyle]}>
+        <BlurView intensity={20} style={styles.headerBlur}>
+          <View style={styles.headerContent}>
+            {/* Sol - Profil ikonu */}
+            <TouchableOpacity style={styles.headerButton} onPress={showProfile}>
+              <Ionicons name="person-circle-outline" size={28} color="white" />
+            </TouchableOpacity>
+
+            {/* Orta - Başlık */}
+            <View style={styles.headerTitle}>
+              <Text style={styles.headerTitleText}>Burçlar Arası Aşk</Text>
+              <Text style={styles.headerSubtitle}>Yıldızların Rehberliği</Text>
+            </View>
+
+            {/* Sağ - Mod değiştirme */}
+            <TouchableOpacity style={styles.modeButton} onPress={handleModeSwitch}>
+              <Ionicons name="musical-notes" size={18} color="white" />
+            </TouchableOpacity>
+          </View>
+        </BlurView>
+      </Animated.View>
 
       {/* Ana içerik alanı */}
       <View style={styles.mainContent}>
@@ -346,8 +377,55 @@ const styles = StyleSheet.create({
     width: screenWidth,
     height: screenHeight,
   },
+  header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: TOTAL_HEADER_HEIGHT,
+    zIndex: 100,
+  },
+  headerBlur: {
+    flex: 1,
+    paddingTop: LAYOUT_CONSTANTS.statusBarHeight,
+  },
+  headerContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 15,
+  },
+  headerButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  headerTitleText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  modeButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderRadius: 22,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
   mainContent: {
     flex: 1,
+    paddingTop: TOTAL_HEADER_HEIGHT,
     paddingBottom: LAYOUT_CONSTANTS.tabBarHeight,
   },
   cardsContainer: {
