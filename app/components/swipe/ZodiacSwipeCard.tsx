@@ -2,24 +2,24 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import {
-    Dimensions,
-    Image,
-    Platform,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Dimensions,
+  Image,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import Animated, {
-    Extrapolate,
-    interpolate,
-    runOnJS,
-    useAnimatedGestureHandler,
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
-    withTiming
+  Extrapolate,
+  interpolate,
+  runOnJS,
+  useAnimatedGestureHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming
 } from 'react-native-reanimated';
 import { DiscoverUser } from '../../services/api';
 import { getCompatibilityColor, getCompatibilityLabel } from '../../types/compatibility';
@@ -251,17 +251,23 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
               </LinearGradient>
             )}
 
-            {/* Fotoğraf navigation alanları */}
+            {/* Fotoğraf navigation alanları - Debug için görünür yapıyoruz */}
             <TouchableOpacity
-              style={styles.photoNavLeft}
-              onPress={() => handlePhotoTap('left')}
+              style={[styles.photoNavLeft, { backgroundColor: 'rgba(255, 0, 0, 0.3)' }]} // Debug için kırmızı
+              onPress={() => {
+                console.log('🔴 Sol tıklama algılandı!');
+                handlePhotoTap('left');
+              }}
             />
             <TouchableOpacity
-              style={styles.photoNavRight}
-              onPress={() => handlePhotoTap('right')}
+              style={[styles.photoNavRight, { backgroundColor: 'rgba(0, 255, 0, 0.3)' }]} // Debug için yeşil
+              onPress={() => {
+                console.log('🟢 Sağ tıklama algılandı!');
+                handlePhotoTap('right');
+              }}
             />
 
-            {/* Fotoğraf göstergeleri */}
+            {/* Fotoğraf göstergeleri - Daha görünür yapıyoruz */}
             {allPhotos.length > 1 && (
               <View style={styles.photoIndicators}>
                 {allPhotos.map((_, index) => (
@@ -433,7 +439,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: '40%',
-    zIndex: 10,
+    zIndex: 20,
   },
   photoNavRight: {
     position: 'absolute',
@@ -441,7 +447,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: '40%',
-    zIndex: 10,
+    zIndex: 20,
   },
   photoIndicators: {
     position: 'absolute',
@@ -449,17 +455,23 @@ const styles = StyleSheet.create({
     left: 15,
     right: 15,
     flexDirection: 'row',
-    zIndex: 5,
+    zIndex: 15,
+    justifyContent: 'center',
   },
   photoIndicator: {
     flex: 1,
-    height: 3,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    marginHorizontal: 1,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.4)',
+    marginHorizontal: 2,
     borderRadius: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
   },
   activePhotoIndicator: {
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    shadowOpacity: 0.5,
   },
   zodiacBadge: {
     position: 'absolute',

@@ -1,5 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -9,7 +7,6 @@ import {
     StatusBar,
     StyleSheet,
     Text,
-    TouchableOpacity,
     View
 } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
@@ -45,7 +42,7 @@ const LAYOUT_CONSTANTS = {
   statusBarHeight: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 24,
   headerHeight: 60,
   tabBarHeight: Platform.OS === 'ios' ? 95 : 75,
-  panelMaxHeight: screenHeight * 0.4,
+  panelMaxHeight: screenHeight - (Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 24), // Tam ekran yüksekliği
   panelMinHeight: 60,
 };
 
@@ -53,14 +50,12 @@ const TOTAL_HEADER_HEIGHT = LAYOUT_CONSTANTS.headerHeight + LAYOUT_CONSTANTS.sta
 
 enum PanelState {
   CLOSED = 0,
-  HALF = 1,
-  FULL = 2,
+  FULL = 1, // HALF durumunu kaldırdık
 }
 
 const PANEL_POSITIONS = {
   [PanelState.CLOSED]: LAYOUT_CONSTANTS.panelMaxHeight - LAYOUT_CONSTANTS.panelMinHeight,
-  [PanelState.HALF]: LAYOUT_CONSTANTS.panelMaxHeight / 2,
-  [PanelState.FULL]: 0,
+  [PanelState.FULL]: 0, // Tam üste çıkar
 };
 
 export default function ZodiacSwipeScreen() {
@@ -81,7 +76,6 @@ export default function ZodiacSwipeScreen() {
   
   // Animation values
   const panelTranslateY = useSharedValue(PANEL_POSITIONS[PanelState.CLOSED]);
-  const headerOpacity = useSharedValue(1);
   
   // Kullanıcıları yükle
   const loadUsers = useCallback(async () => {
@@ -199,16 +193,18 @@ export default function ZodiacSwipeScreen() {
       
       let targetState = PanelState.CLOSED;
       
+      // Hızlı yukarı çekme - tam aç
       if (velocity < -800) {
         targetState = PanelState.FULL;
-      } else if (velocity > 800) {
+      } 
+      // Hızlı aşağı itme - kapat
+      else if (velocity > 800) {
         targetState = PanelState.CLOSED;
-      } else {
-        // Velocity'e göre değil, pozisyona göre karar ver
-        if (currentY < LAYOUT_CONSTANTS.panelMaxHeight * 0.25) {
+      } 
+      // Pozisyona göre karar ver - ekranın yarısından yukarıdaysa aç, altındaysa kapat
+      else {
+        if (currentY < LAYOUT_CONSTANTS.panelMaxHeight * 0.5) {
           targetState = PanelState.FULL;
-        } else if (currentY < LAYOUT_CONSTANTS.panelMaxHeight * 0.75) {
-          targetState = PanelState.HALF;
         } else {
           targetState = PanelState.CLOSED;
         }
@@ -226,10 +222,6 @@ export default function ZodiacSwipeScreen() {
   // Animated styles
   const panelAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: panelTranslateY.value }],
-  }));
-
-  const headerAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: headerOpacity.value,
   }));
 
   // Mod değiştirme
@@ -266,29 +258,6 @@ export default function ZodiacSwipeScreen() {
         colors={['#1a1a2e', '#16213e', '#0f3460']}
         style={styles.background}
       />
-
-      {/* Header */}
-      <Animated.View style={[styles.header, headerAnimatedStyle]}>
-        <BlurView intensity={20} style={styles.headerBlur}>
-          <View style={styles.headerContent}>
-            {/* Sol - Profil ikonu */}
-            <TouchableOpacity style={styles.headerButton} onPress={showProfile}>
-              <Ionicons name="person-circle-outline" size={28} color="white" />
-            </TouchableOpacity>
-
-            {/* Orta - Başlık */}
-            <View style={styles.headerTitle}>
-              <Text style={styles.headerTitleText}>Burçlar Arası Aşk</Text>
-              <Text style={styles.headerSubtitle}>Yıldızların Rehberliği</Text>
-            </View>
-
-            {/* Sağ - Mod değiştirme */}
-            <TouchableOpacity style={styles.modeButton} onPress={handleModeSwitch}>
-              <Ionicons name="musical-notes" size={18} color="white" />
-            </TouchableOpacity>
-          </View>
-        </BlurView>
-      </Animated.View>
 
       {/* Ana içerik alanı */}
       <View style={styles.mainContent}>
@@ -377,55 +346,8 @@ const styles = StyleSheet.create({
     width: screenWidth,
     height: screenHeight,
   },
-  header: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: TOTAL_HEADER_HEIGHT,
-    zIndex: 100,
-  },
-  headerBlur: {
-    flex: 1,
-    paddingTop: LAYOUT_CONSTANTS.statusBarHeight,
-  },
-  headerContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 15,
-  },
-  headerButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerTitleText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-  modeButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    borderRadius: 22,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
   mainContent: {
     flex: 1,
-    paddingTop: TOTAL_HEADER_HEIGHT,
     paddingBottom: LAYOUT_CONSTANTS.tabBarHeight,
   },
   cardsContainer: {
@@ -467,7 +389,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: LAYOUT_CONSTANTS.panelMaxHeight,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderTopLeftRadius: 25,
     borderTopRightRadius: 25,
     ...Platform.select({

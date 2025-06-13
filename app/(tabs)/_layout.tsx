@@ -65,7 +65,12 @@ export default function TabLayout() {
           headerLeft: () => (
             <TouchableOpacity
               style={{ marginLeft: 15 }}
-              onPress={showProfile}
+              onPress={() => {
+                console.log('🔵 Profil butonu tıklandı!');
+                console.log('🔵 isProfileVisible:', isProfileVisible);
+                console.log('🔵 userProfile:', userProfile);
+                showProfile();
+              }}
             >
               <Ionicons 
                 name="person-circle-outline" 
