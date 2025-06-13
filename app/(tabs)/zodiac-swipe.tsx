@@ -31,6 +31,7 @@ import { DiscoverUser, Match, swipeApi, userApi } from '../services/api';
 
 // Component imports
 import MatchScreen from '../components/match/MatchScreen';
+import ProfileDrawer from '../components/profile/ProfileDrawer';
 
 // Swipe components
 // @ts-ignore
@@ -64,7 +65,7 @@ const PANEL_POSITIONS = {
 export default function ZodiacSwipeScreen() {
   const router = useRouter();
   const { currentMode, switchMode } = useAuth();
-  const { showProfile } = useProfile();
+  const { showProfile, isProfileVisible, hideProfile, userProfile, isLoading: profileLoading } = useProfile();
   const insets = useSafeAreaInsets();
   
   // State
@@ -364,6 +365,14 @@ export default function ZodiacSwipeScreen() {
           onSendMessage={handleSendMessage}
         />
       )}
+
+      {/* Profile Drawer */}
+      <ProfileDrawer
+        visible={isProfileVisible}
+        onClose={hideProfile}
+        user={userProfile}
+        isLoading={profileLoading}
+      />
     </View>
   );
 }
