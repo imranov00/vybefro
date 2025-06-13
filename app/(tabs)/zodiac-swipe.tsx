@@ -32,7 +32,7 @@ import MatchScreen from '../components/match/MatchScreen';
 // @ts-ignore
 import { ZodiacSwipeCard } from '../components/swipe/ZodiacSwipeCard';
 // @ts-ignore  
-import { UserDetailPanel } from '../components/swipe/UserDetailPanel';
+import { PanelState, UserDetailPanel } from '../components/swipe/UserDetailPanel';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -46,12 +46,6 @@ const LAYOUT_CONSTANTS = {
 };
 
 const TOTAL_HEADER_HEIGHT = LAYOUT_CONSTANTS.headerHeight + LAYOUT_CONSTANTS.statusBarHeight;
-
-enum PanelState {
-  CLOSED = 0,
-  HALF = 1,
-  FULL = 2,
-}
 
 const PANEL_POSITIONS = {
   [PanelState.CLOSED]: LAYOUT_CONSTANTS.panelMaxHeight - LAYOUT_CONSTANTS.panelMinHeight,
@@ -318,6 +312,13 @@ export default function ZodiacSwipeScreen() {
             onClose={() => {
               panelTranslateY.value = withSpring(PANEL_POSITIONS[PanelState.CLOSED]);
               setPanelState(PanelState.CLOSED);
+            }}
+            onPanelStateChange={(newState: PanelState) => {
+              panelTranslateY.value = withSpring(PANEL_POSITIONS[newState], {
+                damping: 20,
+                stiffness: 300,
+              });
+              setPanelState(newState);
             }}
           />
         </Animated.View>

@@ -1,8 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Dimensions,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   ScrollView,
   StyleSheet,
   Text,
@@ -25,13 +27,59 @@ interface UserDetailPanelProps {
   user?: DiscoverUser;
   panelState: PanelState;
   onClose: () => void;
+  onPanelStateChange?: (state: PanelState) => void;
 }
 
 const UserDetailPanel: React.FC<UserDetailPanelProps> = ({
   user,
   panelState,
-  onClose
+  onClose,
+  onPanelStateChange
 }) => {
+  const scrollViewRef = useRef<ScrollView>(null);
+  const [hasScrolledToHalf, setHasScrolledToHalf] = useState(false);
+  const [isScrollingUp, setIsScrollingUp] = useState(false);
+  const [lastScrollY, setLastScrollY] = useState(0);
+
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const currentScrollY = event.nativeEvent.contentOffset.y;
+    const scrollDirection = currentScrollY > lastScrollY ? 'down' : 'up';
+    
+    setLastScrollY(currentScrollY);
+    setIsScrollingUp(scrollDirection === 'up');
+
+    // İlk scroll - panel kapalıysa yarım aç
+    if (panelState === PanelState.CLOSED && !hasScrolledToHalf) {
+      setHasScrolledToHalf(true);
+      onPanelStateChange?.(PanelState.HALF);
+      return;
+    }
+
+    // Panel yarım haldeyken yukarı scroll - full aç
+    if (panelState === PanelState.HALF && scrollDirection === 'up' && currentScrollY <= 0) {
+      onPanelStateChange?.(PanelState.FULL);
+    }
+  };
+
+  const handleScrollBeginDrag = () => {
+    // Scroll başladığında eğer panel kapalıysa yarım aç
+    if (panelState === PanelState.CLOSED && !hasScrolledToHalf) {
+      setHasScrolledToHalf(true);
+      onPanelStateChange?.(PanelState.HALF);
+    }
+  };
+
+  // Panel durumu değiştiğinde scroll pozisyonunu sıfırla
+  React.useEffect(() => {
+    if (panelState === PanelState.HALF || panelState === PanelState.FULL) {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+    }
+    if (panelState === PanelState.CLOSED) {
+      setHasScrolledToHalf(false);
+      setLastScrollY(0);
+    }
+  }, [panelState]);
+
   if (!user) {
     return (
       <LinearGradient
@@ -84,9 +132,14 @@ const UserDetailPanel: React.FC<UserDetailPanelProps> = ({
       {/* Main Content */}
       {!isMinimized && (
         <ScrollView
+          ref={scrollViewRef}
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          onScroll={handleScroll}
+          onScrollBeginDrag={handleScrollBeginDrag}
+          scrollEventThrottle={16}
+          bounces={true}
         >
           {/* Header Section */}
           <View style={styles.headerSection}>
@@ -234,7 +287,7 @@ const UserDetailPanel: React.FC<UserDetailPanelProps> = ({
 };
 
 // Named export
-export { UserDetailPanel };
+export { PanelState, UserDetailPanel };
 
 // Default export
 export default UserDetailPanel;

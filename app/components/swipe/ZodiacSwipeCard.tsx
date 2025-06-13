@@ -52,6 +52,27 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
   const rotate = useSharedValue(0);
   const opacity = useSharedValue(1);
 
+  // Fotoğraf listesi oluşturma fonksiyonu (worklet içinde kullanılabilir)
+  const createPhotoList = (userPhotos: Array<{ imageUrl: string }>, profileImageUrl: string | null): string[] => {
+    const allPhotos: string[] = [];
+    
+    // Önce profileImageUrl'yi ekle (varsa)
+    if (profileImageUrl) {
+      allPhotos.push(profileImageUrl);
+    }
+    
+    // Sonra photos array'indeki fotoğrafları ekle (profileImageUrl ile aynı olmayanları)
+    if (userPhotos && userPhotos.length > 0) {
+      userPhotos.forEach(photo => {
+        if (photo.imageUrl && photo.imageUrl !== profileImageUrl) {
+          allPhotos.push(photo.imageUrl);
+        }
+      });
+    }
+    
+    return allPhotos;
+  };
+
   const gestureHandler = useAnimatedGestureHandler({
     onStart: () => {
       'worklet';
@@ -84,24 +105,17 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
         translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
         rotate.value = withSpring(0, { damping: 15, stiffness: 150 });
         
-        runOnJS(() => {
-          const allPhotos: string[] = [];
-          if (user.photos && user.photos.length > 0) {
-            user.photos.forEach(photo => {
-              if (photo.imageUrl) {
-                allPhotos.push(photo.imageUrl);
-              }
-            });
-          }
-          if (user.profileImageUrl && !allPhotos.includes(user.profileImageUrl)) {
-            allPhotos.unshift(user.profileImageUrl);
-          }
+        runOnJS((userPhotos: Array<{ imageUrl: string }>, profileImageUrl: string | null, currentIndex: number) => {
+          const allPhotos = createPhotoList(userPhotos, profileImageUrl);
           
           if (allPhotos.length > 1) {
-            const nextIndex = (photoIndex + 1) % allPhotos.length;
+            const nextIndex = (currentIndex + 1) % allPhotos.length;
+            if (__DEV__) {
+              console.log(`📸 [${user.firstName}] Aşağı swipe: ${currentIndex} → ${nextIndex}`);
+            }
             setPhotoIndex(nextIndex);
           }
-        })();
+        })(user.photos, user.profileImageUrl, photoIndex);
         return;
       }
 
@@ -112,24 +126,17 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
         translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
         rotate.value = withSpring(0, { damping: 15, stiffness: 150 });
         
-        runOnJS(() => {
-          const allPhotos: string[] = [];
-          if (user.photos && user.photos.length > 0) {
-            user.photos.forEach(photo => {
-              if (photo.imageUrl) {
-                allPhotos.push(photo.imageUrl);
-              }
-            });
-          }
-          if (user.profileImageUrl && !allPhotos.includes(user.profileImageUrl)) {
-            allPhotos.unshift(user.profileImageUrl);
-          }
+        runOnJS((userPhotos: Array<{ imageUrl: string }>, profileImageUrl: string | null, currentIndex: number) => {
+          const allPhotos = createPhotoList(userPhotos, profileImageUrl);
           
           if (allPhotos.length > 1) {
-            const prevIndex = photoIndex === 0 ? allPhotos.length - 1 : photoIndex - 1;
+            const prevIndex = currentIndex === 0 ? allPhotos.length - 1 : currentIndex - 1;
+            if (__DEV__) {
+              console.log(`📸 [${user.firstName}] Yukarı swipe: ${currentIndex} → ${prevIndex}`);
+            }
             setPhotoIndex(prevIndex);
           }
-        })();
+        })(user.photos, user.profileImageUrl, photoIndex);
         return;
       }
 
@@ -199,80 +206,66 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
   }));
 
   const handlePhotoTap = (side: 'left' | 'right') => {
-    // Fotoğraf listesini oluştur - photos array'i + profileImageUrl
-    const allPhotos: string[] = [];
+    const allPhotos = createPhotoList(user.photos, user.profileImageUrl);
     
-    // Önce photos array'indeki fotoğrafları ekle
-    if (user.photos && user.photos.length > 0) {
-      user.photos.forEach(photo => {
-        if (photo.imageUrl) {
-          allPhotos.push(photo.imageUrl);
-        }
+    // Debug bilgisi - sadece gerektiğinde
+    if (__DEV__) {
+      console.log(`📸 [${user.firstName}] Fotoğraf navigasyonu:`, {
+        side,
+        currentIndex: photoIndex,
+        totalPhotos: allPhotos.length,
+        photos: allPhotos
       });
     }
     
-    // Eğer profileImageUrl varsa ve photos listesinde yoksa ekle
-    if (user.profileImageUrl && !allPhotos.includes(user.profileImageUrl)) {
-      allPhotos.unshift(user.profileImageUrl); // Başa ekle
-    }
-    
-    // Debug bilgisi
-    console.log(`📸 [${user.firstName}] Toplam fotoğraf: ${allPhotos.length}`, allPhotos);
-    console.log(`📸 [${user.firstName}] Mevcut index: ${photoIndex}, Hedef: ${side}`);
-    
     if (allPhotos.length <= 1) {
-      console.log(`📸 [${user.firstName}] Tek fotoğraf var, navigasyon yapılmıyor`);
+      if (__DEV__) {
+        console.log(`📸 [${user.firstName}] Tek fotoğraf var, navigasyon yapılmıyor`);
+      }
       return;
     }
     
-    if (side === 'left' && photoIndex > 0) {
-      const newIndex = photoIndex - 1;
-      console.log(`📸 [${user.firstName}] Sol tıklama: ${photoIndex} → ${newIndex}`);
+    let newIndex = photoIndex;
+    
+    if (side === 'left') {
+      // Sol tıklama - önceki fotoğraf (döngüsel)
+      newIndex = photoIndex > 0 ? photoIndex - 1 : allPhotos.length - 1;
+    } else if (side === 'right') {
+      // Sağ tıklama - sonraki fotoğraf (döngüsel)
+      newIndex = photoIndex < allPhotos.length - 1 ? photoIndex + 1 : 0;
+    }
+    
+    if (newIndex !== photoIndex) {
+      if (__DEV__) {
+        console.log(`📸 [${user.firstName}] Index değişimi: ${photoIndex} → ${newIndex}`);
+      }
       setPhotoIndex(newIndex);
-    } else if (side === 'right' && photoIndex < allPhotos.length - 1) {
-      const newIndex = photoIndex + 1;
-      console.log(`📸 [${user.firstName}] Sağ tıklama: ${photoIndex} → ${newIndex}`);
-      setPhotoIndex(newIndex);
-    } else {
-      console.log(`📸 [${user.firstName}] Navigasyon sınırında: ${side}, index: ${photoIndex}, max: ${allPhotos.length - 1}`);
     }
   };
 
-  // Mevcut fotoğrafı belirle - geliştirilmiş sistem
-  const getAllPhotos = (): string[] => {
-    const allPhotos: string[] = [];
-    
-    // Önce photos array'indeki fotoğrafları ekle
-    if (user.photos && user.photos.length > 0) {
-      user.photos.forEach(photo => {
-        if (photo.imageUrl) {
-          allPhotos.push(photo.imageUrl);
-        }
-      });
-    }
-    
-    // Eğer profileImageUrl varsa ve photos listesinde yoksa ekle
-    if (user.profileImageUrl && !allPhotos.includes(user.profileImageUrl)) {
-      allPhotos.unshift(user.profileImageUrl); // Başa ekle
-    }
-    
-    return allPhotos;
-  };
+  // Mevcut fotoğrafı belirle - stabilize edilmiş sistem
+  const getAllPhotos = React.useCallback((): string[] => {
+    return createPhotoList(user.photos, user.profileImageUrl);
+  }, [user.profileImageUrl, user.photos]);
 
   const allPhotos = getAllPhotos();
   const currentPhotoUrl = allPhotos.length > 0 
     ? allPhotos[Math.min(photoIndex, allPhotos.length - 1)] 
     : null;
 
-  // Debug: İlk render'da fotoğraf bilgilerini logla
+  // Debug: Sadece kullanıcı değiştiğinde fotoğraf bilgilerini logla
   React.useEffect(() => {
-    console.log(`🎯 [${user.firstName}] Kullanıcı fotoğraf bilgileri:`);
-    console.log(`   - photos array:`, user.photos);
-    console.log(`   - profileImageUrl:`, user.profileImageUrl);
-    console.log(`   - Toplam fotoğraf:`, allPhotos.length);
-    console.log(`   - Mevcut index:`, photoIndex);
-    console.log(`   - Gösterilen fotoğraf:`, currentPhotoUrl);
-  }, [user.id]); // Sadece kullanıcı değiştiğinde çalışsın
+    if (__DEV__) {
+      console.log(`🎯 [${user.firstName}] Kullanıcı fotoğraf sistemi:`, {
+        userId: user.id,
+        profileImageUrl: user.profileImageUrl,
+        photosArray: user.photos,
+        allPhotos: allPhotos,
+        currentIndex: photoIndex,
+        currentPhoto: currentPhotoUrl
+      });
+    }
+  }, [user.id, allPhotos.length]); // Kullanıcı veya fotoğraf sayısı değiştiğinde
 
   const zodiacEmoji = getZodiacEmoji(user.zodiacSign);
   const zodiacDisplay = getZodiacDisplay(user.zodiacSign);
@@ -316,6 +309,29 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
               style={styles.photoNavRight}
               onPress={() => handlePhotoTap('right')}
             />
+
+            {/* Debug: Fotoğraf test butonu (sadece development'ta) */}
+            {__DEV__ && (
+              <View style={styles.debugPhotoControls}>
+                <TouchableOpacity
+                  style={styles.debugButton}
+                  onPress={() => {
+                    const allPhotos = getAllPhotos();
+                    console.log(`🔍 [${user.firstName}] Debug Fotoğraf Bilgileri:`, {
+                      userId: user.id,
+                      currentIndex: photoIndex,
+                      totalPhotos: allPhotos.length,
+                      allPhotos: allPhotos,
+                      currentPhoto: allPhotos[photoIndex],
+                      userPhotos: user.photos,
+                      profileImageUrl: user.profileImageUrl
+                    });
+                  }}
+                >
+                  <Text style={styles.debugButtonText}>📸</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* Fotoğraf göstergeleri */}
             {allPhotos.length > 1 && (
@@ -648,5 +664,21 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
+  },
+  debugPhotoControls: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 10,
+  },
+  debugButton: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    padding: 8,
+    borderRadius: 10,
+  },
+  debugButtonText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: 'white',
   },
 }); 
