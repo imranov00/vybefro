@@ -16,6 +16,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { useProfile } from '../context/ProfileContext';
 import { DiscoverResponse, DiscoverUser, SwipeLimitInfo, swipeApi } from '../services/api';
@@ -24,7 +25,8 @@ import { getToken } from '../utils/tokenStorage';
 
 const { width, height } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.92;
-const CARD_HEIGHT = height * 0.65;
+const CARD_HEIGHT = height * 0.60; // Daha kısa kart, footer'a bol boşluk
+const CARD_BOTTOM_MARGIN = 40; // Footer ile kart arası boşluk
 
 // Burç çarkı sembolleri
 const ZODIAC_SYMBOLS = [
@@ -332,6 +334,31 @@ type AlertButtonType = {
   onPress?: () => void;
 };
 
+// Header bileşeni
+function MatchesHeader({ swipeLimitInfo, onBack, onFilter }: any) {
+  return (
+    <SafeAreaView style={{ backgroundColor: '#1a1a2e' }}>
+      <View style={styles.headerRow}>
+        <TouchableOpacity style={styles.headerIcon} onPress={onBack}>
+          <Ionicons name="arrow-back" size={28} color="white" />
+        </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>Burç Eşleşmeleri</Text>
+          {swipeLimitInfo && (
+            <Text style={styles.headerSwipeLimit}>
+              {swipeLimitInfo.isPremium ? '∞ ' : `${swipeLimitInfo.remainingSwipes}/${swipeLimitInfo.totalSwipes} `}
+              Swipe Hakkı
+            </Text>
+          )}
+        </View>
+        <TouchableOpacity style={styles.headerIcon} onPress={onFilter}>
+          <Ionicons name="options" size={28} color="white" />
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
 export default function AstrologyMatchesScreen() {
   const { userProfile } = useProfile();
   const { isPremium } = useAuth();
@@ -593,10 +620,12 @@ export default function AstrologyMatchesScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      
-      {/* Arka plan gradyan */}
       <LinearGradient colors={['#1a1a2e', '#16213e', '#0f3460']} style={styles.background} />
-
+      <MatchesHeader
+        swipeLimitInfo={swipeLimitInfo}
+        onBack={() => router.back()}
+        onFilter={() => {/* filtre aç */}}
+      />
       {/* Burç çarkı arka plan */}
       <Animated.View 
         style={[
@@ -622,26 +651,6 @@ export default function AstrologyMatchesScreen() {
           </View>
         ))}
       </Animated.View>
-
-      {/* Header - Fixed */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="white" />
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <Text style={styles.title}>Burç Eşleşmeleri</Text>
-          {swipeLimitInfo && (
-            <Text style={styles.swipeLimit}>
-              {swipeLimitInfo.isPremium ? '∞ ' : `${swipeLimitInfo.remainingSwipes}/${swipeLimitInfo.totalSwipes} `}
-              Swipe Hakkı
-            </Text>
-          )}
-        </View>
-        <TouchableOpacity style={styles.filterButton}>
-          <Ionicons name="options" size={24} color="white" />
-        </TouchableOpacity>
-      </View>
-
       {/* Cards Container */}
       <View style={styles.cardsContainer}>
         {cardsToShow.map((user, index) => (
@@ -662,7 +671,6 @@ export default function AstrologyMatchesScreen() {
           />
         ))}
       </View>
-
       {/* Action Buttons - Fixed Footer */}
       <View style={styles.actionButtons}>
         <TouchableOpacity 
@@ -693,6 +701,7 @@ export default function AstrologyMatchesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#1a1a2e',
   },
   background: {
     position: 'absolute',
@@ -700,6 +709,40 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 10 : StatusBar.currentHeight || 20,
+    paddingBottom: 10,
+    backgroundColor: 'transparent',
+  },
+  headerIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: 'white',
+    textAlign: 'center',
+  },
+  headerSwipeLimit: {
+    fontSize: 13,
+    color: '#fff8',
+    marginTop: 2,
+    textAlign: 'center',
   },
   zodiacWheel: {
     position: 'absolute',
@@ -719,46 +762,6 @@ const styles = StyleSheet.create({
   zodiacText: {
     fontSize: 20,
     color: 'rgba(255, 255, 255, 0.5)',
-  },
-  header: {
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: 'white',
-    textAlign: 'center',
-  },
-  swipeLimit: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.7)',
-    textAlign: 'center',
-    marginTop: 2,
-  },
-  filterButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   loadingContainer: {
     flex: 1,
@@ -826,24 +829,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 10,
-    marginBottom: Platform.OS === 'ios' ? 100 : 80,
+    marginBottom: CARD_BOTTOM_MARGIN + 60, // Footer'a bol boşluk
   },
   card: {
     position: 'absolute',
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
     backgroundColor: 'white',
-    borderRadius: 20,
+    borderRadius: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
     shadowRadius: 20,
     elevation: 15,
     overflow: 'hidden',
+    marginBottom: CARD_BOTTOM_MARGIN,
   },
   photoContainer: {
-    height: CARD_HEIGHT * 0.7,
-    position: 'relative',
+    height: CARD_HEIGHT * 0.68,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    overflow: 'hidden',
+    backgroundColor: '#222',
   },
   photo: {
     width: '100%',
@@ -866,21 +875,22 @@ const styles = StyleSheet.create({
   },
   photoIndicators: {
     position: 'absolute',
-    top: 20,
-    left: 20,
-    right: 20,
+    top: 12,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
+    zIndex: 2,
   },
   photoIndicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
-    marginHorizontal: 2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.4)',
+    marginHorizontal: 3,
   },
   photoIndicatorActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: '#fff',
   },
   statusBadges: {
     position: 'absolute',
@@ -969,24 +979,26 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: CARD_HEIGHT * 0.3,
+    height: CARD_HEIGHT * 0.38,
     justifyContent: 'flex-end',
-    paddingBottom: 10,
+    paddingBottom: 16,
+    paddingHorizontal: 18,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
   userInfo: {
-    padding: 15,
+    paddingTop: 8,
   },
   nameRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   nameAndLocation: {
     flex: 1,
   },
   userName: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
     color: 'white',
     flex: 1,
@@ -1003,65 +1015,64 @@ const styles = StyleSheet.create({
   zodiacBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(128, 0, 255, 0.8)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 15,
+    backgroundColor: '#8000FF',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
     marginLeft: 10,
   },
   zodiacEmoji: {
-    fontSize: 20,
-    marginBottom: 2,
+    fontSize: 18,
+    marginRight: 2,
   },
   compatibilityRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   compatibilityBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 215, 0, 0.2)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    backgroundColor: 'rgba(255, 215, 0, 0.18)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginRight: 10,
   },
   compatibilityText: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#FFD700',
     fontWeight: '600',
     marginLeft: 4,
   },
-  activityBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(76, 175, 80, 0.2)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
+  compatibilityBar: {
+    flex: 1,
+    height: 7,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 4,
+    marginLeft: 10,
+    overflow: 'hidden',
   },
-  activityText: {
-    fontSize: 12,
-    color: '#4CAF50',
-    fontWeight: '600',
-    marginLeft: 4,
+  compatibilityFill: {
+    height: '100%',
+    borderRadius: 4,
   },
   userBio: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    lineHeight: 18,
-    marginBottom: 8,
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.95)',
+    lineHeight: 19,
+    marginBottom: 4,
   },
   compatibilityDesc: {
-    backgroundColor: 'rgba(128, 0, 255, 0.2)',
+    backgroundColor: 'rgba(128, 0, 255, 0.18)',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 10,
+    marginBottom: 4,
   },
   compatibilityDescText: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.95)',
     textAlign: 'center',
     fontStyle: 'italic',
   },
@@ -1074,7 +1085,7 @@ const styles = StyleSheet.create({
   },
   actionButtons: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 100 : 80,
+    bottom: CARD_BOTTOM_MARGIN,
     left: 0,
     right: 0,
     flexDirection: 'row',
@@ -1084,30 +1095,44 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   actionButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 62,
+    height: 62,
+    borderRadius: 31,
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 15,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    marginHorizontal: 22,
+    backgroundColor: 'rgba(255,255,255,0.97)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 10,
   },
   dislikeButton: {
     borderWidth: 3,
     borderColor: '#FF5722',
   },
   superLikeButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
   },
   likeButton: {
     borderWidth: 3,
     borderColor: '#4CAF50',
+  },
+  activityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(76, 175, 80, 0.18)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  activityText: {
+    fontSize: 13,
+    color: '#4CAF50',
+    fontWeight: '600',
+    marginLeft: 4,
   },
 }); 

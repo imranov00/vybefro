@@ -82,7 +82,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     // Drawer açıldığında sadece cache süresi dolmuşsa profili güncelle
     const now = Date.now();
     if ((now - lastFetchTime) >= CACHE_DURATION) {
-      checkAndFetchProfile();
+    checkAndFetchProfile();
     }
   };
 
@@ -158,15 +158,15 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       ]);
 
       const mappedProfile = mapApiResponseToUserProfile(profileData);
-      
-      // Profil fotoğrafı varsa, profil bilgisini güncelle
-      if (userPhotos && userPhotos.length > 0) {
-        const profilePhoto = userPhotos.find(photo => photo.isProfilePhoto);
-        if (profilePhoto) {
-          mappedProfile.profileImage = profilePhoto.url;
-        } else if (userPhotos.length > 0) {
-          mappedProfile.profileImage = userPhotos[0].url;
-        }
+        
+        // Profil fotoğrafı varsa, profil bilgisini güncelle
+        if (userPhotos && userPhotos.length > 0) {
+          const profilePhoto = userPhotos.find(photo => photo.isProfilePhoto);
+          if (profilePhoto) {
+            mappedProfile.profileImage = profilePhoto.url;
+          } else if (userPhotos.length > 0) {
+            mappedProfile.profileImage = userPhotos[0].url;
+          }
       }
       
       setUserProfile(mappedProfile);
