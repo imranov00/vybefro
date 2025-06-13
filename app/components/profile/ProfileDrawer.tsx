@@ -45,6 +45,7 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
   const { showProfile } = useProfile();
   const router = useRouter();
   const [isRendered, setIsRendered] = useState(visible);
+  const [hasInitialLoad, setHasInitialLoad] = useState(false);
   
   const slideAnimation = useRef(new Animated.Value(DRAWER_WIDTH)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
@@ -56,12 +57,28 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
   // showProfile çağrısı cache kontrolü yapıp gerekirse profili günceller
   
   useEffect(() => {
-    if (visible) {
+    if (visible && !hasInitialLoad) {
       setIsRendered(true);
-      // Drawer açıldığında profil context'e bildir (cache kontrolü yapar)
+      // İlk açılışta profil context'e bildir
       showProfile();
+      setHasInitialLoad(true);
       
       // Slide ve fade animasyonlarını paralel çalıştır
+      Animated.parallel([
+        Animated.timing(slideAnimation, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnimation, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        })
+      ]).start();
+    } else if (visible) {
+      setIsRendered(true);
+      // Sadece animasyonları çalıştır, profil güncelleme yapma
       Animated.parallel([
         Animated.timing(slideAnimation, {
           toValue: 0,
@@ -253,21 +270,6 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
       color: '#FFD700',
       onPress: handlePremiumPress,
     },
-    // TEST BUTONU - Premium aktifleştirme için
-    ...(!isPremium ? [{
-      icon: 'flash',
-      title: '[TEST] Premium Aktifleştir',
-      color: '#FF6B35',
-      onPress: async () => {
-        try {
-          await setPremium(true);
-          onClose();
-          Alert.alert('Test', 'Premium başarıyla aktifleştirildi! (Test amaçlı)');
-        } catch (error) {
-          console.error('Premium test hatası:', error);
-        }
-      },
-    }] : []),
     {
       icon: 'settings',
       title: 'Ayarlar',

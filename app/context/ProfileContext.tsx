@@ -1,7 +1,7 @@
-import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import { userApi, UserProfileResponse } from '../services/api';
 import { ZodiacSign } from '../types/zodiac';
-import { getToken, hasToken } from '../utils/tokenStorage';
+import { getToken } from '../utils/tokenStorage';
 
 // User profili için tip tanımı
 export type UserProfile = {
@@ -71,32 +71,50 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [lastFetchTime, setLastFetchTime] = useState<number>(0);
+  const lastFetchTime = useRef<number>(0);
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 dakika cache süresi
 
-  // Cache süresi (15 dakika)
-  const CACHE_DURATION = 15 * 60 * 1000;
-
-  // Profil drawer'ını göster
-  const showProfile = () => {
-    setIsProfileVisible(true);
-    // Drawer açıldığında sadece cache süresi dolmuşsa profili güncelle
+  const fetchProfile = async (force = false) => {
     const now = Date.now();
-    if ((now - lastFetchTime) >= CACHE_DURATION) {
-    checkAndFetchProfile();
+    
+    // Cache kontrolü - son 5 dakika içinde güncelleme yapıldıysa ve force false ise güncelleme yapma
+    if (!force && now - lastFetchTime.current < CACHE_DURATION) {
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const response = await userApi.getProfile();
+      
+      if (response) {
+        const mappedProfile = mapApiResponseToUserProfile(response);
+        setUserProfile(mappedProfile);
+        lastFetchTime.current = now;
+      } else {
+        setError('Profil bilgileri alınamadı');
+      }
+    } catch (err) {
+      setError('Profil yüklenirken bir hata oluştu');
+      console.error('Profil yükleme hatası:', err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Profil drawer'ını gizle
+  const showProfile = async () => {
+    await fetchProfile(false); // Cache kontrolü ile güncelleme
+  };
+
   const hideProfile = () => {
     setIsProfileVisible(false);
   };
 
-  // Kullanıcı profilini güncelle
   const updateUserProfile = (profile: Partial<UserProfile>) => {
     setUserProfile(prevProfile => ({ ...prevProfile, ...profile }));
   };
 
-  // Mevcut kullanıcı ID'sini kontrol et
   const getCurrentUserId = async (): Promise<string | null> => {
     try {
       const token = await getToken();
@@ -112,85 +130,10 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Cache kontrolü ile profil getir
-  const checkAndFetchProfile = async (force = false) => {
-    const now = Date.now();
-    const cacheValid = (now - lastFetchTime) < CACHE_DURATION;
-    
-    if (!force && cacheValid && userProfile.id) {
-      console.log('📱 [PROFILE] Cache kullanılıyor');
-      return;
-    }
-    
-    await fetchUserProfile();
-  };
-
-  // Kullanıcı profilini API'den çek
-  const fetchUserProfile = async () => {
-    if (isLoading) {
-      console.log('📱 [PROFILE] Zaten yükleme yapılıyor, yeni istek atılmıyor');
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      // Token kontrolü
-      const isLoggedIn = await hasToken();
-      
-      if (!isLoggedIn) {
-        setError('Oturum açık değil');
-        setUserProfile(defaultUserProfile);
-        setCurrentUserId(null);
-        setIsLoading(false);
-        return;
-      }
-      
-      console.log('📱 [PROFILE] Profil bilgileri getiriliyor...');
-      // Profil bilgilerini ve fotoğrafları paralel olarak çek
-      const [profileData, userPhotos] = await Promise.all([
-        userApi.getProfile(),
-        userApi.getPhotos().catch(error => {
-          console.warn('📱 [PROFILE] Fotoğraflar getirilemedi:', error);
-          return [];
-        })
-      ]);
-
-      const mappedProfile = mapApiResponseToUserProfile(profileData);
-        
-        // Profil fotoğrafı varsa, profil bilgisini güncelle
-        if (userPhotos && userPhotos.length > 0) {
-          const profilePhoto = userPhotos.find(photo => photo.isProfilePhoto);
-          if (profilePhoto) {
-            mappedProfile.profileImage = profilePhoto.url;
-          } else if (userPhotos.length > 0) {
-            mappedProfile.profileImage = userPhotos[0].url;
-          }
-      }
-      
-      setUserProfile(mappedProfile);
-      setLastFetchTime(Date.now());
-      
-      // Kullanıcı ID'sini güncelle
-      const userId = await getCurrentUserId();
-      setCurrentUserId(userId);
-      
-    } catch (error: any) {
-      console.error('❌ [PROFILE] Hata:', error);
-      setError(error.message || 'Profil yüklenemedi');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Zorla profil yenile (cache'i bypass et)
   const refreshProfile = async () => {
-    setLastFetchTime(0); // Cache'i invalidate et
-    await fetchUserProfile();
+    await fetchProfile(true); // Force ile güncelleme
   };
 
-  // Kullanıcı değişikliğini kontrol et
   useEffect(() => {
     const checkUserChange = async () => {
       const newUserId = await getCurrentUserId();
@@ -201,7 +144,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         
         if (newUserId) {
           // Yeni kullanıcı için profil getir
-          await fetchUserProfile();
+          await fetchProfile();
         } else {
           // Logout durumu
           setUserProfile(defaultUserProfile);
@@ -210,7 +153,6 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    // Sadece giriş durumu kontrol edilmesi gereken durumlarda çalıştır
     let interval: ReturnType<typeof setInterval> | null = null;
     
     const startChecking = async () => {
@@ -237,8 +179,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         hideProfile,
         userProfile,
         updateUserProfile,
-        fetchUserProfile,
-        refreshProfile,
+        fetchUserProfile: fetchProfile,
+        refreshProfile: refreshProfile,
         isLoading,
         error,
         currentUserId,
