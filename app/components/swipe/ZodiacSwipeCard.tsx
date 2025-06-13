@@ -7,7 +7,6 @@ import {
   Platform,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View
 } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
@@ -52,7 +51,7 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
   const rotate = useSharedValue(0);
   const opacity = useSharedValue(1);
 
-  // Fotoğraf listesi oluşturma fonksiyonu (worklet içinde kullanılabilir)
+  // Basit fotoğraf listesi oluşturma
   const createPhotoList = (userPhotos: Array<{ imageUrl: string }>, profileImageUrl: string | null): string[] => {
     const allPhotos: string[] = [];
     
@@ -61,20 +60,13 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
       allPhotos.push(profileImageUrl);
     }
     
-    // Sonra photos array'indeki fotoğrafları ekle (profileImageUrl ile aynı olmayanları)
+    // Sonra photos array'indeki fotoğrafları ekle
     if (userPhotos && userPhotos.length > 0) {
       userPhotos.forEach(photo => {
         if (photo.imageUrl && photo.imageUrl !== profileImageUrl) {
           allPhotos.push(photo.imageUrl);
         }
       });
-    }
-    
-    // TEST: Eğer tek fotoğraf varsa, test için çoğalt
-    if (allPhotos.length === 1) {
-      console.log(`🧪 [${user.firstName}] TEST: Tek fotoğraf tespit edildi, test için çoğaltılıyor`);
-      allPhotos.push(allPhotos[0] + '?test=2');
-      allPhotos.push(allPhotos[0] + '?test=3');
     }
     
     return allPhotos;
@@ -105,41 +97,21 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
 
       const { translationX, translationY, velocityX, velocityY } = event;
 
-      // Dikey fotoğraf geçişi - aşağı kaydırma
+      // Sadece aşağı kaydırma ile fotoğraf değiştirme
       if (translationY > 80 && Math.abs(translationX) < 100 && velocityY > 300) {
         // Sonraki fotoğrafa geç
         translateY.value = withSpring(0, { damping: 15, stiffness: 150 });
         translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
         rotate.value = withSpring(0, { damping: 15, stiffness: 150 });
         
-        runOnJS((userPhotos: Array<{ imageUrl: string }>, profileImageUrl: string | null, currentIndex: number, userId: number) => {
+        runOnJS((userPhotos: Array<{ imageUrl: string }>, profileImageUrl: string | null, currentIndex: number) => {
           const allPhotos = createPhotoList(userPhotos, profileImageUrl);
           
           if (allPhotos.length > 1) {
             const nextIndex = (currentIndex + 1) % allPhotos.length;
-            console.log(`📸 [Aşağı swipe] Index değişimi: ${currentIndex} → ${nextIndex}`);
             setPhotoIndex(nextIndex);
           }
-        })(user.photos, user.profileImageUrl, photoIndex, user.id);
-        return;
-      }
-
-      // Yukarı fotoğraf geçişi
-      if (translationY < -80 && Math.abs(translationX) < 100 && velocityY < -300) {
-        // Önceki fotoğrafa geç
-        translateY.value = withSpring(0, { damping: 15, stiffness: 150 });
-        translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
-        rotate.value = withSpring(0, { damping: 15, stiffness: 150 });
-        
-        runOnJS((userPhotos: Array<{ imageUrl: string }>, profileImageUrl: string | null, currentIndex: number, userId: number) => {
-          const allPhotos = createPhotoList(userPhotos, profileImageUrl);
-          
-          if (allPhotos.length > 1) {
-            const prevIndex = currentIndex === 0 ? allPhotos.length - 1 : currentIndex - 1;
-            console.log(`📸 [Yukarı swipe] Index değişimi: ${currentIndex} → ${prevIndex}`);
-            setPhotoIndex(prevIndex);
-          }
-        })(user.photos, user.profileImageUrl, photoIndex, user.id);
+        })(user.photos, user.profileImageUrl, photoIndex);
         return;
       }
 
@@ -208,51 +180,7 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
     )
   }));
 
-  const handlePhotoTap = (side: 'left' | 'right') => {
-    const allPhotos = createPhotoList(user.photos, user.profileImageUrl);
-    
-    // Detaylı debug bilgisi
-    console.log(`🔥 [${user.firstName}] FOTOĞRAF TAP DEBUG:`, {
-      side: side,
-      currentIndex: photoIndex,
-      totalPhotos: allPhotos.length,
-      allPhotos: allPhotos,
-      userPhotos: user.photos,
-      profileImageUrl: user.profileImageUrl
-    });
-    
-    if (allPhotos.length <= 1) {
-      console.log(`❌ [${user.firstName}] Tek fotoğraf var, navigasyon yapılmıyor`);
-      return;
-    }
-    
-    let newIndex = photoIndex;
-    
-    if (side === 'left') {
-      // Sol tıklama - önceki fotoğraf (döngüsel)
-      newIndex = photoIndex > 0 ? photoIndex - 1 : allPhotos.length - 1;
-      console.log(`⬅️ [${user.firstName}] Sol tıklama: ${photoIndex} → ${newIndex}`);
-    } else if (side === 'right') {
-      // Sağ tıklama - sonraki fotoğraf (döngüsel)
-      newIndex = photoIndex < allPhotos.length - 1 ? photoIndex + 1 : 0;
-      console.log(`➡️ [${user.firstName}] Sağ tıklama: ${photoIndex} → ${newIndex}`);
-    }
-    
-    if (newIndex !== photoIndex) {
-      console.log(`✅ [${user.firstName}] Index değişimi: ${photoIndex} → ${newIndex}`);
-      console.log(`📸 [${user.firstName}] setPhotoIndex çağrılıyor:`, { userId: user.id, newIndex });
-      setPhotoIndex(newIndex);
-      
-      // Test için 1 saniye sonra kontrol et
-      setTimeout(() => {
-        console.log(`🔍 [${user.firstName}] 1 saniye sonra photoIndex:`, photoIndex);
-      }, 1000);
-    } else {
-      console.log(`❌ [${user.firstName}] Index değişmedi: ${photoIndex}`);
-    }
-  };
-
-  // Mevcut fotoğrafı belirle - stabilize edilmiş sistem
+  // Basit fotoğraf listesi alma
   const getAllPhotos = React.useCallback((): string[] => {
     return createPhotoList(user.photos, user.profileImageUrl);
   }, [user.profileImageUrl, user.photos]);
@@ -261,27 +189,6 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
   const currentPhotoUrl = allPhotos.length > 0 
     ? allPhotos[Math.min(photoIndex, allPhotos.length - 1)] 
     : null;
-
-  // Debug: Sadece kullanıcı değiştiğinde fotoğraf bilgilerini logla
-  React.useEffect(() => {
-    console.log(`🎯 [${user.firstName}] KULLANICI FOTOĞRAF SİSTEMİ:`, {
-      userId: user.id,
-      profileImageUrl: user.profileImageUrl,
-      photosArray: user.photos,
-      allPhotos: allPhotos,
-      currentIndex: photoIndex,
-      currentPhoto: currentPhotoUrl
-    });
-  }, [user.id, allPhotos.length]); // Kullanıcı veya fotoğraf sayısı değiştiğinde
-
-  // Debug: photoIndex değişimlerini takip et
-  React.useEffect(() => {
-    console.log(`📊 [${user.firstName}] PHOTO INDEX DEĞİŞTİ:`, {
-      newIndex: photoIndex,
-      totalPhotos: allPhotos.length,
-      newPhoto: allPhotos[photoIndex]
-    });
-  }, [photoIndex]); // photoIndex her değiştiğinde
 
   const zodiacEmoji = getZodiacEmoji(user.zodiacSign);
   const zodiacDisplay = getZodiacDisplay(user.zodiacSign);
@@ -315,57 +222,6 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
                 </Text>
               </LinearGradient>
             )}
-
-            {/* Fotoğraf navigation alanları */}
-            <TouchableOpacity
-              style={styles.photoNavLeft}
-              onPress={() => handlePhotoTap('left')}
-            />
-            <TouchableOpacity
-              style={styles.photoNavRight}
-              onPress={() => handlePhotoTap('right')}
-            />
-
-            {/* Debug: Fotoğraf test butonu (her zaman görünür) */}
-            <View style={styles.debugPhotoControls}>
-              <TouchableOpacity
-                style={styles.debugButton}
-                onPress={() => {
-                  const allPhotos = getAllPhotos();
-                  console.log(`🔍 [${user.firstName}] Debug Fotoğraf Bilgileri:`, {
-                    userId: user.id,
-                    currentIndex: photoIndex,
-                    totalPhotos: allPhotos.length,
-                    allPhotos: allPhotos,
-                    currentPhoto: allPhotos[photoIndex],
-                    userPhotos: user.photos,
-                    profileImageUrl: user.profileImageUrl
-                  });
-                }}
-              >
-                <Text style={styles.debugButtonText}>📸</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.debugButton, { marginTop: 5 }]}
-                onPress={() => {
-                  console.log(`🔄 [${user.firstName}] Manuel test: Sonraki fotoğraf`);
-                  handlePhotoTap('right');
-                }}
-              >
-                <Text style={styles.debugButtonText}>➡️</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.debugButton, { marginTop: 5 }]}
-                onPress={() => {
-                  console.log(`🔄 [${user.firstName}] Manuel test: Önceki fotoğraf`);
-                  handlePhotoTap('left');
-                }}
-              >
-                <Text style={styles.debugButtonText}>⬅️</Text>
-              </TouchableOpacity>
-            </View>
 
             {/* Fotoğraf göstergeleri */}
             {allPhotos.length > 1 && (
@@ -533,24 +389,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  photoNavLeft: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: '40%',
-    zIndex: 10,
-    backgroundColor: 'rgba(255,0,0,0.2)',
-  },
-  photoNavRight: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: '40%',
-    zIndex: 10,
-    backgroundColor: 'rgba(0,255,0,0.2)',
-  },
   photoIndicators: {
     position: 'absolute',
     top: 15,
@@ -700,21 +538,5 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
-  },
-  debugPhotoControls: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    zIndex: 10,
-  },
-  debugButton: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    padding: 8,
-    borderRadius: 10,
-  },
-  debugButtonText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: 'white',
   },
 }); 
