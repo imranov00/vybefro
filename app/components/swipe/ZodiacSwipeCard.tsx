@@ -71,7 +71,7 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
     }
     
     // TEST: Eğer tek fotoğraf varsa, test için çoğalt
-    if (__DEV__ && allPhotos.length === 1) {
+    if (allPhotos.length === 1) {
       console.log(`🧪 [${user.firstName}] TEST: Tek fotoğraf tespit edildi, test için çoğaltılıyor`);
       allPhotos.push(allPhotos[0] + '?test=2');
       allPhotos.push(allPhotos[0] + '?test=3');
@@ -326,48 +326,46 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
               onPress={() => handlePhotoTap('right')}
             />
 
-            {/* Debug: Fotoğraf test butonu (sadece development'ta) */}
-            {__DEV__ && (
-              <View style={styles.debugPhotoControls}>
-                <TouchableOpacity
-                  style={styles.debugButton}
-                  onPress={() => {
-                    const allPhotos = getAllPhotos();
-                    console.log(`🔍 [${user.firstName}] Debug Fotoğraf Bilgileri:`, {
-                      userId: user.id,
-                      currentIndex: photoIndex,
-                      totalPhotos: allPhotos.length,
-                      allPhotos: allPhotos,
-                      currentPhoto: allPhotos[photoIndex],
-                      userPhotos: user.photos,
-                      profileImageUrl: user.profileImageUrl
-                    });
-                  }}
-                >
-                  <Text style={styles.debugButtonText}>📸</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[styles.debugButton, { marginTop: 5 }]}
-                  onPress={() => {
-                    console.log(`🔄 [${user.firstName}] Manuel test: Sonraki fotoğraf`);
-                    handlePhotoTap('right');
-                  }}
-                >
-                  <Text style={styles.debugButtonText}>➡️</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[styles.debugButton, { marginTop: 5 }]}
-                  onPress={() => {
-                    console.log(`🔄 [${user.firstName}] Manuel test: Önceki fotoğraf`);
-                    handlePhotoTap('left');
-                  }}
-                >
-                  <Text style={styles.debugButtonText}>⬅️</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+            {/* Debug: Fotoğraf test butonu (her zaman görünür) */}
+            <View style={styles.debugPhotoControls}>
+              <TouchableOpacity
+                style={styles.debugButton}
+                onPress={() => {
+                  const allPhotos = getAllPhotos();
+                  console.log(`🔍 [${user.firstName}] Debug Fotoğraf Bilgileri:`, {
+                    userId: user.id,
+                    currentIndex: photoIndex,
+                    totalPhotos: allPhotos.length,
+                    allPhotos: allPhotos,
+                    currentPhoto: allPhotos[photoIndex],
+                    userPhotos: user.photos,
+                    profileImageUrl: user.profileImageUrl
+                  });
+                }}
+              >
+                <Text style={styles.debugButtonText}>📸</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.debugButton, { marginTop: 5 }]}
+                onPress={() => {
+                  console.log(`🔄 [${user.firstName}] Manuel test: Sonraki fotoğraf`);
+                  handlePhotoTap('right');
+                }}
+              >
+                <Text style={styles.debugButtonText}>➡️</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.debugButton, { marginTop: 5 }]}
+                onPress={() => {
+                  console.log(`🔄 [${user.firstName}] Manuel test: Önceki fotoğraf`);
+                  handlePhotoTap('left');
+                }}
+              >
+                <Text style={styles.debugButtonText}>⬅️</Text>
+              </TouchableOpacity>
+            </View>
 
             {/* Fotoğraf göstergeleri */}
             {allPhotos.length > 1 && (
@@ -542,7 +540,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: '40%',
     zIndex: 10,
-    backgroundColor: __DEV__ ? 'rgba(255,0,0,0.1)' : 'transparent',
+    backgroundColor: 'rgba(255,0,0,0.2)',
   },
   photoNavRight: {
     position: 'absolute',
@@ -551,7 +549,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: '40%',
     zIndex: 10,
-    backgroundColor: __DEV__ ? 'rgba(0,255,0,0.1)' : 'transparent',
+    backgroundColor: 'rgba(0,255,0,0.2)',
   },
   photoIndicators: {
     position: 'absolute',
