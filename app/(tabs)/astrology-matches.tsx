@@ -3,18 +3,18 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Animated,
-    Dimensions,
-    Image,
-    PanResponder,
-    Platform,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  Image,
+  PanResponder,
+  Platform,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { useProfile } from '../context/ProfileContext';
@@ -24,7 +24,7 @@ import { getToken } from '../utils/tokenStorage';
 
 const { width, height } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.92;
-const CARD_HEIGHT = height * 0.75;
+const CARD_HEIGHT = height * 0.65;
 
 // Burç çarkı sembolleri
 const ZODIAC_SYMBOLS = [
@@ -325,6 +325,13 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, style, isTop, phot
   );
 };
 
+// Alert butonları için tip tanımı
+type AlertButtonType = {
+  text: string;
+  style?: 'default' | 'cancel' | 'destructive';
+  onPress?: () => void;
+};
+
 export default function AstrologyMatchesScreen() {
   const { userProfile } = useProfile();
   const { isPremium } = useAuth();
@@ -392,9 +399,13 @@ export default function AstrologyMatchesScreen() {
             'Swipe Limiti',
             response.message,
             [
-              { text: 'Tamam', style: 'default' },
+              { text: 'Tamam', style: 'default' as const },
               ...(response.swipeLimitInfo?.isPremium ? [] : [
-                { text: 'Premium Al', style: 'default', onPress: () => router.push('/(profile)/premium') }
+                { 
+                  text: 'Premium Al', 
+                  style: 'default' as const, 
+                  onPress: () => router.push('/premium' as any) 
+                }
               ])
             ]
           );
@@ -437,8 +448,12 @@ export default function AstrologyMatchesScreen() {
             '🎉 Eşleştiniz!',
             `${matchedUser.firstName} ile eşleştiniz! %${matchedUser.compatibilityScore} uyumluluğunuz var.`,
             [
-              { text: 'Harika!', style: 'default' },
-              { text: 'Mesaj Gönder', style: 'default', onPress: () => router.push(`/(app)/chat/${response.matchId}`) }
+              { text: 'Harika!', style: 'default' as const },
+              { 
+                text: 'Mesaj Gönder', 
+                style: 'default' as const, 
+                onPress: () => router.push(`/chat/${response.matchId}` as any) 
+              }
             ]
           );
         }
@@ -498,8 +513,12 @@ export default function AstrologyMatchesScreen() {
         'Swipe Limiti Doldu',
         'Günlük swipe limitiniz doldu. Premium üyelik satın alarak sınırsız swipe yapabilirsiniz.',
         [
-          { text: 'Tamam', style: 'default' },
-          { text: 'Premium Al', style: 'default', onPress: () => router.push('/(profile)/premium') }
+          { text: 'Tamam', style: 'default' as const },
+          { 
+            text: 'Premium Al', 
+            style: 'default' as const, 
+            onPress: () => router.push('/premium' as any) 
+          }
         ]
       );
       return;
@@ -557,7 +576,7 @@ export default function AstrologyMatchesScreen() {
           {swipeLimitInfo?.remainingSwipes === 0 && !swipeLimitInfo?.isPremium ? (
             <TouchableOpacity 
               style={styles.premiumButton} 
-              onPress={() => router.push('/(profile)/premium')}
+              onPress={() => router.push('/premium' as any)}
             >
               <Text style={styles.premiumButtonText}>Premium Satın Al</Text>
             </TouchableOpacity>
@@ -807,6 +826,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 10,
+    marginBottom: Platform.OS === 'ios' ? 100 : 80,
   },
   card: {
     position: 'absolute',
@@ -822,7 +842,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   photoContainer: {
-    flex: 1,
+    height: CARD_HEIGHT * 0.7,
     position: 'relative',
   },
   photo: {
@@ -949,26 +969,27 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 180,
+    height: CARD_HEIGHT * 0.3,
     justifyContent: 'flex-end',
+    paddingBottom: 10,
   },
   userInfo: {
-    padding: 20,
+    padding: 15,
   },
   nameRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 10,
+    alignItems: 'center',
+    marginBottom: 8,
   },
   nameAndLocation: {
     flex: 1,
   },
   userName: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: 'white',
-    marginBottom: 4,
+    flex: 1,
   },
   locationRow: {
     flexDirection: 'row',
@@ -980,32 +1001,30 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   zodiacBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(128, 0, 255, 0.8)',
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 15,
+    marginLeft: 10,
   },
   zodiacEmoji: {
     fontSize: 20,
     marginBottom: 2,
   },
-  zodiacText: {
-    fontSize: 10,
-    color: 'white',
-    fontWeight: '600',
-  },
   compatibilityRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    alignItems: 'center',
+    marginBottom: 8,
   },
   compatibilityBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255, 215, 0, 0.2)',
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 4,
     borderRadius: 12,
   },
   compatibilityText: {
@@ -1032,14 +1051,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.9)',
     lineHeight: 18,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   compatibilityDesc: {
     backgroundColor: 'rgba(128, 0, 255, 0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    marginBottom: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
   },
   compatibilityDescText: {
     fontSize: 12,
@@ -1066,12 +1084,12 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   actionButton: {
-    width: 65,
-    height: 65,
-    borderRadius: 32.5,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 20,
+    marginHorizontal: 15,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -1084,11 +1102,9 @@ const styles = StyleSheet.create({
     borderColor: '#FF5722',
   },
   superLikeButton: {
-    borderWidth: 3,
-    borderColor: '#FFD700',
-    width: 55,
-    height: 55,
-    borderRadius: 27.5,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
   },
   likeButton: {
     borderWidth: 3,

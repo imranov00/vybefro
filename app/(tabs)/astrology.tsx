@@ -4,25 +4,25 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  Image,
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    Image,
+    Platform,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withSpring,
-  withTiming
+    Easing,
+    useAnimatedStyle,
+    useSharedValue,
+    withRepeat,
+    withSpring,
+    withTiming
 } from 'react-native-reanimated';
 import { useAuth } from '../context/AuthContext';
 import { useProfile } from '../context/ProfileContext';
@@ -351,11 +351,12 @@ export default function AstrologyScreen() {
                   <View style={styles.cardHeader}>
                     <Image 
                       source={{ 
-                        uri: user.photos.length > 0 
+                        uri: user.photos && user.photos.length > 0 
                           ? user.photos[0].imageUrl 
                           : user.profileImageUrl || 'https://picsum.photos/400/600' 
                       }}
                       style={styles.userImage}
+                      defaultSource={require('../../assets/images/default-avatar.png')}
                     />
                     <View style={styles.userInfo}>
                       <View style={styles.nameRow}>
