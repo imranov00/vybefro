@@ -79,7 +79,6 @@ export default function TabLayout() {
               onPress={() => {
                 const newMode = currentMode === 'astrology' ? 'music' : 'astrology';
                 switchMode(newMode);
-                // Mode değiştirildikten sonra doğru ekrana yönlendir
                 if (newMode === 'astrology') {
                   router.push('/astrology');
                 } else {
@@ -172,7 +171,6 @@ export default function TabLayout() {
                 color={color} 
               />
             ),
-            // Music mode'dayken bu tab'ı gizle
             href: currentMode === 'astrology' ? '/astrology' : null,
           }}
         />
@@ -189,9 +187,9 @@ export default function TabLayout() {
                 color={color} 
               />
             ),
-            // Music mode'dayken bu tab'ı gizle
             href: currentMode === 'astrology' ? undefined : null,
           }}
+        />
 
         {/* Astrology Matches Tab - Sadece astrology mode'da görünür */}
         <Tabs.Screen
@@ -205,9 +203,9 @@ export default function TabLayout() {
                 color={color} 
               />
             ),
-            // Music mode'dayken bu tab'ı gizle
             href: currentMode === 'astrology' ? undefined : null,
           }}
+        />
         
         {/* Music Tab */}
         <Tabs.Screen
@@ -221,9 +219,9 @@ export default function TabLayout() {
                 color={color} 
               />
             ),
-            // Astrology mode'dayken bu tab'ı gizle
             href: currentMode === 'music' ? '/music' : null,
           }}
+        />
 
         {/* Music Matches Tab - Sadece music mode'da görünür */}
         <Tabs.Screen
@@ -237,15 +235,15 @@ export default function TabLayout() {
                 color={color} 
               />
             ),
-            // Astrology mode'dayken bu tab'ı gizle
             href: currentMode === 'music' ? undefined : null,
           }}
+        />
 
         {/* Index sayfasını gizle */}
         <Tabs.Screen
           name="index"
           options={{
-            href: null, // Bu tab'ı gizle
+            href: null,
           }}
         />
       </Tabs>

@@ -1,18 +1,18 @@
+import { useProfile } from '@/app/context/ProfileContext';
+import { DiscoverUser, swipeApi } from '@/app/services/api';
+import { calculateCompatibility, getCompatibilityColor, getCompatibilityDescription, getCompatibilityLabel } from '@/app/types/compatibility';
+import { ZodiacSign, getZodiacInfo } from '@/app/types/zodiac';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, StyleSheet, Text, View } from 'react-native';
 import Swiper from 'react-native-deck-swiper';
-import { useAuth } from '../../context/AuthContext';
-import { swipeApi } from '../../services/api';
-import { calculateCompatibility, getCompatibilityColor, getCompatibilityDescription, getCompatibilityLabel } from '../../types/compatibility';
-import { ZodiacSign, getZodiacInfo } from '../../types/zodiac';
 
 const { width, height } = Dimensions.get('window');
 
 export default function ZodiacSwipeScreen() {
-  const { user } = useAuth();
-  const [users, setUsers] = useState([]);
+  const { userProfile } = useProfile();
+  const [users, setUsers] = useState<DiscoverUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const swiperRef = useRef(null);
@@ -35,30 +35,30 @@ export default function ZodiacSwipeScreen() {
     }
   };
 
-  const handleSwipe = async (direction: 'left' | 'right', swipedUser: any) => {
+  const handleSwipe = async (direction: 'left' | 'right', swipedUser: DiscoverUser) => {
     try {
       await swipeApi.swipe({
-        targetUserId: swipedUser.id,
-        action: direction === 'right' ? 'LIKE' : 'PASS'
+        targetUserId: swipedUser.id.toString(),
+        action: direction === 'right' ? 'LIKE' : 'DISLIKE'
       });
     } catch (error) {
       console.error('Swipe işlemi sırasında hata:', error);
     }
   };
 
-  const renderCard = (user: any) => {
+  const renderCard = (user: DiscoverUser) => {
     if (!user) return null;
 
     const compatibilityScore = calculateCompatibility(
-      user.zodiacSign as ZodiacSign,
-      user?.zodiacSign as ZodiacSign
+      userProfile?.zodiacSign as ZodiacSign,
+      user.zodiacSign as ZodiacSign
     );
 
     const compatibilityColor = getCompatibilityColor(compatibilityScore);
     const compatibilityLabel = getCompatibilityLabel(compatibilityScore);
     const compatibilityDescription = getCompatibilityDescription(
+      userProfile?.zodiacSign as ZodiacSign,
       user.zodiacSign as ZodiacSign,
-      user?.zodiacSign as ZodiacSign,
       compatibilityScore
     );
 
@@ -197,8 +197,6 @@ const styles = StyleSheet.create({
     height: height * 0.7,
     borderRadius: 20,
     backgroundColor: 'white',
-    justifyContent: 'center',
-    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -207,6 +205,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+    overflow: 'hidden',
   },
   swiperCard: {
     width: width * 0.9,
@@ -215,50 +214,42 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
-    borderRadius: 20,
+    resizeMode: 'cover',
   },
   gradient: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: '60%',
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    height: '50%',
   },
   infoContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     padding: 20,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    height: '100%',
   },
   nameContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 15,
   },
   name: {
     fontSize: 24,
     fontWeight: 'bold',
     color: 'white',
+    marginBottom: 5,
   },
   zodiac: {
-    fontSize: 20,
+    fontSize: 18,
     color: 'white',
+    opacity: 0.9,
   },
   compatibilityContainer: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     padding: 15,
     borderRadius: 15,
-    marginBottom: 10,
+    marginBottom: 15,
     borderWidth: 1,
   },
   compatibilityScore: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
     marginBottom: 5,
   },
@@ -273,9 +264,9 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   bio: {
-    fontSize: 16,
+    fontSize: 14,
     color: 'white',
-    marginTop: 10,
     opacity: 0.9,
+    lineHeight: 20,
   },
 }); 
