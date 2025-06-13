@@ -280,7 +280,7 @@ export default function ZodiacSwipeScreen() {
                     }
                   ]}
                   photoIndex={photoIndexes[user.id] || 0}
-                  setPhotoIndex={(index: number) => setPhotoIndex(user.id, index)}
+                  setPhotoIndex={setPhotoIndex}
                 />
               ))}
               
@@ -291,7 +291,7 @@ export default function ZodiacSwipeScreen() {
                 onSwipe={handleSwipe}
                 isTop={true}
                 photoIndex={currentPhotoIndex}
-                setPhotoIndex={(index: number) => setPhotoIndex(currentUser.id, index)}
+                setPhotoIndex={setPhotoIndex}
               />
             </>
           ) : (

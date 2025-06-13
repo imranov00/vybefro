@@ -35,7 +35,7 @@ interface ZodiacSwipeCardProps {
   isTop?: boolean;
   style?: any;
   photoIndex: number;
-  setPhotoIndex: (index: number) => void;
+  setPhotoIndex: (userId: number, index: number) => void;
 }
 
 const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
@@ -104,14 +104,14 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
         translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
         rotate.value = withSpring(0, { damping: 15, stiffness: 150 });
         
-        runOnJS((userPhotos: Array<{ imageUrl: string }>, profileImageUrl: string | null, currentIndex: number) => {
+        runOnJS((userId: number, userPhotos: Array<{ imageUrl: string }>, profileImageUrl: string | null, currentIndex: number) => {
           const allPhotos = createPhotoList(userPhotos, profileImageUrl);
           
           if (allPhotos.length > 1) {
             const nextIndex = (currentIndex + 1) % allPhotos.length;
-            setPhotoIndex(nextIndex);
+            setPhotoIndex(userId, nextIndex);
           }
-        })(user.photos, user.profileImageUrl, photoIndex);
+        })(user.id, user.photos, user.profileImageUrl, photoIndex);
         return;
       }
 
@@ -180,12 +180,11 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
     )
   }));
 
-  // Basit fotoğraf listesi alma
-  const getAllPhotos = React.useCallback((): string[] => {
+  // Fotoğraf listesi oluşturma - memoized
+  const allPhotos = React.useMemo(() => {
     return createPhotoList(user.photos, user.profileImageUrl);
-  }, [user.profileImageUrl, user.photos]);
+  }, [user.photos, user.profileImageUrl]);
 
-  const allPhotos = getAllPhotos();
   const currentPhotoUrl = allPhotos.length > 0 
     ? allPhotos[Math.min(photoIndex, allPhotos.length - 1)] 
     : null;
