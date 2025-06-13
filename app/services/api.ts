@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { ZodiacSign } from '../types/zodiac';
 import { getToken, saveToken } from '../utils/tokenStorage';
@@ -489,19 +490,46 @@ export const userApi = {
     return response.data;
   },
 
-  getUsersWhoLikedMe: async (limit: number = 20): Promise<UsersWhoLikedMeResponse> => {
-    const response = await api.get(`/api/swipes/users-who-liked-me?limit=${limit}`);
-    return response.data;
+  getDiscoverUsers: async (page: number, limit: number): Promise<DiscoverResponse> => {
+    const token = await AsyncStorage.getItem('userToken');
+    const response = await fetch(`${API_URL}/api/swipes/discover?page=${page}&limit=${limit}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    if (!response.ok) {
+      throw new Error('Failed to fetch discover users');
+    }
+    return response.json();
   },
 
-  getDiscoverUsers: async (page: number = 1, limit: number = 20): Promise<DiscoverResponse> => {
-    const response = await api.get(`/api/swipes/discover?page=${page}&limit=${limit}`);
-    return response.data;
+  getUsersWhoLikedMe: async (page: number, limit: number): Promise<UsersWhoLikedMeResponse> => {
+    const token = await AsyncStorage.getItem('userToken');
+    const response = await fetch(`${API_URL}/api/swipes/liked-me?page=${page}&limit=${limit}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    if (!response.ok) {
+      throw new Error('Failed to fetch users who liked me');
+    }
+    return response.json();
   },
 
   getPremiumStatus: async (): Promise<PremiumStatusResponse> => {
-    const response = await api.get('/api/premium/status');
-    return response.data;
+    const token = await AsyncStorage.getItem('userToken');
+    const response = await fetch(`${API_URL}/api/premium/status`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    if (!response.ok) {
+      throw new Error('Failed to fetch premium status');
+    }
+    return response.json();
   },
 };
 
