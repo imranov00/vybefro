@@ -3,19 +3,16 @@ import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Dimensions,
+  Image,
   Platform,
   StatusBar,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View
 } from 'react-native';
-import { PanGestureHandler } from 'react-native-gesture-handler';
-import Animated, {
-  runOnJS,
-  useAnimatedGestureHandler,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring
+import {
+  useSharedValue
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -26,13 +23,10 @@ import { useAuth } from '../context/AuthContext';
 import { DiscoverUser, Match, swipeApi, userApi } from '../services/api';
 
 // Component imports
-import MatchScreen from '../components/match/MatchScreen';
 
 // Swipe components
-// @ts-ignore
-import { ZodiacSwipeCard } from '../components/swipe/ZodiacSwipeCard';
 // @ts-ignore  
-import { PanelState, UserDetailPanel } from '../components/swipe/UserDetailPanel';
+import { PanelState } from '../components/swipe/UserDetailPanel';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -120,58 +114,6 @@ export default function ZodiacSwipeScreen() {
     loadCurrentUserProfile();
   }, [loadUsers, loadCurrentUserProfile]);
 
-  // Swipe işlemi
-  const handleSwipe = useCallback(async (direction: 'left' | 'right', userId: number) => {
-    try {
-      const action = direction === 'right' ? 'LIKE' : 'DISLIKE';
-      
-      console.log('💫 [ZodiacSwipe] Swipe yapıldı:', { direction, action, userId });
-      
-      const response = await swipeApi.swipe({
-        targetUserId: userId.toString(),
-        action: action as 'LIKE' | 'DISLIKE', // API sadece LIKE/DISLIKE destekliyorsa
-      });
-
-      if (response.isMatch && response.matchId) {
-        // Eşleşme var - match screen göster
-        const matchedUser = users.find(u => u.id === userId);
-        if (matchedUser && currentUserProfile) {
-          const matchData: Match = {
-            id: parseInt(response.matchId),
-            matchedUser: {
-              id: matchedUser.id,
-              username: matchedUser.firstName,
-              firstName: matchedUser.firstName,
-              lastName: matchedUser.lastName || '',
-              age: matchedUser.age,
-              profileImageUrl: matchedUser.profileImageUrl,
-              zodiacSign: matchedUser.zodiacSign,
-            },
-            compatibilityScore: matchedUser.compatibilityScore,
-            compatibilityDescription: matchedUser.compatibilityDescription,
-            matchType: 'ZODIAC',
-            matchedAt: new Date().toISOString(),
-          };
-          
-          setCurrentMatch(matchData);
-          setShowMatchScreen(true);
-        }
-      }
-
-      // Sonraki kullanıcıya geç
-      setCurrentUserIndex(prev => prev + 1);
-      
-      // Kullanıcılar biterse daha fazla yükle
-      if (currentUserIndex >= users.length - 3) {
-        loadUsers();
-      }
-    } catch (error) {
-      console.error('Swipe hatası:', error);
-      // Hata olsa da sonraki kullanıcıya geç
-      setCurrentUserIndex(prev => prev + 1);
-    }
-  }, [users, currentUserIndex, currentUserProfile, loadUsers]);
-
   // Fotoğraf indeksi güncelle
   const setPhotoIndex = useCallback((userId: number, index: number) => {
     console.log('📸 [ZodiacSwipe] Fotoğraf indeksi güncelleniyor:', { userId, index });
@@ -186,83 +128,12 @@ export default function ZodiacSwipeScreen() {
     });
   }, []);
 
-  // Panel gesture handler
-  const panelGestureHandler = useAnimatedGestureHandler({
-    onStart: () => {
-      'worklet';
-    },
-    onActive: (event) => {
-      'worklet';
-      const newTranslateY = Math.max(
-        PANEL_POSITIONS[PanelState.FULL],
-        Math.min(
-          PANEL_POSITIONS[PanelState.CLOSED],
-          event.translationY + PANEL_POSITIONS[panelState]
-        )
-      );
-      panelTranslateY.value = newTranslateY;
-    },
-    onEnd: (event) => {
-      'worklet';
-      const velocity = event.velocityY;
-      const currentY = panelTranslateY.value;
-      
-      let targetState = PanelState.CLOSED;
-      
-      // Hızlı yukarı çekme - direkt tam aç
-      if (velocity < -1200) {
-        targetState = PanelState.FULL;
-      } 
-      // Hızlı aşağı itme - kapat
-      else if (velocity > 1200) {
-        targetState = PanelState.CLOSED;
-      } 
-      // Pozisyona göre karar ver - 3 seviyeli sistem
-      else {
-        const panelHeight = LAYOUT_CONSTANTS.panelMaxHeight;
-        const currentPosition = currentY / panelHeight;
-        
-        if (currentPosition < 0.25) {
-          // Üst %25'te - tam aç
-          targetState = PanelState.FULL;
-        } else if (currentPosition < 0.65) {
-          // Orta bölge - yarım aç
-          targetState = PanelState.HALF;
-        } else {
-          // Alt bölge - kapat
-          targetState = PanelState.CLOSED;
-        }
-      }
-      
-      panelTranslateY.value = withSpring(PANEL_POSITIONS[targetState], {
-        damping: 20,
-        stiffness: 300,
-      });
-      
-      runOnJS(setPanelState)(targetState);
-    },
-  });
-
-  // Animated styles
-  const panelAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: panelTranslateY.value }],
-  }));
-
-  // Match screen kapatma
-  const handleCloseMatch = useCallback(() => {
-    setShowMatchScreen(false);
-    setCurrentMatch(null);
-  }, []);
-
-  const handleSendMessage = useCallback(() => {
-    // Mesajlaşma özelliği henüz yok
-    console.log('Mesaj gönder:', currentMatch?.matchedUser.firstName);
-    handleCloseMatch();
-  }, [currentMatch, handleCloseMatch]);
-
   // Mevcut kullanıcı
   const currentUser = users[currentUserIndex];
   const currentPhotoIndex = currentUser ? photoIndexes[currentUser.id] || 0 : 0;
+  const currentPhoto = currentUser && currentUser.photos && currentUser.photos.length > 0
+    ? currentUser.photos[currentPhotoIndex]?.imageUrl || currentUser.profileImageUrl || 'https://picsum.photos/400/600'
+    : currentUser?.profileImageUrl || 'https://picsum.photos/400/600';
 
   return (
     <View style={styles.container}>
@@ -276,46 +147,59 @@ export default function ZodiacSwipeScreen() {
 
       {/* Ana içerik alanı */}
       <View style={styles.mainContent}>
-        {/* Swipe kartları */}
         <View style={styles.cardsContainer}>
           {isLoading ? (
             <View style={styles.loadingContainer}>
               <Text style={styles.loadingText}>Yıldızlar Hizalanıyor...</Text>
             </View>
           ) : currentUser ? (
-            <>
-              {/* Sonraki kartlar (stack efekti) */}
-              {users.slice(currentUserIndex + 1, currentUserIndex + 3).map((user, index: number) => (
-                <ZodiacSwipeCard
-                  key={user.id}
-                  user={user}
-                  onSwipe={handleSwipe}
-                  isTop={false}
-                  style={[
-                    styles.stackCard,
-                    {
-                      transform: [
-                        { scale: 1 - (index + 1) * 0.05 },
-                        { translateY: (index + 1) * 10 },
-                      ],
-                      opacity: 1 - (index + 1) * 0.3,
-                    }
-                  ]}
-                  photoIndex={photoIndexes[user.id] || 0}
-                  setPhotoIndex={setPhotoIndex}
+            <View style={styles.simpleCard}>
+              <View style={styles.photoArea}>
+                <Image
+                  source={{ uri: currentPhoto }}
+                  style={styles.photo}
+                  resizeMode="cover"
                 />
-              ))}
-              
-              {/* Üstteki kart (aktif) */}
-              <ZodiacSwipeCard
-                key={currentUser.id}
-                user={currentUser}
-                onSwipe={handleSwipe}
-                isTop={true}
-                photoIndex={currentPhotoIndex}
-                setPhotoIndex={setPhotoIndex}
-              />
-            </>
+                {currentUser.photos && currentUser.photos.length > 1 && (
+                  <View style={styles.photoNavRow}>
+                    <TouchableOpacity
+                      style={styles.photoNavButton}
+                      onPress={() => setPhotoIndex(currentUser.id, (currentPhotoIndex - 1 + currentUser.photos.length) % currentUser.photos.length)}
+                    >
+                      <Text style={styles.photoNavText}>{'<'}</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.photoNavText}>{`${currentPhotoIndex + 1} / ${currentUser.photos.length}`}</Text>
+                    <TouchableOpacity
+                      style={styles.photoNavButton}
+                      onPress={() => setPhotoIndex(currentUser.id, (currentPhotoIndex + 1) % currentUser.photos.length)}
+                    >
+                      <Text style={styles.photoNavText}>{'>'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+              <View style={styles.infoArea}>
+                <Text style={styles.userName}>{currentUser.firstName} {currentUser.lastName}, {currentUser.age}</Text>
+                <Text style={styles.userZodiac}>{currentUser.zodiacSign}</Text>
+                <Text style={styles.userBio} numberOfLines={2}>{currentUser.bio}</Text>
+              </View>
+              <View style={styles.cardActions}>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => setCurrentUserIndex((currentUserIndex - 1 + users.length) % users.length)}
+                  disabled={users.length <= 1}
+                >
+                  <Text style={styles.actionButtonText}>Önceki</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => setCurrentUserIndex((currentUserIndex + 1) % users.length)}
+                  disabled={users.length <= 1}
+                >
+                  <Text style={styles.actionButtonText}>Sonraki</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           ) : (
             <View style={styles.noUsersContainer}>
               <Text style={styles.noUsersText}>Şimdilik bu kadar!</Text>
@@ -324,37 +208,6 @@ export default function ZodiacSwipeScreen() {
           )}
         </View>
       </View>
-
-      {/* Alt panel */}
-      <PanGestureHandler onGestureEvent={panelGestureHandler}>
-        <Animated.View style={[styles.bottomPanel, panelAnimatedStyle]}>
-          <UserDetailPanel 
-            user={currentUser}
-            panelState={panelState}
-            onClose={() => {
-              panelTranslateY.value = withSpring(PANEL_POSITIONS[PanelState.CLOSED]);
-              setPanelState(PanelState.CLOSED);
-            }}
-            onPanelStateChange={(newState: PanelState) => {
-              panelTranslateY.value = withSpring(PANEL_POSITIONS[newState], {
-                damping: 20,
-                stiffness: 300,
-              });
-              setPanelState(newState);
-            }}
-          />
-        </Animated.View>
-      </PanGestureHandler>
-
-      {/* Match Screen */}
-      {showMatchScreen && currentMatch && currentUserProfile && (
-        <MatchScreen
-          match={currentMatch}
-          currentUser={currentUserProfile}
-          onClose={handleCloseMatch}
-          onSendMessage={handleSendMessage}
-        />
-      )}
     </View>
   );
 }
@@ -378,9 +231,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
-  },
-  stackCard: {
-    position: 'absolute',
   },
   loadingContainer: {
     alignItems: 'center',
@@ -406,24 +256,81 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',
   },
-  bottomPanel: {
+  simpleCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 20,
+    padding: 20,
+    width: '100%',
+    maxWidth: 400,
+  },
+  photoArea: {
+    position: 'relative',
+    width: '100%',
+    height: 200,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  photo: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 10,
+  },
+  photoNavRow: {
     position: 'absolute',
-    bottom: LAYOUT_CONSTANTS.tabBarHeight,
+    bottom: 0,
     left: 0,
     right: 0,
-    height: LAYOUT_CONSTANTS.panelMaxHeight,
-    borderTopLeftRadius: 25,
-    borderTopRightRadius: 25,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -5 },
-        shadowOpacity: 0.3,
-        shadowRadius: 15,
-      },
-      android: {
-        elevation: 15,
-      },
-    }),
+    height: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  photoNavButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    borderRadius: 20,
+  },
+  photoNavText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  infoArea: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  userName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 5,
+  },
+  userZodiac: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  userBio: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+  },
+  cardActions: {
+    marginTop: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  actionButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    padding: 15,
+    borderRadius: 10,
+  },
+  actionButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: 'white',
   },
 }); 
