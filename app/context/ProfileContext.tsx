@@ -104,6 +104,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   };
 
   const showProfile = async () => {
+    setIsProfileVisible(true); // Drawer'ı aç
     await fetchProfile(false); // Cache kontrolü ile güncelleme
   };
 

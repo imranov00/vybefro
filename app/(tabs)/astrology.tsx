@@ -4,25 +4,25 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    Image,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Image,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import Animated, {
-    Easing,
-    useAnimatedStyle,
-    useSharedValue,
-    withRepeat,
-    withSpring,
-    withTiming
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSpring,
+  withTiming
 } from 'react-native-reanimated';
 import { useAuth } from '../context/AuthContext';
 import { useProfile } from '../context/ProfileContext';
@@ -177,34 +177,20 @@ export default function AstrologyScreen() {
         // PotentialMatch'i DiscoverUser'a dönüştür
         const convertedUsers: DiscoverUser[] = response.users.map((user: any) => ({
           id: user.id,
-          username: user.username || `user_${user.id}`,
           firstName: user.firstName || 'İsimsiz',
           lastName: user.lastName || 'Kullanıcı',
-          fullName: `${user.firstName || 'İsimsiz'} ${user.lastName || 'Kullanıcı'}`,
           age: user.age || 25,
-          gender: user.gender || 'OTHER',
-          bio: user.bio || '',
           zodiacSign: user.zodiacSign || 'ARIES',
-          zodiacSignDisplay: user.zodiacSign || 'Koç',
-          compatibilityScore: user.compatibilityScore || 75,
-          compatibilityMessage: user.compatibilityDescription || 'Uyumlu bir eşleşme!',
           profileImageUrl: user.profileImageUrl || 'https://picsum.photos/400/600',
-          photos: user.photos?.map((url: string) => ({ 
-            id: Math.random(), 
-            imageUrl: url, 
-            isPrimary: false, 
-            uploadDate: new Date().toISOString() 
-          })) || [],
-          photoCount: user.photos?.length || 0,
-          isPremium: false,
-          lastActiveTime: new Date().toISOString(),
-          activityStatus: user.isOnline ? 'Çevrimiçi' : '2 saat önce',
-          location: 'İstanbul',
-          activities: [],
-          isVerified: false,
-          isNewUser: false,
-          hasLikedCurrentUser: false,
-          profileCompleteness: '85%'
+          photos: user.photos?.map((url: string) => ({ imageUrl: url })) || [],
+          compatibilityScore: user.compatibilityScore || 75,
+          compatibilityDescription: user.compatibilityDescription || 'Uyumlu bir eşleşme!',
+          isOnline: user.isOnline || false,
+          distance: user.distance,
+          bio: user.bio || '',
+          isVerified: user.isVerified || false,
+          isPremium: user.isPremium || false,
+          isNewUser: user.isNewUser || false
         }));
 
         setDiscoverUsers(convertedUsers);
@@ -234,10 +220,10 @@ export default function AstrologyScreen() {
   const handleAction = async (action: 'like' | 'dislike' | 'superlike', user: DiscoverUser) => {
     try {
       const swipeAction = action === 'like' ? 'LIKE' : 
-                         action === 'superlike' ? 'SUPER_LIKE' : 'DISLIKE';
+                         action === 'superlike' ? 'LIKE' : 'DISLIKE';
       
       const response = await swipeApi.swipe({
-        targetUserId: user.id,
+        targetUserId: user.id.toString(),
         action: swipeAction
       });
 
@@ -326,7 +312,7 @@ export default function AstrologyScreen() {
         {/* Swipe Eşleşme Butonu */}
         <TouchableOpacity 
           style={styles.swipeMatchButton} 
-          onPress={() => router.push('/astrology-matches' as any)}
+          onPress={() => router.push('/zodiac-swipe' as any)}
         >
           <LinearGradient
             colors={['#8000FF', '#6A00D6', '#4B0082']}
@@ -395,7 +381,7 @@ export default function AstrologyScreen() {
                       )}
 
                       <Text style={styles.compatibilityDesc} numberOfLines={2}>
-                        {user.compatibilityMessage}
+                        {user.compatibilityDescription}
                       </Text>
 
                       {/* Yeni Status Badge'ler */}
@@ -412,10 +398,10 @@ export default function AstrologyScreen() {
                             <Text style={styles.badgeText}>Doğrulandı</Text>
                           </View>
                         )}
-                        {user.hasLikedCurrentUser && (
+                        {user.isNewUser && (
                           <View style={styles.likedBadge}>
                             <Ionicons name="heart" size={12} color="#FF6B6B" />
-                            <Text style={styles.badgeText}>Sizi beğendi</Text>
+                            <Text style={styles.badgeText}>Yeni Kullanıcı</Text>
                           </View>
                         )}
                       </View>

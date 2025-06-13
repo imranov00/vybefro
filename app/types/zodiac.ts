@@ -20,6 +20,9 @@ export interface ZodiacInfo {
   turkishName: string;
   emoji: string;
   display: string;
+  element: string;
+  planet: string;
+  description: string;
 }
 
 // Zodiac Mapping
@@ -28,73 +31,109 @@ export const ZODIAC_INFO: Record<ZodiacSign, ZodiacInfo> = {
     enum: ZodiacSign.ARIES,
     turkishName: 'Koç',
     emoji: '♈',
-    display: '♈ Koç'
+    display: '♈ Koç',
+    element: 'Ateş',
+    planet: 'Mars',
+    description: 'Enerjik, cesur ve lider ruhlu. Yeni başlangıçlarda öncü olma yeteneği.'
   },
   [ZodiacSign.TAURUS]: {
     enum: ZodiacSign.TAURUS,
     turkishName: 'Boğa',
     emoji: '♉',
-    display: '♉ Boğa'
+    display: '♉ Boğa',
+    element: 'Toprak',
+    planet: 'Venüs',
+    description: 'Sabırlı, güvenilir ve pratik. Güzellik ve konfor seven istikrarlı yapı.'
   },
   [ZodiacSign.GEMINI]: {
     enum: ZodiacSign.GEMINI,
     turkishName: 'İkizler',
     emoji: '♊',
-    display: '♊ İkizler'
+    display: '♊ İkizler',
+    element: 'Hava',
+    planet: 'Merkür',
+    description: 'Meraklı, uyumlu ve çok yönlü. İletişim ve öğrenme konusunda yetenekli.'
   },
   [ZodiacSign.CANCER]: {
     enum: ZodiacSign.CANCER,
     turkishName: 'Yengeç',
     emoji: '♋',
-    display: '♋ Yengeç'
+    display: '♋ Yengeç',
+    element: 'Su',
+    planet: 'Ay',
+    description: 'Duygusal, koruyucu ve sezgisel. Aile ve ev konularında duyarlı.'
   },
   [ZodiacSign.LEO]: {
     enum: ZodiacSign.LEO,
     turkishName: 'Aslan',
     emoji: '♌',
-    display: '♌ Aslan'
+    display: '♌ Aslan',
+    element: 'Ateş',
+    planet: 'Güneş',
+    description: 'Gururlu, yaratıcı ve cömert. Doğal liderlik ve performans yeteneği.'
   },
   [ZodiacSign.VIRGO]: {
     enum: ZodiacSign.VIRGO,
     turkishName: 'Başak',
     emoji: '♍',
-    display: '♍ Başak'
+    display: '♍ Başak',
+    element: 'Toprak',
+    planet: 'Merkür',
+    description: 'Titiz, analitik ve mükemmeliyetçi. Detaylara odaklanma ve yardım severlik.'
   },
   [ZodiacSign.LIBRA]: {
     enum: ZodiacSign.LIBRA,
     turkishName: 'Terazi',
     emoji: '♎',
-    display: '♎ Terazi'
+    display: '♎ Terazi',
+    element: 'Hava',
+    planet: 'Venüs',
+    description: 'Diplomatik, adil ve uyumlu. Denge ve estetik anlayışı gelişmiş.'
   },
   [ZodiacSign.SCORPIO]: {
     enum: ZodiacSign.SCORPIO,
     turkishName: 'Akrep',
     emoji: '♏',
-    display: '♏ Akrep'
+    display: '♏ Akrep',
+    element: 'Su',
+    planet: 'Plüton',
+    description: 'Tutkulu, kararlı ve gizemli. Derin duygular ve güçlü sezgiler.'
   },
   [ZodiacSign.SAGITTARIUS]: {
     enum: ZodiacSign.SAGITTARIUS,
     turkishName: 'Yay',
     emoji: '♐',
-    display: '♐ Yay'
+    display: '♐ Yay',
+    element: 'Ateş',
+    planet: 'Jüpiter',
+    description: 'Özgür ruhlu, iyimser ve maceraperest. Felsefe ve seyahat tutkusu.'
   },
   [ZodiacSign.CAPRICORN]: {
     enum: ZodiacSign.CAPRICORN,
     turkishName: 'Oğlak',
     emoji: '♑',
-    display: '♑ Oğlak'
+    display: '♑ Oğlak',
+    element: 'Toprak',
+    planet: 'Satürn',
+    description: 'Disiplinli, iddialı ve sorumluluk sahibi. Hedefe odaklanma yeteneği.'
   },
   [ZodiacSign.AQUARIUS]: {
     enum: ZodiacSign.AQUARIUS,
     turkishName: 'Kova',
     emoji: '♒',
-    display: '♒ Kova'
+    display: '♒ Kova',
+    element: 'Hava',
+    planet: 'Uranüs',
+    description: 'Özgün, insancıl ve vizyoner. İnovasyona açık ve bağımsız düşünce.'
   },
   [ZodiacSign.PISCES]: {
     enum: ZodiacSign.PISCES,
     turkishName: 'Balık',
     emoji: '♓',
-    display: '♓ Balık'
+    display: '♓ Balık',
+    element: 'Su',
+    planet: 'Neptün',
+    description: 'Hassas, yaratıcı ve spiritüel. Empati yeteneği ve sanatsal ruh.'
   }
 };
 
@@ -178,4 +217,19 @@ export const getZodiacTurkish = (zodiacSign: string | ZodiacSign): string => {
 export const getZodiacEmoji = (zodiacSign: string | ZodiacSign): string => {
   const info = getZodiacInfo(zodiacSign);
   return info ? info.emoji : '🌟';
+};
+
+export const getZodiacElement = (zodiacSign: string | ZodiacSign): string => {
+  const info = getZodiacInfo(zodiacSign);
+  return info ? info.element : 'Belirtilmemiş';
+};
+
+export const getZodiacPlanet = (zodiacSign: string | ZodiacSign): string => {
+  const info = getZodiacInfo(zodiacSign);
+  return info ? info.planet : 'Belirtilmemiş';
+};
+
+export const getZodiacDescription = (zodiacSign: string | ZodiacSign): string => {
+  const info = getZodiacInfo(zodiacSign);
+  return info ? info.description : 'Açıklama bulunamadı.';
 }; 
