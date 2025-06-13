@@ -177,6 +177,22 @@ export default function TabLayout() {
           }}
         />
 
+        {/* Zodiac Swipe Tab - Sadece astrology mode'da görünür */}
+        <Tabs.Screen
+          name="zodiac-swipe"
+          options={{
+            title: 'Burç Swipe',
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons 
+                name={focused ? 'heart' : 'heart-outline'} 
+                size={28} 
+                color={color} 
+              />
+            ),
+            // Music mode'dayken bu tab'ı gizle
+            href: currentMode === 'astrology' ? undefined : null,
+          }}
+
         {/* Astrology Matches Tab - Sadece astrology mode'da görünür */}
         <Tabs.Screen
           name="astrology-matches"
@@ -192,7 +208,6 @@ export default function TabLayout() {
             // Music mode'dayken bu tab'ı gizle
             href: currentMode === 'astrology' ? undefined : null,
           }}
-        />
         
         {/* Music Tab */}
         <Tabs.Screen
@@ -209,7 +224,6 @@ export default function TabLayout() {
             // Astrology mode'dayken bu tab'ı gizle
             href: currentMode === 'music' ? '/music' : null,
           }}
-        />
 
         {/* Music Matches Tab - Sadece music mode'da görünür */}
         <Tabs.Screen
@@ -226,7 +240,6 @@ export default function TabLayout() {
             // Astrology mode'dayken bu tab'ı gizle
             href: currentMode === 'music' ? undefined : null,
           }}
-        />
 
         {/* Index sayfasını gizle */}
         <Tabs.Screen
