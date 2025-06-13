@@ -2,13 +2,17 @@ import { useProfile } from '@/app/context/ProfileContext';
 import { DiscoverUser, swipeApi } from '@/app/services/api';
 import { calculateCompatibility, getCompatibilityColor, getCompatibilityDescription, getCompatibilityLabel } from '@/app/types/compatibility';
 import { ZodiacSign, getZodiacInfo } from '@/app/types/zodiac';
+import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Dimensions, Image, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Dimensions, FlatList, Image, StyleSheet, Text, View } from 'react-native';
 import Swiper from 'react-native-deck-swiper';
 
 const { width, height } = Dimensions.get('window');
+
+const BG_COLOR = '#2B0A4D'; // Projenin mor/koyu ana rengi
+const CARD_BG = 'rgba(44, 19, 72, 0.95)'; // Kart için koyu mor arka plan
 
 export default function ZodiacSwipeScreen() {
   const { userProfile } = useProfile();
@@ -16,6 +20,7 @@ export default function ZodiacSwipeScreen() {
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const swiperRef = useRef(null);
+  const [photoIndex, setPhotoIndex] = useState(0);
 
   useEffect(() => {
     loadUsers();
@@ -46,6 +51,25 @@ export default function ZodiacSwipeScreen() {
     }
   };
 
+  const renderPhotoGallery = (user: DiscoverUser) => {
+    const photos = user.photos && user.photos.length > 0
+      ? user.photos.map(p => p.imageUrl)
+      : user.profileImageUrl ? [user.profileImageUrl] : ['https://via.placeholder.com/400'];
+    return (
+      <FlatList
+        data={photos}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        keyExtractor={(item, idx) => item + idx}
+        renderItem={({ item }) => (
+          <Image source={{ uri: item }} style={styles.image} />
+        )}
+        style={{ width: '100%', height: '100%' }}
+      />
+    );
+  };
+
   const renderCard = (user: DiscoverUser) => {
     if (!user) return null;
 
@@ -53,7 +77,6 @@ export default function ZodiacSwipeScreen() {
       userProfile?.zodiacSign as ZodiacSign,
       user.zodiacSign as ZodiacSign
     );
-
     const compatibilityColor = getCompatibilityColor(compatibilityScore);
     const compatibilityLabel = getCompatibilityLabel(compatibilityScore);
     const compatibilityDescription = getCompatibilityDescription(
@@ -61,15 +84,36 @@ export default function ZodiacSwipeScreen() {
       user.zodiacSign as ZodiacSign,
       compatibilityScore
     );
+    const isOnline = user.isOnline;
+    const distance = user.distance;
+    const photos = user.photos && user.photos.length > 0
+      ? user.photos.map(p => p.imageUrl)
+      : user.profileImageUrl ? [user.profileImageUrl] : ['https://via.placeholder.com/400'];
 
     return (
       <View style={styles.card}>
-        <Image
-          source={{ uri: user.profileImageUrl || 'https://via.placeholder.com/400' }}
-          style={styles.image}
-        />
+        {/* Çoklu fotoğraf galerisi */}
+        <View style={styles.photoGallery}>
+          <FlatList
+            data={photos}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(item, idx) => item + idx}
+            renderItem={({ item }) => (
+              <Image source={{ uri: item }} style={styles.image} />
+            )}
+            style={{ width: '100%', height: '100%' }}
+          />
+          {/* Fotoğraf sayacı */}
+          {photos.length > 1 && (
+            <View style={styles.photoCounter}>
+              <Text style={styles.photoCounterText}>{`1 / ${photos.length}`}</Text>
+            </View>
+          )}
+        </View>
         <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.8)']}
+          colors={['transparent', CARD_BG]}
           style={styles.gradient}
         >
           <BlurView intensity={20} style={styles.infoContainer}>
@@ -79,8 +123,18 @@ export default function ZodiacSwipeScreen() {
                 {getZodiacInfo(user.zodiacSign)?.emoji} {getZodiacInfo(user.zodiacSign)?.turkishName}
               </Text>
             </View>
-
-            <View style={[styles.compatibilityContainer, { borderColor: compatibilityColor }]}>
+            {/* Ek bilgiler */}
+            <View style={styles.extraInfoRow}>
+              {isOnline && (
+                <View style={styles.onlineDot} />
+              )}
+              {isOnline && <Text style={styles.onlineText}>Çevrimiçi</Text>}
+              {distance !== undefined && (
+                <Text style={styles.distanceText}>{distance} km</Text>
+              )}
+            </View>
+            {/* Uyum kutusu */}
+            <View style={[styles.compatibilityContainer, { borderColor: compatibilityColor, backgroundColor: compatibilityColor + '22' }]}> 
               <Text style={[styles.compatibilityScore, { color: compatibilityColor }]}>
                 {compatibilityScore}%
               </Text>
@@ -91,14 +145,19 @@ export default function ZodiacSwipeScreen() {
                 {compatibilityDescription}
               </Text>
             </View>
-
-            {user.bio && (
-              <Text style={styles.bio} numberOfLines={3}>
-                {user.bio}
-              </Text>
-            )}
+            {/* Biyografi */}
+            <Text style={styles.bio} numberOfLines={3}>
+              {user.bio ? user.bio : 'Kullanıcı biyografisi burada görünecek.'}
+            </Text>
           </BlurView>
         </LinearGradient>
+        {/* Swipe yönlendirmesi */}
+        <View style={styles.swipeHintContainer}>
+          <Ionicons name="arrow-back" size={28} color="#fff" style={{ opacity: 0.5, marginRight: 10 }} />
+          <Text style={styles.swipeHintText}>Sola kaydır: Pas</Text>
+          <Ionicons name="arrow-forward" size={28} color="#fff" style={{ opacity: 0.5, marginLeft: 10 }} />
+          <Text style={styles.swipeHintText}>Sağa kaydır: Beğen</Text>
+        </View>
       </View>
     );
   };
@@ -106,7 +165,7 @@ export default function ZodiacSwipeScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#FF6B6B" />
+        <ActivityIndicator size="large" color="#A259FF" />
         <Text style={styles.loadingText}>Burç uyumlu eşleşmeler yükleniyor...</Text>
       </View>
     );
@@ -122,7 +181,7 @@ export default function ZodiacSwipeScreen() {
         onSwipedRight={(cardIndex) => handleSwipe('right', users[cardIndex])}
         onSwipedAll={loadUsers}
         cardIndex={0}
-        backgroundColor={'#f0f0f0'}
+        backgroundColor={BG_COLOR}
         stackSize={3}
         stackSeparation={15}
         animateOverlayLabelsOpacity
@@ -179,24 +238,26 @@ export default function ZodiacSwipeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: BG_COLOR,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f0f0f0',
+    backgroundColor: BG_COLOR,
   },
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#666',
+    color: '#A259FF',
   },
   card: {
-    width: width * 0.9,
-    height: height * 0.7,
-    borderRadius: 20,
-    backgroundColor: 'white',
+    width: width * 0.92,
+    height: height * 0.72,
+    borderRadius: 24,
+    backgroundColor: CARD_BG,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -206,29 +267,55 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
     overflow: 'hidden',
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 10,
   },
   swiperCard: {
-    width: width * 0.9,
-    height: height * 0.7,
+    width: width * 0.92,
+    height: height * 0.72,
+    alignSelf: 'center',
+  },
+  photoGallery: {
+    width: '100%',
+    height: '60%',
+    backgroundColor: '#1a0033',
   },
   image: {
-    width: '100%',
-    height: '100%',
+    width: width * 0.92,
+    height: height * 0.43,
     resizeMode: 'cover',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  photoCounter: {
+    position: 'absolute',
+    right: 16,
+    top: 16,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+  },
+  photoCounterText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
   },
   gradient: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: '50%',
+    height: '55%',
   },
   infoContainer: {
     padding: 20,
     height: '100%',
+    justifyContent: 'flex-end',
   },
   nameContainer: {
-    marginBottom: 15,
+    marginBottom: 10,
   },
   name: {
     fontSize: 24,
@@ -241,12 +328,36 @@ const styles = StyleSheet.create({
     color: 'white',
     opacity: 0.9,
   },
+  extraInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  onlineDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#4CAF50',
+    marginRight: 6,
+  },
+  onlineText: {
+    color: '#4CAF50',
+    fontSize: 13,
+    marginRight: 10,
+    fontWeight: '600',
+  },
+  distanceText: {
+    color: '#fff',
+    fontSize: 13,
+    marginLeft: 6,
+    opacity: 0.8,
+  },
   compatibilityContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     padding: 15,
     borderRadius: 15,
     marginBottom: 15,
-    borderWidth: 1,
+    borderWidth: 1.5,
   },
   compatibilityScore: {
     fontSize: 32,
@@ -268,5 +379,19 @@ const styles = StyleSheet.create({
     color: 'white',
     opacity: 0.9,
     lineHeight: 20,
+    marginBottom: 8,
+  },
+  swipeHintContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    marginBottom: 4,
+    opacity: 0.7,
+  },
+  swipeHintText: {
+    color: '#fff',
+    fontSize: 13,
+    marginHorizontal: 4,
   },
 }); 
