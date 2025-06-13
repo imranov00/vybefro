@@ -7,7 +7,6 @@ import {
   Platform,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View
 } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
@@ -101,21 +100,29 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
     setPhotoIndex(user.id, nextIndex);
   };
 
-  // Tap gesture handler - fotoğraf değiştirme için
-  const handleImageTap = (event: any) => {
-    const { locationX } = event.nativeEvent;
-    const screenMiddle = CARD_WIDTH / 2;
-    
-    console.log('👆 [ZodiacSwipeCard] Resim tap edildi:', { locationX, screenMiddle });
-    
-    if (locationX > screenMiddle) {
-      // Sağ taraf - sonraki fotoğraf
-      handlePhotoChange('next');
-    } else {
-      // Sol taraf - önceki fotoğraf
-      handlePhotoChange('prev');
-    }
-  };
+  // Tap gesture handler - ayrı gesture handler
+  const tapGestureHandler = useAnimatedGestureHandler({
+    onEnd: (event) => {
+      'worklet';
+      if (!isTop) return;
+      
+      const { x } = event;
+      const screenMiddle = CARD_WIDTH / 2;
+      
+      console.log('👆 [ZodiacSwipeCard] Tap tespit edildi:', { x, screenMiddle });
+      
+      const allPhotos = createPhotoList(user.photos, user.profileImageUrl);
+      if (allPhotos.length <= 1) return;
+      
+      if (x > screenMiddle) {
+        // Sağ taraf - sonraki fotoğraf
+        runOnJS(handlePhotoChange)('next');
+      } else {
+        // Sol taraf - önceki fotoğraf
+        runOnJS(handlePhotoChange)('prev');
+      }
+    },
+  });
 
   const gestureHandler = useAnimatedGestureHandler({
     onStart: () => {
@@ -141,11 +148,36 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
       if (!isTop) return;
 
       const { translationX, translationY, velocityX, velocityY } = event;
+      
+      // Küçük movement ise tap olarak algıla
+      if (Math.abs(translationX) < 10 && Math.abs(translationY) < 10) {
+        const { x } = event;
+        const screenMiddle = CARD_WIDTH / 2;
+        
+        runOnJS(() => {
+          console.log('👆 [ZodiacSwipeCard] Tap tespit edildi (PanGesture):', { x, screenMiddle });
+          
+          const allPhotos = createPhotoList(user.photos, user.profileImageUrl);
+          if (allPhotos.length <= 1) return;
+          
+          if (x > screenMiddle) {
+            handlePhotoChange('next');
+          } else {
+            handlePhotoChange('prev');
+          }
+        })();
+        
+        // Pozisyonu reset et
+        translateX.value = withSpring(0);
+        translateY.value = withSpring(0);
+        rotate.value = withSpring(0);
+        return;
+      }
 
-      // Fotoğraf değiştirme - daha duyarlı koşullar
+      // Fotoğraf değiştirme - daha duyarlı koşullar (sadece swipe için)
       if (Math.abs(translationX) < 80 && Math.abs(velocityX) < 500) {
         // Yukarı kaydırma - önceki fotoğraf
-        if (translationY < -30 && velocityY < -200) {
+        if (translationY < -50 && velocityY < -300) {
           translateY.value = withSpring(0, { damping: 15, stiffness: 150 });
           translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
           rotate.value = withSpring(0, { damping: 15, stiffness: 150 });
@@ -155,7 +187,7 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
         }
         
         // Aşağı kaydırma - sonraki fotoğraf
-        if (translationY > 30 && velocityY > 200) {
+        if (translationY > 50 && velocityY > 300) {
           translateY.value = withSpring(0, { damping: 15, stiffness: 150 });
           translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
           rotate.value = withSpring(0, { damping: 15, stiffness: 150 });
@@ -166,7 +198,7 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
       }
 
       // Süper beğeni (yukarı swipe) - yüksek hızlı yukarı
-      if (translationY < -120 && Math.abs(translationX) < 80 && velocityY < -1000) {
+      if (translationY < -150 && Math.abs(translationX) < 80 && velocityY < -1000) {
         translateY.value = withTiming(-screenHeight * 1.5, { duration: 300 });
         translateX.value = withTiming(0, { duration: 300 });
         rotate.value = withTiming(0, { duration: 300 });
@@ -249,54 +281,39 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
       <Animated.View style={[styles.cardContainer, style, animatedStyle]}>
         <View style={styles.card}>
           <View style={styles.imageContainer}>
-            <TouchableOpacity 
-              onPress={handleImageTap}
-              activeOpacity={1}
-              style={styles.imageTouch}
-            >
-              {currentPhotoUrl ? (
-                <Image
-                  source={{ uri: currentPhotoUrl }}
-                  style={styles.image}
-                  resizeMode="cover"
-                />
-              ) : (
-                <LinearGradient
-                  colors={['#1a1a2e', '#16213e', '#0f3460']}
-                  style={styles.placeholderImage}
-                >
-                  <Text style={styles.zodiacEmoji}>
-                    {zodiacEmoji}
-                  </Text>
-                  <Text style={styles.placeholderText}>
-                    {user.firstName}
-                  </Text>
-                  <Text style={styles.placeholderZodiac}>
-                    {zodiacDisplay}
-                  </Text>
-                </LinearGradient>
-              )}
-              
-              {/* Fotoğraf tap alanları - görsel ipucu */}
-              {allPhotos.length > 1 && (
-                <>
-                  <View style={styles.photoTapLeft} />
-                  <View style={styles.photoTapRight} />
-                </>
-              )}
-            </TouchableOpacity>
+            {currentPhotoUrl ? (
+              <Image
+                source={{ uri: currentPhotoUrl }}
+                style={styles.image}
+                resizeMode="cover"
+              />
+            ) : (
+              <LinearGradient
+                colors={['#1a1a2e', '#16213e', '#0f3460']}
+                style={styles.placeholderImage}
+              >
+                <Text style={styles.zodiacEmoji}>
+                  {zodiacEmoji}
+                </Text>
+                <Text style={styles.placeholderText}>
+                  {user.firstName}
+                </Text>
+                <Text style={styles.placeholderZodiac}>
+                  {zodiacDisplay}
+                </Text>
+              </LinearGradient>
+            )}
 
             {/* Fotoğraf göstergeleri */}
             {allPhotos.length > 1 && (
               <View style={styles.photoIndicators}>
                 {allPhotos.map((_, index) => (
-                  <TouchableOpacity
+                  <View
                     key={index}
                     style={[
                       styles.photoIndicator,
                       index === photoIndex && styles.activePhotoIndicator
                     ]}
-                    onPress={() => setPhotoIndex(user.id, index)}
                   />
                 ))}
               </View>
@@ -602,25 +619,5 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
-  },
-  imageTouch: {
-    flex: 1,
-    position: 'relative',
-  },
-  photoTapLeft: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: CARD_WIDTH / 2,
-    height: CARD_HEIGHT * 0.7,
-    zIndex: 2,
-  },
-  photoTapRight: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: CARD_WIDTH / 2,
-    height: CARD_HEIGHT * 0.7,
-    zIndex: 2,
   },
 }); 
