@@ -55,7 +55,7 @@ export default function ZodiacSwipeScreen() {
   // State
   const [users, setUsers] = useState<DiscoverUser[]>([]);
   const [currentUserIndex, setCurrentUserIndex] = useState(0);
-  const [photoIndexes, setPhotoIndexes] = useState<{ [key: number]: number }>({});
+  const [photoIndexes, setPhotoIndexes] = useState<number[]>([]); // Her kullanıcı için aktif fotoğraf indexi
   const [isLoading, setIsLoading] = useState(true);
   const [showMatchScreen, setShowMatchScreen] = useState(false);
   const [currentMatch, setCurrentMatch] = useState<Match | null>(null);
@@ -71,6 +71,7 @@ export default function ZodiacSwipeScreen() {
       setIsLoading(true);
       const response = await swipeApi.getDiscoverUsers(1, 20);
       setUsers(response.users);
+      setPhotoIndexes(Array(response.users.length).fill(0)); // Her kullanıcı için 0. fotoğraf
       
       console.log('👥 [ZodiacSwipe] Kullanıcılar yüklendi:', response.users.length);
       
@@ -84,14 +85,7 @@ export default function ZodiacSwipeScreen() {
         });
       });
       
-      // Fotoğraf indekslerini başlat
-      const initialIndexes: { [key: number]: number } = {};
-      response.users.forEach(user => {
-        initialIndexes[user.id] = 0;
-      });
-      setPhotoIndexes(initialIndexes);
-      
-      console.log('📸 [ZodiacSwipe] Başlangıç fotoğraf indeksleri:', initialIndexes);
+      console.log('📸 [ZodiacSwipe] Başlangıç fotoğraf indeksleri:', photoIndexes);
     } catch (error) {
       console.error('Kullanıcılar yüklenirken hata:', error);
     } finally {
@@ -114,26 +108,25 @@ export default function ZodiacSwipeScreen() {
     loadCurrentUserProfile();
   }, [loadUsers, loadCurrentUserProfile]);
 
-  // Fotoğraf indeksi güncelle
-  const setPhotoIndex = useCallback((userId: number, index: number) => {
-    console.log('📸 [ZodiacSwipe] Fotoğraf indeksi güncelleniyor:', { userId, index });
-    
-    setPhotoIndexes(prev => {
-      const newIndexes = {
-        ...prev,
-        [userId]: index
-      };
-      console.log('📸 [ZodiacSwipe] Yeni fotoğraf indeksleri:', newIndexes);
-      return newIndexes;
-    });
-  }, []);
-
-  // Mevcut kullanıcı
+  // Mevcut kullanıcı ve fotoğraf
   const currentUser = users[currentUserIndex];
-  const currentPhotoIndex = currentUser ? photoIndexes[currentUser.id] || 0 : 0;
-  const currentPhoto = currentUser && currentUser.photos && currentUser.photos.length > 0
-    ? currentUser.photos[currentPhotoIndex]?.imageUrl || currentUser.profileImageUrl || 'https://picsum.photos/400/600'
-    : currentUser?.profileImageUrl || 'https://picsum.photos/400/600';
+  const currentPhotoIndex = photoIndexes[currentUserIndex] || 0;
+  const photos = currentUser && currentUser.photos && currentUser.photos.length > 0
+    ? currentUser.photos.map(p => p.imageUrl).filter(Boolean)
+    : [];
+  const allPhotos = currentUser
+    ? [currentUser.profileImageUrl, ...photos.filter(url => url !== currentUser.profileImageUrl)]
+    : [];
+  const currentPhoto = allPhotos[currentPhotoIndex] || 'https://picsum.photos/400/600';
+
+  // Fotoğraf indexini güncelle
+  const goToPhoto = (newIndex: number) => {
+    setPhotoIndexes(prev => {
+      const updated = [...prev];
+      updated[currentUserIndex] = newIndex;
+      return updated;
+    });
+  };
 
   return (
     <View style={styles.container}>
@@ -160,18 +153,18 @@ export default function ZodiacSwipeScreen() {
                   style={styles.photo}
                   resizeMode="cover"
                 />
-                {currentUser.photos && currentUser.photos.length > 1 && (
+                {allPhotos.length > 1 && (
                   <View style={styles.photoNavRow}>
                     <TouchableOpacity
                       style={styles.photoNavButton}
-                      onPress={() => setPhotoIndex(currentUser.id, (currentPhotoIndex - 1 + currentUser.photos.length) % currentUser.photos.length)}
+                      onPress={() => goToPhoto((currentPhotoIndex - 1 + allPhotos.length) % allPhotos.length)}
                     >
                       <Text style={styles.photoNavText}>{'<'}</Text>
                     </TouchableOpacity>
-                    <Text style={styles.photoNavText}>{`${currentPhotoIndex + 1} / ${currentUser.photos.length}`}</Text>
+                    <Text style={styles.photoNavText}>{`${currentPhotoIndex + 1} / ${allPhotos.length}`}</Text>
                     <TouchableOpacity
                       style={styles.photoNavButton}
-                      onPress={() => setPhotoIndex(currentUser.id, (currentPhotoIndex + 1) % currentUser.photos.length)}
+                      onPress={() => goToPhoto((currentPhotoIndex + 1) % allPhotos.length)}
                     >
                       <Text style={styles.photoNavText}>{'>'}</Text>
                     </TouchableOpacity>
