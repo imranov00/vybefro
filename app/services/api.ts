@@ -208,14 +208,14 @@ export interface PotentialMatch {
 }
 
 export interface SwipeRequest {
-  targetUserId: number;
-  action: 'LIKE' | 'DISLIKE' | 'SUPER_LIKE';
+  targetUserId: string;
+  action: 'LIKE' | 'DISLIKE';
 }
 
 export interface SwipeResponse {
   success: boolean;
   isMatch: boolean;
-  matchId?: number;
+  matchId?: string;
   message: string;
 }
 
@@ -496,6 +496,12 @@ export const userApi = {
   getPremiumStatus: async (): Promise<PremiumStatusResponse> => {
     const authHeader = await createAuthHeader();
     const response = await api.get('/api/premium/status', authHeader);
+    return response.data;
+  },
+
+  swipe: async (data: SwipeRequest): Promise<SwipeResponse> => {
+    const authHeader = await createAuthHeader();
+    const response = await api.post('/api/swipes', data, authHeader);
     return response.data;
   },
 };

@@ -15,6 +15,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import Swiper from 'react-native-deck-swiper';
 import Animated, {
     useAnimatedStyle,
     useSharedValue,
@@ -26,7 +27,7 @@ import { useAuth } from '../context/AuthContext';
 import { DiscoverUser, PremiumStatus, userApi, UserWhoLikedMe } from '../services/api';
 import { getZodiacEmoji } from '../types/zodiac';
 
-const { width, height } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // Burç çarkı sembolleri
 const ZODIAC_SYMBOLS = [
@@ -49,9 +50,9 @@ export default function AstrologyMatchesScreen() {
   const { isPremium } = useAuth();
   const [activeTab, setActiveTab] = useState<'matches' | 'suggestions' | 'likes'>('matches');
   const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [likedUsers, setLikedUsers] = useState<UserWhoLikedMe[]>([]);
-  const [discoverUsers, setDiscoverUsers] = useState<any[]>([]);
+  const [discoverUsers, setDiscoverUsers] = useState<DiscoverUser[]>([]);
   const [premiumStatus, setPremiumStatus] = useState<PremiumStatus | null>(null);
   const [swipeLimitInfo, setSwipeLimitInfo] = useState<any>(null);
   
@@ -169,15 +170,24 @@ export default function AstrologyMatchesScreen() {
   const fetchLikedUsers = async () => {
     try {
       setLoading(true);
+      console.log('Beğenen kullanıcılar yükleniyor...');
       const response = await userApi.getUsersWhoLikedMe(1, 20);
+      console.log('Beğenen kullanıcılar yanıtı:', response);
+      
       if (response.success) {
         setLikedUsers(response.users);
       } else {
+        console.error('API yanıtı başarısız:', response);
         Alert.alert('Hata', response.message || 'Beğenen kullanıcılar yüklenirken bir hata oluştu');
       }
     } catch (error) {
-      console.error('Error fetching liked users:', error);
-      Alert.alert('Hata', error instanceof Error ? error.message : 'Beğenen kullanıcılar yüklenirken bir hata oluştu');
+      console.error('Beğenen kullanıcılar yüklenirken hata:', error);
+      if (error instanceof Error) {
+        console.error('Hata detayı:', error.message);
+        Alert.alert('Hata', error.message);
+      } else {
+        Alert.alert('Hata', 'Beğenen kullanıcılar yüklenirken bir hata oluştu');
+      }
     } finally {
       setLoading(false);
     }
@@ -186,16 +196,25 @@ export default function AstrologyMatchesScreen() {
   const fetchDiscoverUsers = async () => {
     try {
       setLoading(true);
+      console.log('Keşfet kullanıcıları yükleniyor...');
       const response = await userApi.getDiscoverUsers(1, 20);
+      console.log('Keşfet kullanıcıları yanıtı:', response);
+      
       if (response.success) {
         setDiscoverUsers(response.users);
         setSwipeLimitInfo(response.swipeLimitInfo);
       } else {
+        console.error('API yanıtı başarısız:', response);
         Alert.alert('Hata', response.message || 'Kullanıcılar yüklenirken bir hata oluştu');
       }
     } catch (error) {
-      console.error('Error fetching discover users:', error);
-      Alert.alert('Hata', error instanceof Error ? error.message : 'Kullanıcılar yüklenirken bir hata oluştu');
+      console.error('Keşfet kullanıcıları yüklenirken hata:', error);
+      if (error instanceof Error) {
+        console.error('Hata detayı:', error.message);
+        Alert.alert('Hata', error.message);
+      } else {
+        Alert.alert('Hata', 'Kullanıcılar yüklenirken bir hata oluştu');
+      }
     } finally {
       setLoading(false);
     }
@@ -296,6 +315,86 @@ export default function AstrologyMatchesScreen() {
       </View>
     </View>
   );
+
+  const handleSwipeLeft = async (index: number) => {
+    try {
+      const user = discoverUsers[index];
+      const response = await userApi.swipe({
+        targetUserId: user.id,
+        action: 'DISLIKE'
+      });
+      
+      if (response.success) {
+        console.log('Dislike başarılı:', response);
+      } else {
+        console.error('Dislike başarısız:', response.message);
+      }
+    } catch (error) {
+      console.error('Dislike hatası:', error);
+    }
+  };
+
+  const handleSwipeRight = async (index: number) => {
+    try {
+      const user = discoverUsers[index];
+      const response = await userApi.swipe({
+        targetUserId: user.id,
+        action: 'LIKE'
+      });
+      
+      if (response.success) {
+        console.log('Like başarılı:', response);
+        if (response.isMatch) {
+          Alert.alert('Eşleşme!', 'Tebrikler! Yeni bir eşleşmeniz var!');
+        }
+      } else {
+        console.error('Like başarısız:', response.message);
+      }
+    } catch (error) {
+      console.error('Like hatası:', error);
+    }
+  };
+
+  const renderCard = (card: DiscoverUser) => {
+    return (
+      <View style={styles.card}>
+        <Image
+          source={{ uri: card.profileImageUrl }}
+          style={styles.cardImage}
+        />
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.8)']}
+          style={styles.cardGradient}
+        >
+          <View style={styles.cardContent}>
+            <Text style={styles.cardName}>{card.fullName}</Text>
+            <Text style={styles.cardAge}>{card.age} yaşında</Text>
+            <Text style={styles.cardZodiac}>
+              {getZodiacEmoji(card.zodiacSign)} {card.zodiacSign}
+            </Text>
+            <Text style={styles.cardBio}>{card.bio}</Text>
+            <Text style={styles.cardLocation}>
+              <Ionicons name="location" size={16} color="white" /> {card.location}
+            </Text>
+            <Text style={styles.cardLastActive}>
+              <Ionicons name="time" size={16} color="white" /> {card.lastActiveTime}
+            </Text>
+            <Text style={styles.cardCompatibility}>
+              Uyumluluk: {card.compatibilityScore}%
+            </Text>
+          </View>
+        </LinearGradient>
+      </View>
+    );
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Kullanıcılar yükleniyor...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -442,6 +541,60 @@ export default function AstrologyMatchesScreen() {
           </ScrollView>
         )}
       </Animated.View>
+
+      {discoverUsers.length > 0 ? (
+        <Swiper
+          cards={discoverUsers}
+          renderCard={renderCard}
+          onSwipedLeft={handleSwipeLeft}
+          onSwipedRight={handleSwipeRight}
+          cardIndex={0}
+          backgroundColor="transparent"
+          stackSize={3}
+          stackSeparation={15}
+          animateOverlayLabelsOpacity
+          overlayLabels={{
+            left: {
+              title: 'PAS',
+              style: {
+                label: {
+                  backgroundColor: '#ff3b30',
+                  color: 'white',
+                  fontSize: 24
+                },
+                wrapper: {
+                  flexDirection: 'column',
+                  alignItems: 'flex-end',
+                  justifyContent: 'flex-start',
+                  marginTop: 30,
+                  marginLeft: -30
+                }
+              }
+            },
+            right: {
+              title: 'BEĞEN',
+              style: {
+                label: {
+                  backgroundColor: '#4cd964',
+                  color: 'white',
+                  fontSize: 24
+                },
+                wrapper: {
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  justifyContent: 'flex-start',
+                  marginTop: 30,
+                  marginLeft: 30
+                }
+              }
+            }
+          }}
+        />
+      ) : (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>Şu an için gösterilecek kullanıcı yok</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -818,56 +971,83 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.2)',
+    width: SCREEN_WIDTH * 0.9,
+    height: SCREEN_HEIGHT * 0.7,
+    borderRadius: 20,
+    backgroundColor: 'white',
+    position: 'relative',
+    overflow: 'hidden',
   },
   cardImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    marginRight: 16,
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+  },
+  cardGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '50%',
+    padding: 20,
   },
   cardContent: {
     flex: 1,
+    justifyContent: 'flex-end',
   },
   cardName: {
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: 'bold',
     color: 'white',
     marginBottom: 4,
   },
   cardAge: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 18,
+    color: 'white',
     marginBottom: 4,
   },
   cardZodiac: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 4,
+    fontSize: 16,
+    color: 'white',
+    marginBottom: 8,
   },
   cardBio: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
-    lineHeight: 18,
+    color: 'white',
     marginBottom: 8,
   },
   cardLocation: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: 'white',
     marginBottom: 4,
   },
   cardLastActive: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: 'white',
     marginBottom: 4,
   },
   cardCompatibility: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 4,
+    fontSize: 16,
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#1a1a1a',
+  },
+  loadingText: {
+    color: 'white',
+    fontSize: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: 'white',
+    fontSize: 16,
   },
 }); 
