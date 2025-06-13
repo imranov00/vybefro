@@ -285,6 +285,9 @@ export interface DiscoverUser {
   isOnline?: boolean;
   distance?: number;
   bio?: string;
+  isVerified?: boolean;
+  isPremium?: boolean;
+  isNewUser?: boolean;
 }
 
 export interface DiscoverResponse {
