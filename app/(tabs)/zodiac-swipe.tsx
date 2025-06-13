@@ -78,12 +78,26 @@ export default function ZodiacSwipeScreen() {
       const response = await swipeApi.getDiscoverUsers(1, 20);
       setUsers(response.users);
       
+      console.log('👥 [ZodiacSwipe] Kullanıcılar yüklendi:', response.users.length);
+      
+      // Fotoğraf verilerini kontrol et
+      response.users.forEach((user, index) => {
+        console.log(`📸 [ZodiacSwipe] Kullanıcı ${index + 1} (${user.firstName}):`, {
+          id: user.id,
+          profileImageUrl: user.profileImageUrl,
+          photosCount: user.photos?.length || 0,
+          photos: user.photos
+        });
+      });
+      
       // Fotoğraf indekslerini başlat
       const initialIndexes: { [key: number]: number } = {};
       response.users.forEach(user => {
         initialIndexes[user.id] = 0;
       });
       setPhotoIndexes(initialIndexes);
+      
+      console.log('📸 [ZodiacSwipe] Başlangıç fotoğraf indeksleri:', initialIndexes);
     } catch (error) {
       console.error('Kullanıcılar yüklenirken hata:', error);
     } finally {
@@ -158,10 +172,16 @@ export default function ZodiacSwipeScreen() {
 
   // Fotoğraf indeksi güncelle
   const setPhotoIndex = useCallback((userId: number, index: number) => {
-    setPhotoIndexes(prev => ({
-      ...prev,
-      [userId]: index
-    }));
+    console.log('📸 [ZodiacSwipe] Fotoğraf indeksi güncelleniyor:', { userId, index });
+    
+    setPhotoIndexes(prev => {
+      const newIndexes = {
+        ...prev,
+        [userId]: index
+      };
+      console.log('📸 [ZodiacSwipe] Yeni fotoğraf indeksleri:', newIndexes);
+      return newIndexes;
+    });
   }, []);
 
   // Panel gesture handler
