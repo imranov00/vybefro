@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { ZodiacSign } from '../types/zodiac';
 import { getToken, saveToken } from '../utils/tokenStorage';
@@ -483,47 +482,21 @@ export const userApi = {
   },
 
   getDiscoverUsers: async (page: number, limit: number): Promise<DiscoverResponse> => {
-    const token = await AsyncStorage.getItem('userToken');
-    const response = await fetch(`${API_URL}/api/swipes/discover?page=${page}&limit=${limit}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to fetch discover users');
-    }
-    return response.json();
+    const authHeader = await createAuthHeader();
+    const response = await api.get(`/api/swipes/discover?page=${page}&limit=${limit}`, authHeader);
+    return response.data;
   },
 
   getUsersWhoLikedMe: async (page: number, limit: number): Promise<UsersWhoLikedMeResponse> => {
-    const token = await AsyncStorage.getItem('userToken');
-    const response = await fetch(`${API_URL}/api/swipes/users-who-liked-me?page=${page}&limit=${limit}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to fetch users who liked me');
-    }
-    return response.json();
+    const authHeader = await createAuthHeader();
+    const response = await api.get(`/api/swipes/users-who-liked-me?page=${page}&limit=${limit}`, authHeader);
+    return response.data;
   },
 
   getPremiumStatus: async (): Promise<PremiumStatusResponse> => {
-    const token = await AsyncStorage.getItem('userToken');
-    const response = await fetch(`${API_URL}/api/premium/status`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    if (!response.ok) {
-      throw new Error('Failed to fetch premium status');
-    }
-    return response.json();
+    const authHeader = await createAuthHeader();
+    const response = await api.get('/api/premium/status', authHeader);
+    return response.data;
   },
 };
 
