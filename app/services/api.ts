@@ -166,10 +166,9 @@ export interface UserWhoLikedMe {
   id: string;
   fullName: string;
   age: number;
-  zodiacSign: string;
-  zodiacSignDisplay: string;
-  compatibilityScore: number;
   profileImageUrl: string;
+  zodiacSign: string;
+  compatibilityScore: number;
   lastActiveTime: string;
   location: string;
 }
@@ -178,6 +177,10 @@ export interface UsersWhoLikedMeResponse {
   success: boolean;
   users: UserWhoLikedMe[];
   totalCount: number;
+  hasMore: boolean;
+  currentPage: number;
+  limit: number;
+  message?: string;
 }
 
 // Çıkış isteği için interface
@@ -269,29 +272,17 @@ export interface SwipeLimitInfo {
 
 export interface DiscoverUser {
   id: string;
-  username: string;
-  firstName: string;
-  lastName: string;
   fullName: string;
-  birthDate: string;
   age: number;
-  gender: string;
+  profileImageUrl: string;
   bio: string;
   zodiacSign: string;
-  zodiacSignDisplay: string;
   compatibilityScore: number;
-  compatibilityMessage: string;
-  profileImageUrl: string;
-  photos: PhotoItem[];
-  photoCount: number;
+  photos: string[];
   isPremium: boolean;
+  activityStatus: string;
   lastActiveTime: string;
-  activityStatus: 'ONLINE' | 'OFFLINE' | 'AWAY';
   location: string;
-  activities: UserActivity[];
-  isVerified: boolean;
-  isNewUser: boolean;
-  hasLikedCurrentUser: boolean;
 }
 
 export interface DiscoverResponse {
@@ -302,6 +293,7 @@ export interface DiscoverResponse {
   currentPage: number;
   limit: number;
   swipeLimitInfo: SwipeLimitInfo;
+  message?: string;
 }
 
 // API'yi kullanırken gerekli token header'ını oluşturur
@@ -499,21 +491,23 @@ export const userApi = {
       }
     });
     if (!response.ok) {
-      throw new Error('Failed to fetch discover users');
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch discover users');
     }
     return response.json();
   },
 
   getUsersWhoLikedMe: async (page: number, limit: number): Promise<UsersWhoLikedMeResponse> => {
     const token = await AsyncStorage.getItem('userToken');
-    const response = await fetch(`${API_URL}/api/swipes/liked-me?page=${page}&limit=${limit}`, {
+    const response = await fetch(`${API_URL}/api/swipes/users-who-liked-me?page=${page}&limit=${limit}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       }
     });
     if (!response.ok) {
-      throw new Error('Failed to fetch users who liked me');
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch users who liked me');
     }
     return response.json();
   },

@@ -3,8 +3,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
 import {
+    Alert,
     Dimensions,
     FlatList,
+    Image,
     Platform,
     ScrollView,
     StatusBar,
@@ -21,7 +23,7 @@ import Animated, {
     withTiming
 } from 'react-native-reanimated';
 import { useAuth } from '../context/AuthContext';
-import { PremiumStatus, userApi, UserWhoLikedMe } from '../services/api';
+import { DiscoverUser, PremiumStatus, userApi, UserWhoLikedMe } from '../services/api';
 import { getZodiacEmoji } from '../types/zodiac';
 
 const { width, height } = Dimensions.get('window');
@@ -51,6 +53,7 @@ export default function AstrologyMatchesScreen() {
   const [likedUsers, setLikedUsers] = useState<UserWhoLikedMe[]>([]);
   const [discoverUsers, setDiscoverUsers] = useState<any[]>([]);
   const [premiumStatus, setPremiumStatus] = useState<PremiumStatus | null>(null);
+  const [swipeLimitInfo, setSwipeLimitInfo] = useState<any>(null);
   
   // Animasyon değerleri
   const fadeAnim = useSharedValue(1);
@@ -164,28 +167,35 @@ export default function AstrologyMatchesScreen() {
   );
 
   const fetchLikedUsers = async () => {
-    if (!isPremium) return;
-    
-    setLoading(true);
     try {
-      const response = await userApi.getUsersWhoLikedMe(20);
-      setLikedUsers(response.users);
+      setLoading(true);
+      const response = await userApi.getUsersWhoLikedMe(1, 20);
+      if (response.success) {
+        setLikedUsers(response.users);
+      } else {
+        Alert.alert('Hata', response.message || 'Beğenen kullanıcılar yüklenirken bir hata oluştu');
+      }
     } catch (error) {
-      console.error('Liked users fetching error:', error);
+      console.error('Error fetching liked users:', error);
+      Alert.alert('Hata', error instanceof Error ? error.message : 'Beğenen kullanıcılar yüklenirken bir hata oluştu');
     } finally {
       setLoading(false);
     }
   };
 
   const fetchDiscoverUsers = async () => {
-    setLoading(true);
     try {
+      setLoading(true);
       const response = await userApi.getDiscoverUsers(1, 20);
       if (response.success) {
         setDiscoverUsers(response.users);
+        setSwipeLimitInfo(response.swipeLimitInfo);
+      } else {
+        Alert.alert('Hata', response.message || 'Kullanıcılar yüklenirken bir hata oluştu');
       }
     } catch (error) {
-      console.error('Discover users fetching error:', error);
+      console.error('Error fetching discover users:', error);
+      Alert.alert('Hata', error instanceof Error ? error.message : 'Kullanıcılar yüklenirken bir hata oluştu');
     } finally {
       setLoading(false);
     }
@@ -235,6 +245,57 @@ export default function AstrologyMatchesScreen() {
       </View>
     );
   };
+
+  const renderUserCard = (user: DiscoverUser) => (
+    <View style={styles.card}>
+      <Image
+        source={{ uri: user.profileImageUrl }}
+        style={styles.cardImage}
+      />
+      <View style={styles.cardContent}>
+        <Text style={styles.cardName}>{user.fullName}</Text>
+        <Text style={styles.cardAge}>{user.age} yaşında</Text>
+        <Text style={styles.cardZodiac}>
+          {getZodiacEmoji(user.zodiacSign)} {user.zodiacSign}
+        </Text>
+        <Text style={styles.cardBio}>{user.bio}</Text>
+        <Text style={styles.cardLocation}>
+          <Ionicons name="location" size={16} color="#666" /> {user.location}
+        </Text>
+        <Text style={styles.cardLastActive}>
+          <Ionicons name="time" size={16} color="#666" /> {user.lastActiveTime}
+        </Text>
+        <Text style={styles.cardCompatibility}>
+          Uyumluluk: {user.compatibilityScore}%
+        </Text>
+      </View>
+    </View>
+  );
+
+  const renderLikedUserCard = (user: UserWhoLikedMe) => (
+    <View style={styles.card}>
+      <Image
+        source={{ uri: user.profileImageUrl }}
+        style={styles.cardImage}
+      />
+      <View style={styles.cardContent}>
+        <Text style={styles.cardName}>{user.fullName}</Text>
+        <Text style={styles.cardAge}>{user.age} yaşında</Text>
+        <Text style={styles.cardZodiac}>
+          {getZodiacEmoji(user.zodiacSign)} {user.zodiacSign}
+        </Text>
+        <Text style={styles.cardLocation}>
+          <Ionicons name="location" size={16} color="#666" /> {user.location}
+        </Text>
+        <Text style={styles.cardLastActive}>
+          <Ionicons name="time" size={16} color="#666" /> {user.lastActiveTime}
+        </Text>
+        <Text style={styles.cardCompatibility}>
+          Uyumluluk: {user.compatibilityScore}%
+        </Text>
+      </View>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
@@ -755,5 +816,58 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.8)',
     marginLeft: 8,
+  },
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  cardImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginRight: 16,
+  },
+  cardContent: {
+    flex: 1,
+  },
+  cardName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 4,
+  },
+  cardAge: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginBottom: 4,
+  },
+  cardZodiac: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginBottom: 4,
+  },
+  cardBio: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  cardLocation: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginBottom: 4,
+  },
+  cardLastActive: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginBottom: 4,
+  },
+  cardCompatibility: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginBottom: 4,
   },
 }); 
