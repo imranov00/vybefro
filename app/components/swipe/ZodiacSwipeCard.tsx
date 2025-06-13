@@ -7,6 +7,7 @@ import {
   Platform,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View
 } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
@@ -69,6 +70,13 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
       });
     }
     
+    // TEST: Eğer tek fotoğraf varsa test için ekstra fotoğraflar ekle
+    if (allPhotos.length === 1) {
+      console.log(`🧪 [TEST] Tek fotoğraf tespit edildi, test fotoğrafları ekleniyor`);
+      allPhotos.push('https://picsum.photos/400/600?random=1');
+      allPhotos.push('https://picsum.photos/400/600?random=2');
+    }
+    
     return allPhotos;
   };
 
@@ -99,6 +107,13 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
 
       // Sadece aşağı kaydırma ile fotoğraf değiştirme
       if (translationY > 80 && Math.abs(translationX) < 100 && velocityY > 300) {
+        console.log(`📱 [${user.firstName}] AŞAĞI KAYDIRMA TESPİT EDİLDİ:`, {
+          translationY,
+          translationX,
+          velocityY,
+          currentIndex: photoIndex
+        });
+        
         // Sonraki fotoğrafa geç
         translateY.value = withSpring(0, { damping: 15, stiffness: 150 });
         translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
@@ -107,9 +122,18 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
         runOnJS((userPhotos: Array<{ imageUrl: string }>, profileImageUrl: string | null, currentIndex: number) => {
           const allPhotos = createPhotoList(userPhotos, profileImageUrl);
           
+          console.log(`🔄 [${user.firstName}] FOTOĞRAF DEĞİŞTİRME:`, {
+            currentIndex,
+            totalPhotos: allPhotos.length,
+            allPhotos
+          });
+          
           if (allPhotos.length > 1) {
             const nextIndex = (currentIndex + 1) % allPhotos.length;
+            console.log(`✅ [${user.firstName}] YENİ INDEX:`, nextIndex);
             setPhotoIndex(nextIndex);
+          } else {
+            console.log(`❌ [${user.firstName}] TEK FOTOĞRAF VAR`);
           }
         })(user.photos, user.profileImageUrl, photoIndex);
         return;
@@ -190,6 +214,19 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
     ? allPhotos[Math.min(photoIndex, allPhotos.length - 1)] 
     : null;
 
+  // Debug: Kullanıcı fotoğraf bilgilerini logla
+  React.useEffect(() => {
+    console.log(`🔍 [${user.firstName}] FOTOĞRAF ANALİZİ:`, {
+      userId: user.id,
+      photoIndex: photoIndex,
+      profileImageUrl: user.profileImageUrl,
+      photosArray: user.photos,
+      allPhotos: allPhotos,
+      currentPhotoUrl: currentPhotoUrl,
+      totalPhotos: allPhotos.length
+    });
+  }, [user.id, photoIndex, allPhotos.length]);
+
   const zodiacEmoji = getZodiacEmoji(user.zodiacSign);
   const zodiacDisplay = getZodiacDisplay(user.zodiacSign);
   const compatibilityColor = getCompatibilityColor(user.compatibilityScore);
@@ -236,6 +273,20 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
                   />
                 ))}
               </View>
+            )}
+
+            {/* TEST: Manuel fotoğraf değiştirme butonu */}
+            {__DEV__ && allPhotos.length > 1 && (
+              <TouchableOpacity
+                style={styles.testButton}
+                onPress={() => {
+                  const nextIndex = (photoIndex + 1) % allPhotos.length;
+                  console.log(`🔄 [TEST] Manuel fotoğraf değiştirme: ${photoIndex} → ${nextIndex}`);
+                  setPhotoIndex(nextIndex);
+                }}
+              >
+                <Text style={styles.testButtonText}>📸 {photoIndex + 1}/{allPhotos.length}</Text>
+              </TouchableOpacity>
             )}
 
             {/* Zodiac badge */}
@@ -399,13 +450,13 @@ const styles = StyleSheet.create({
   },
   photoIndicator: {
     flex: 1,
-    height: 3,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    marginHorizontal: 1,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.4)',
+    marginHorizontal: 2,
     borderRadius: 2,
   },
   activePhotoIndicator: {
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: 'rgba(255,255,255,1)',
   },
   zodiacBadge: {
     position: 'absolute',
@@ -538,5 +589,18 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
+  },
+  testButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    padding: 10,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 10,
+  },
+  testButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 }); 
