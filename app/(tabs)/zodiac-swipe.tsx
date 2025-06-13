@@ -1,6 +1,3 @@
-import { useProfile } from '@/app/context/ProfileContext';
-import { DiscoverUser, swipeApi } from '@/app/services/api';
-import { getZodiacEmoji } from '@/app/types/zodiac';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -19,6 +16,10 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { useAuth } from '../context/AuthContext';
+import { useProfile } from '../context/ProfileContext';
+import { DiscoverResponse, DiscoverUser, SwipeLimitInfo, swipeApi } from '../services/api';
+import { getZodiacEmoji } from '../types/zodiac';
 
 const { width, height } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.92;
@@ -170,7 +171,7 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, style, isTop, phot
   };
 
   const currentPhotoUrl = user.photos.length > 0 
-    ? user.photos[photoIndex]?.imageUrl || user.profileImageUrl || 'https://picsum.photos/400/600'
+    ? user.photos[photoIndex]?.imageUrl || user.profileImageUrl 
     : user.profileImageUrl || 'https://picsum.photos/400/600';
 
   return (
@@ -181,10 +182,9 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, style, isTop, phot
       {/* Photo */}
       <View style={styles.photoContainer}>
         <Image
-          source={{ uri: currentPhotoUrl }}
+          source={{ uri: currentPhotoUrl || undefined }}
           style={styles.photo}
         />
-        
         {/* Photo Navigation */}
         <View style={styles.photoNavigation}>
           <TouchableOpacity
@@ -198,7 +198,6 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, style, isTop, phot
             activeOpacity={1}
           />
         </View>
-
         {/* Photo Indicators */}
         {user.photos.length > 1 && (
           <View style={styles.photoIndicators}>
@@ -213,87 +212,83 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ user, onSwipe, style, isTop, phot
             ))}
           </View>
         )}
-
-        {/* Status Badges */}
-        <View style={styles.statusBadges}>
-          {user.isVerified && (
-            <View style={styles.verifiedBadge}>
-              <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-              <Text style={styles.badgeText}>Doğrulandı</Text>
+      </View>
+      {/* User Info */}
+      <LinearGradient
+        colors={['transparent', 'rgba(0,0,0,0.9)']}
+        style={styles.infoGradient}
+      >
+        <View style={styles.userInfo}>
+          <View style={styles.nameRow}>
+            <Text style={styles.userName}>
+              {user.firstName} {user.lastName}, {user.age}
+            </Text>
+            <View style={styles.zodiacBadge}>
+              <Text style={styles.zodiacEmoji}>{getZodiacEmoji(user.zodiacSign)}</Text>
             </View>
-          )}
-          
-          {user.isPremium && (
-            <View style={styles.premiumBadge}>
-              <Ionicons name="star" size={16} color="#FFD700" />
-              <Text style={styles.badgeText}>Premium</Text>
+          </View>
+          <View style={styles.compatibilityRow}>
+            <View style={styles.compatibilityBadge}>
+              <Ionicons name="star" size={14} color="#FFD700" />
+              <Text style={styles.compatibilityText}>%{user.compatibilityScore} Uyumlu</Text>
             </View>
+          </View>
+          {user.bio && (
+            <Text style={styles.userBio} numberOfLines={3}>
+              {user.bio}
+            </Text>
           )}
-
-          {user.isNewUser && (
-            <View style={styles.newUserBadge}>
-              <Ionicons name="sparkles" size={16} color="#FF6B6B" />
-              <Text style={styles.badgeText}>Yeni</Text>
+          {user.compatibilityDescription && (
+            <View style={styles.compatibilityDesc}>
+              <Text style={styles.compatibilityDescText}>
+                {user.compatibilityDescription}
+              </Text>
             </View>
           )}
         </View>
-
-        {/* Swipe Overlays */}
-        <Animated.View style={[styles.overlay, styles.likeOverlay, { opacity: likeOpacity }]}>
-          <Ionicons name="heart" size={60} color="white" />
-          <Text style={styles.overlayText}>BEĞENDİM</Text>
-        </Animated.View>
-
-        <Animated.View style={[styles.overlay, styles.dislikeOverlay, { opacity: dislikeOpacity }]}>
-          <Ionicons name="close" size={60} color="white" />
-          <Text style={styles.overlayText}>HAYIR</Text>
-        </Animated.View>
-
-        <Animated.View style={[styles.overlay, styles.superLikeOverlay, { opacity: superLikeOpacity }]}>
-          <Ionicons name="star" size={60} color="white" />
-          <Text style={styles.overlayText}>SÜPER BEĞENDİM</Text>
-        </Animated.View>
-
-        {/* User Info */}
-        <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.8)']}
-          style={styles.userInfoGradient}
-        >
-          <View style={styles.userInfo}>
-            <View style={styles.userNameContainer}>
-              <Text style={styles.userName}>{user.firstName}, {user.age}</Text>
-              <Text style={styles.userZodiac}>{getZodiacEmoji(user.zodiacSign)} {user.zodiacSign}</Text>
-            </View>
-            
-            {user.bio && (
-              <Text style={styles.userBio} numberOfLines={2}>
-                {user.bio}
-              </Text>
-            )}
-
-            {user.distance && (
-              <View style={styles.distanceContainer}>
-                <Ionicons name="location" size={14} color="#fff" />
-                <Text style={styles.distanceText}>
-                  {user.distance < 1 ? '1 km\'den yakın' : `${Math.round(user.distance)} km uzakta`}
-                </Text>
-              </View>
-            )}
-          </View>
-        </LinearGradient>
-      </View>
+      </LinearGradient>
+      {/* Swipe Overlays */}
+      <Animated.View style={[styles.overlay, styles.likeOverlay, { opacity: likeOpacity }]}> 
+        <Ionicons name="heart" size={60} color="white" />
+        <Text style={styles.overlayText}>BEĞENDİM</Text>
+      </Animated.View>
+      <Animated.View style={[styles.overlay, styles.dislikeOverlay, { opacity: dislikeOpacity }]}> 
+        <Ionicons name="close" size={60} color="white" />
+        <Text style={styles.overlayText}>HAYIR</Text>
+      </Animated.View>
+      <Animated.View style={[styles.overlay, styles.superLikeOverlay, { opacity: superLikeOpacity }]}> 
+        <Ionicons name="star" size={60} color="white" />
+        <Text style={styles.overlayText}>SÜPER BEĞENİ</Text>
+      </Animated.View>
     </Animated.View>
   );
 };
 
 export default function ZodiacSwipeScreen() {
-  const router = useRouter();
   const { userProfile } = useProfile();
+  const { isPremium } = useAuth();
+  const router = useRouter();
   const [discoverUsers, setDiscoverUsers] = useState<DiscoverUser[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [photoIndexes, setPhotoIndexes] = useState<Record<number, number>>({});
-  const [swipeLimitInfo, setSwipeLimitInfo] = useState<any>(null);
+  const [swipeLimitInfo, setSwipeLimitInfo] = useState<SwipeLimitInfo | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Burç çarkı animasyonu
+  const zodiacRotation = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const rotateAnimation = Animated.loop(
+      Animated.timing(zodiacRotation, {
+        toValue: 1,
+        duration: 150000, // 2.5 dakika
+        useNativeDriver: true,
+      })
+    );
+    rotateAnimation.start();
+    return () => rotateAnimation.stop();
+  }, []);
 
   useEffect(() => {
     loadDiscoverUsers();
@@ -302,39 +297,14 @@ export default function ZodiacSwipeScreen() {
   const loadDiscoverUsers = async () => {
     try {
       setIsLoading(true);
-      console.log('🔄 [DISCOVER] Kullanıcılar yükleniyor...');
-      
       const response = await swipeApi.getDiscoverUsers(1, 10);
-      console.log('✅ [DISCOVER] API Yanıtı:', JSON.stringify(response, null, 2));
-      
       if (response.success && response.users) {
-        console.log(`📊 [DISCOVER] ${response.users.length} kullanıcı bulundu`);
         setDiscoverUsers(response.users);
         setSwipeLimitInfo(response.swipeLimitInfo);
       } else {
-        console.warn('⚠️ [DISCOVER] API başarılı ama kullanıcı listesi boş:', response.message);
         setDiscoverUsers([]);
       }
     } catch (error: any) {
-      console.error('❌ [DISCOVER] Hata detayı:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
-      
-      if (error.response?.status === 401) {
-        Alert.alert(
-          'Oturum Süresi Doldu',
-          'Lütfen tekrar giriş yapın.',
-          [{ text: 'Tamam', style: 'default' as const }]
-        );
-      } else {
-        Alert.alert(
-          'Hata',
-          'Kullanıcılar yüklenirken bir hata oluştu. Lütfen tekrar deneyin.',
-          [{ text: 'Tamam', style: 'default' as const }]
-        );
-      }
       setDiscoverUsers([]);
     } finally {
       setIsLoading(false);
@@ -343,47 +313,73 @@ export default function ZodiacSwipeScreen() {
 
   const handleSwipe = async (direction: 'left' | 'right' | 'up', userId: number) => {
     try {
-      const action = direction === 'right' ? 'LIKE' : direction === 'left' ? 'DISLIKE' : 'LIKE';
-      
-      await swipeApi.swipe({
+      const swipeAction = direction === 'right' ? 'LIKE' : 
+                         direction === 'up' ? 'SUPER_LIKE' : 'DISLIKE';
+      const response = await swipeApi.swipe({
         targetUserId: userId.toString(),
-        action
+        action: swipeAction as 'LIKE' | 'DISLIKE', // API sadece LIKE/DISLIKE destekliyorsa
       });
-
-      // Remove the swiped user from the list
-      setDiscoverUsers(prev => prev.filter(user => user.id !== userId));
-      
-      // If we're running low on cards, load more
-      if (discoverUsers.length - currentIndex < 3) {
-        loadMoreCards();
+      if (response.isMatch) {
+        const matchedUser = discoverUsers.find(u => u.id === userId);
+        if (matchedUser) {
+          Alert.alert(
+            '🎉 Eşleştiniz!',
+            `${matchedUser.firstName} ile eşleştiniz! %${matchedUser.compatibilityScore} uyumluluğunuz var.`,
+            [
+              { text: 'Harika!', style: 'default' as const },
+              { text: 'Mesaj Gönder', style: 'default' as const, onPress: () => router.push(`/chat/${response.matchId}` as any) }
+            ]
+          );
+        }
+      }
+      if (swipeLimitInfo) {
+        setSwipeLimitInfo({
+          ...swipeLimitInfo,
+          remainingSwipes: swipeLimitInfo.remainingSwipes - 1
+        });
       }
     } catch (error: any) {
-      console.error('❌ Swipe hatası:', error);
-      Alert.alert(
-        'Hata',
-        'İşlem sırasında bir hata oluştu. Lütfen tekrar deneyin.',
-        [{ text: 'Tamam', style: 'default' as const }]
-      );
+      if (error.response?.data?.message) {
+        Alert.alert('Swipe Hatası', error.response.data.message);
+      }
+    }
+    setCurrentIndex(prev => prev + 1);
+    if (currentIndex >= discoverUsers.length - 3) {
+      loadMoreCards();
     }
   };
 
   const loadMoreCards = async () => {
     try {
-      const response = await swipeApi.getDiscoverUsers(1, 10);
-      if (response.success && response.users) {
+      const nextPage = currentPage + 1;
+      const response: DiscoverResponse = await swipeApi.getDiscoverUsers(nextPage, 10);
+      if (response.success && response.users && response.users.length > 0) {
         setDiscoverUsers(prev => [...prev, ...response.users]);
+        setCurrentPage(nextPage);
+        const newIndexes: Record<number, number> = {};
+        response.users.forEach(user => {
+          newIndexes[user.id] = 0;
+        });
+        setPhotoIndexes(prev => ({ ...prev, ...newIndexes }));
       }
-    } catch (error) {
-      console.error('❌ Daha fazla kart yüklenirken hata:', error);
-    }
+    } catch (error) {}
   };
 
   const handleActionButton = (action: 'dislike' | 'superlike' | 'like') => {
-    if (discoverUsers.length === 0) return;
-    
+    if (currentIndex >= discoverUsers.length) return;
+    if (swipeLimitInfo && swipeLimitInfo.remainingSwipes <= 0 && !swipeLimitInfo.isPremium) {
+      Alert.alert(
+        'Swipe Limiti Doldu',
+        'Günlük swipe limitiniz doldu. Premium üyelik satın alarak sınırsız swipe yapabilirsiniz.',
+        [
+          { text: 'Tamam', style: 'default' },
+          { text: 'Premium Al', style: 'default', onPress: () => router.push('/premium' as any) }
+        ]
+      );
+      return;
+    }
     const currentUser = discoverUsers[currentIndex];
-    const direction = action === 'like' ? 'right' : action === 'dislike' ? 'left' : 'up';
-    
+    const direction = action === 'like' ? 'right' : action === 'superlike' ? 'up' : 'left';
     handleSwipe(direction, currentUser.id);
   };
 
@@ -394,107 +390,149 @@ export default function ZodiacSwipeScreen() {
     }));
   };
 
-  return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={() => router.push('/(tabs)/profile' as any)}
-        >
-          <Ionicons name="person-circle-outline" size={28} color="#fff" />
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={() => router.push('/(tabs)/matches' as any)}
-        >
-          <Ionicons name="heart" size={28} color="#fff" />
-        </TouchableOpacity>
-      </View>
+  const zodiacRotateInterpolate = zodiacRotation.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
 
-      {/* Cards Container */}
-      <View style={styles.cardsContainer}>
-        {isLoading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#fff" />
-            <Text style={styles.loadingText}>Kullanıcılar yükleniyor...</Text>
-          </View>
-        ) : discoverUsers.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="people" size={64} color="#fff" />
-            <Text style={styles.emptyText}>Şu an için yeni kullanıcı yok</Text>
-            <TouchableOpacity
-              style={styles.refreshButton}
-              onPress={loadDiscoverUsers}
-            >
-              <Text style={styles.refreshButtonText}>Yenile</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          discoverUsers.map((user, index) => (
-            <SwipeCard
-              key={user.id}
-              user={user}
-              onSwipe={handleSwipe}
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                zIndex: discoverUsers.length - index,
-              }}
-              isTop={index === currentIndex}
-              photoIndex={photoIndexes[user.id] || 0}
-              setPhotoIndex={(index) => setPhotoIndex(user.id, index)}
-            />
-          ))
-        )}
-      </View>
-
-      {/* Action Buttons */}
-      {!isLoading && discoverUsers.length > 0 && (
-        <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.dislikeButton]}
-            onPress={() => handleActionButton('dislike')}
-          >
-            <Ionicons name="close" size={32} color="#FF6B6B" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, styles.superLikeButton]}
-            onPress={() => handleActionButton('superlike')}
-          >
-            <Ionicons name="star" size={32} color="#FFD700" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, styles.likeButton]}
-            onPress={() => handleActionButton('like')}
-          >
-            <Ionicons name="heart" size={32} color="#4CAF50" />
-          </TouchableOpacity>
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <LinearGradient colors={['#1a1a2e', '#16213e', '#0f3460']} style={styles.background} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#8000FF" />
+          <Text style={styles.loadingText}>Yıldızlar hizalanıyor...</Text>
         </View>
-      )}
+      </View>
+    );
+  }
 
-      {/* Swipe Limit Info */}
-      {swipeLimitInfo && (
-        <View style={styles.swipeLimitInfo}>
-          <Text style={styles.swipeLimitText}>
-            {swipeLimitInfo.remainingSwipes} swipe hakkınız kaldı
+  const cardsToShow = discoverUsers.slice(currentIndex, currentIndex + 3);
+
+  if (cardsToShow.length === 0) {
+    return (
+      <View style={styles.container}>
+        <LinearGradient colors={['#1a1a2e', '#16213e', '#0f3460']} style={styles.background} />
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyEmoji}>✨</Text>
+          <Text style={styles.emptyTitle}>
+            {swipeLimitInfo?.remainingSwipes === 0 && !swipeLimitInfo?.isPremium 
+              ? 'Günlük Swipe Limitiniz Doldu' 
+              : 'Yeni Eşleşmeler Bekleniyor'
+            }
           </Text>
-          {!swipeLimitInfo.isPremium && (
-            <TouchableOpacity
-              style={styles.premiumButton}
-              onPress={() => router.push('/(tabs)/premium' as any)}
+          <Text style={styles.emptySubtitle}>
+            {swipeLimitInfo?.remainingSwipes === 0 && !swipeLimitInfo?.isPremium 
+              ? 'Premium üyelik satın alarak sınırsız swipe yapabilirsiniz'
+              : 'Yakında size uygun yeni profiller ekleyeceğiz'
+            }
+          </Text>
+          {swipeLimitInfo?.remainingSwipes === 0 && !swipeLimitInfo?.isPremium ? (
+            <TouchableOpacity 
+              style={styles.premiumButton} 
+              onPress={() => router.push('/premium' as any)}
             >
-              <Text style={styles.premiumButtonText}>Premium Al</Text>
+              <Text style={styles.premiumButtonText}>Premium Satın Al</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.refreshButton} onPress={loadDiscoverUsers}>
+              <Text style={styles.refreshButtonText}>Yenile</Text>
             </TouchableOpacity>
           )}
         </View>
-      )}
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      {/* Arka plan gradyan */}
+      <LinearGradient colors={['#1a1a2e', '#16213e', '#0f3460']} style={styles.background} />
+      {/* Burç çarkı arka plan */}
+      <Animated.View 
+        style={[
+          styles.zodiacWheel, 
+          { transform: [{ rotate: zodiacRotateInterpolate }] }
+        ]}
+      >
+        {ZODIAC_SYMBOLS.map((item, index) => (
+          <View 
+            key={index}
+            style={[
+              styles.zodiacSymbol,
+              {
+                transform: [
+                  { rotate: `${item.angle}deg` },
+                  { translateY: -width * 0.35 },
+                  { rotate: `-${item.angle}deg` }
+                ]
+              }
+            ]}
+          >
+            <Text style={styles.zodiacText}>{item.symbol}</Text>
+          </View>
+        ))}
+      </Animated.View>
+      {/* Header - Fixed */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={24} color="white" />
+        </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          <Text style={styles.title}>Burç Swipe</Text>
+          {swipeLimitInfo && (
+            <Text style={styles.swipeLimit}>
+              {swipeLimitInfo.isPremium ? '∞ ' : `${swipeLimitInfo.remainingSwipes}/${swipeLimitInfo.totalSwipes} `}
+              Swipe Hakkı
+            </Text>
+          )}
+        </View>
+        <TouchableOpacity style={styles.filterButton}>
+          <Ionicons name="options" size={24} color="white" />
+        </TouchableOpacity>
+      </View>
+      {/* Cards Container */}
+      <View style={styles.cardsContainer}>
+        {cardsToShow.map((user, index) => (
+          <SwipeCard
+            key={user.id}
+            user={user}
+            onSwipe={handleSwipe}
+            style={{
+              zIndex: cardsToShow.length - index,
+              transform: [
+                { scale: 1 - index * 0.02 },
+                { translateY: index * -8 }
+              ]
+            }}
+            isTop={index === 0}
+            photoIndex={photoIndexes[user.id] || 0}
+            setPhotoIndex={(newIndex: number) => setPhotoIndex(user.id, newIndex)}
+          />
+        ))}
+      </View>
+      {/* Action Buttons - Fixed Footer */}
+      <View style={styles.actionButtons}>
+        <TouchableOpacity 
+          style={[styles.actionButton, styles.dislikeButton]}
+          onPress={() => handleActionButton('dislike')}
+        >
+          <Ionicons name="close" size={32} color="#FF5722" />
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.actionButton, styles.superLikeButton]}
+          onPress={() => handleActionButton('superlike')}
+        >
+          <Ionicons name="star" size={28} color="#FFD700" />
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.actionButton, styles.likeButton]}
+          onPress={() => handleActionButton('like')}
+        >
+          <Ionicons name="heart" size={32} color="#4CAF50" />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -502,34 +540,156 @@ export default function ZodiacSwipeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a1a',
+  },
+  background: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  zodiacWheel: {
+    position: 'absolute',
+    width: width * 0.8,
+    height: width * 0.8,
+    left: width * 0.1,
+    top: height * 0.1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    opacity: 0.1,
+  },
+  zodiacSymbol: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  zodiacText: {
+    fontSize: 20,
+    color: 'rgba(255, 255, 255, 0.5)',
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 50 : 20,
-    paddingBottom: 10,
+    paddingBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  headerButton: {
-    padding: 8,
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: 'white',
+    textAlign: 'center',
+  },
+  swipeLimit: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  filterButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+  },
+  emptyEmoji: {
+    fontSize: 64,
+    marginBottom: 20,
+  },
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'white',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 30,
+  },
+  refreshButton: {
+    backgroundColor: 'rgba(128, 0, 255, 0.3)',
+    paddingHorizontal: 30,
+    paddingVertical: 12,
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  refreshButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  premiumButton: {
+    backgroundColor: 'rgba(255, 215, 0, 0.3)',
+    paddingHorizontal: 30,
+    paddingVertical: 12,
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: '#FFD700',
+  },
+  premiumButtonText: {
+    color: '#FFD700',
+    fontSize: 16,
+    fontWeight: '600',
   },
   cardsContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 10,
   },
   card: {
+    position: 'absolute',
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
+    backgroundColor: 'white',
     borderRadius: 20,
-    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 15,
     overflow: 'hidden',
   },
   photoContainer: {
-    width: '100%',
-    height: '100%',
+    flex: 1,
+    position: 'relative',
   },
   photo: {
     width: '100%',
@@ -553,58 +713,132 @@ const styles = StyleSheet.create({
   photoIndicators: {
     position: 'absolute',
     top: 20,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  photoIndicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    marginHorizontal: 2,
+  },
+  photoIndicatorActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+  },
+  infoGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 180,
+    justifyContent: 'flex-end',
+  },
+  userInfo: {
+    padding: 20,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+  },
+  userName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 4,
+  },
+  zodiacBadge: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(128, 0, 255, 0.8)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 15,
+  },
+  zodiacEmoji: {
+    fontSize: 20,
+    marginBottom: 2,
+  },
+  compatibilityRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  compatibilityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  compatibilityText: {
+    fontSize: 12,
+    color: '#FFD700',
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  userBio: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  compatibilityDesc: {
+    backgroundColor: 'rgba(128, 0, 255, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  compatibilityDescText: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  actionButtons: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 100 : 80,
     left: 0,
     right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 8,
-  },
-  photoIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.5)',
-  },
-  photoIndicatorActive: {
-    backgroundColor: '#fff',
-  },
-  statusBadges: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    gap: 8,
-  },
-  verifiedBadge: {
-    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(76,175,80,0.9)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
+    paddingHorizontal: 50,
+    zIndex: 1000,
   },
-  premiumBadge: {
-    flexDirection: 'row',
+  actionButton: {
+    width: 65,
+    height: 65,
+    borderRadius: 32.5,
     alignItems: 'center',
-    backgroundColor: 'rgba(255,215,0,0.9)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
+    justifyContent: 'center',
+    marginHorizontal: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  newUserBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,107,107,0.9)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
+  dislikeButton: {
+    borderWidth: 3,
+    borderColor: '#FF5722',
   },
-  badgeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
+  superLikeButton: {
+    borderWidth: 3,
+    borderColor: '#FFD700',
+    width: 55,
+    height: 55,
+    borderRadius: 27.5,
+  },
+  likeButton: {
+    borderWidth: 3,
+    borderColor: '#4CAF50',
   },
   overlay: {
     position: 'absolute',
@@ -614,146 +848,20 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 4,
   },
   likeOverlay: {
-    borderColor: '#4CAF50',
-    backgroundColor: 'rgba(76,175,80,0.2)',
+    backgroundColor: 'rgba(76, 175, 80, 0.2)',
   },
   dislikeOverlay: {
-    borderColor: '#FF6B6B',
-    backgroundColor: 'rgba(255,107,107,0.2)',
+    backgroundColor: 'rgba(255, 87, 34, 0.2)',
   },
   superLikeOverlay: {
-    borderColor: '#FFD700',
-    backgroundColor: 'rgba(255,215,0,0.2)',
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
   },
   overlayText: {
     color: '#fff',
     fontSize: 24,
     fontWeight: 'bold',
     marginTop: 8,
-  },
-  userInfoGradient: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 20,
-  },
-  userInfo: {
-    gap: 8,
-  },
-  userNameContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  userName: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  userZodiac: {
-    color: '#fff',
-    fontSize: 20,
-  },
-  userBio: {
-    color: '#fff',
-    fontSize: 16,
-    opacity: 0.9,
-  },
-  distanceContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  distanceText: {
-    color: '#fff',
-    fontSize: 14,
-    opacity: 0.8,
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    gap: 16,
-  },
-  loadingText: {
-    color: '#fff',
-    fontSize: 16,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    gap: 16,
-  },
-  emptyText: {
-    color: '#fff',
-    fontSize: 18,
-  },
-  refreshButton: {
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 24,
-  },
-  refreshButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 24,
-    paddingBottom: 40,
-  },
-  actionButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  dislikeButton: {
-    backgroundColor: '#fff',
-  },
-  superLikeButton: {
-    backgroundColor: '#fff',
-  },
-  likeButton: {
-    backgroundColor: '#fff',
-  },
-  swipeLimitInfo: {
-    position: 'absolute',
-    bottom: 20,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    gap: 8,
-  },
-  swipeLimitText: {
-    color: '#fff',
-    fontSize: 14,
-    opacity: 0.8,
-  },
-  premiumButton: {
-    backgroundColor: '#FFD700',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 24,
-  },
-  premiumButtonText: {
-    color: '#000',
-    fontSize: 16,
-    fontWeight: '600',
   },
 }); 
