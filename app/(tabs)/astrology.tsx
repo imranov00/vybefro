@@ -356,7 +356,6 @@ export default function AstrologyScreen() {
                           : user.profileImageUrl || 'https://picsum.photos/400/600' 
                       }}
                       style={styles.userImage}
-                      defaultSource={require('../../assets/images/default-avatar.png')}
                     />
                     <View style={styles.userInfo}>
                       <View style={styles.nameRow}>
