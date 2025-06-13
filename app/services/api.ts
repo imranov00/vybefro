@@ -127,8 +127,21 @@ export interface PremiumFeature {
 
 export interface PremiumStatus {
   isPremium: boolean;
-  premiumUntil: string | null;
-  features: PremiumFeature[];
+  premiumExpiresAt: string | null;
+  premiumFeatures: {
+    unlimitedSwipes: boolean;
+    seeWhoLikedYou: boolean;
+    advancedFilters: boolean;
+    priorityMatching: boolean;
+  };
+  remainingSwipes?: number;
+  totalSwipes?: number;
+  nextResetTime?: string;
+}
+
+export interface PremiumStatusResponse {
+  success: boolean;
+  data: PremiumStatus;
 }
 
 export interface PremiumPurchaseRequest {
@@ -149,22 +162,21 @@ export interface PremiumCancelResponse {
 
 // Beğeni işlemleri için interface'ler
 export interface UserWhoLikedMe {
-  id: number;
-  username: string;
-  firstName: string;
-  lastName: string;
-  profileImageUrl: string | null;
+  id: string;
+  fullName: string;
   age: number;
-  zodiacSign?: ZodiacSign | string;
-  zodiacSignTurkish?: string;
-  compatibility?: number;
-  likedAt: string;
+  zodiacSign: string;
+  zodiacSignDisplay: string;
+  compatibilityScore: number;
+  profileImageUrl: string;
+  lastActiveTime: string;
+  location: string;
 }
 
 export interface UsersWhoLikedMeResponse {
+  success: boolean;
   users: UserWhoLikedMe[];
-  total: number;
-  hasMore: boolean;
+  totalCount: number;
 }
 
 // Çıkış isteği için interface
@@ -255,11 +267,12 @@ export interface SwipeLimitInfo {
 }
 
 export interface DiscoverUser {
-  id: number;
+  id: string;
   username: string;
   firstName: string;
   lastName: string;
   fullName: string;
+  birthDate: string;
   age: number;
   gender: string;
   bio: string;
@@ -272,13 +285,12 @@ export interface DiscoverUser {
   photoCount: number;
   isPremium: boolean;
   lastActiveTime: string;
-  activityStatus: string;
+  activityStatus: 'ONLINE' | 'OFFLINE' | 'AWAY';
   location: string;
   activities: UserActivity[];
   isVerified: boolean;
   isNewUser: boolean;
   hasLikedCurrentUser: boolean;
-  profileCompleteness: string;
 }
 
 export interface DiscoverResponse {
@@ -289,7 +301,6 @@ export interface DiscoverResponse {
   currentPage: number;
   limit: number;
   swipeLimitInfo: SwipeLimitInfo;
-  message?: string;
 }
 
 // API'yi kullanırken gerekli token header'ını oluşturur
@@ -478,7 +489,20 @@ export const userApi = {
     return response.data;
   },
 
+  getUsersWhoLikedMe: async (limit: number = 20): Promise<UsersWhoLikedMeResponse> => {
+    const response = await api.get(`/api/swipes/users-who-liked-me?limit=${limit}`);
+    return response.data;
+  },
 
+  getDiscoverUsers: async (page: number = 1, limit: number = 20): Promise<DiscoverResponse> => {
+    const response = await api.get(`/api/swipes/discover?page=${page}&limit=${limit}`);
+    return response.data;
+  },
+
+  getPremiumStatus: async (): Promise<PremiumStatusResponse> => {
+    const response = await api.get('/api/premium/status');
+    return response.data;
+  },
 };
 
 // Premium işlemleri için API
