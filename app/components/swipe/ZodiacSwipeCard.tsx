@@ -143,17 +143,80 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
   }));
 
   const handlePhotoTap = (side: 'left' | 'right') => {
-    const photos = user.photos.map(p => p.imageUrl);
+    // Fotoğraf listesini oluştur - photos array'i + profileImageUrl
+    const allPhotos: string[] = [];
+    
+    // Önce photos array'indeki fotoğrafları ekle
+    if (user.photos && user.photos.length > 0) {
+      user.photos.forEach(photo => {
+        if (photo.imageUrl) {
+          allPhotos.push(photo.imageUrl);
+        }
+      });
+    }
+    
+    // Eğer profileImageUrl varsa ve photos listesinde yoksa ekle
+    if (user.profileImageUrl && !allPhotos.includes(user.profileImageUrl)) {
+      allPhotos.unshift(user.profileImageUrl); // Başa ekle
+    }
+    
+    // Debug bilgisi
+    console.log(`📸 [${user.firstName}] Toplam fotoğraf: ${allPhotos.length}`, allPhotos);
+    console.log(`📸 [${user.firstName}] Mevcut index: ${photoIndex}, Hedef: ${side}`);
+    
+    if (allPhotos.length <= 1) {
+      console.log(`📸 [${user.firstName}] Tek fotoğraf var, navigasyon yapılmıyor`);
+      return;
+    }
+    
     if (side === 'left' && photoIndex > 0) {
-      setPhotoIndex(photoIndex - 1);
-    } else if (side === 'right' && photoIndex < photos.length - 1) {
-      setPhotoIndex(photoIndex + 1);
+      const newIndex = photoIndex - 1;
+      console.log(`📸 [${user.firstName}] Sol tıklama: ${photoIndex} → ${newIndex}`);
+      setPhotoIndex(newIndex);
+    } else if (side === 'right' && photoIndex < allPhotos.length - 1) {
+      const newIndex = photoIndex + 1;
+      console.log(`📸 [${user.firstName}] Sağ tıklama: ${photoIndex} → ${newIndex}`);
+      setPhotoIndex(newIndex);
+    } else {
+      console.log(`📸 [${user.firstName}] Navigasyon sınırında: ${side}, index: ${photoIndex}, max: ${allPhotos.length - 1}`);
     }
   };
 
-  const currentPhotoUrl = user.photos.length > 0 
-    ? user.photos[photoIndex]?.imageUrl || user.profileImageUrl 
-    : user.profileImageUrl;
+  // Mevcut fotoğrafı belirle - geliştirilmiş sistem
+  const getAllPhotos = (): string[] => {
+    const allPhotos: string[] = [];
+    
+    // Önce photos array'indeki fotoğrafları ekle
+    if (user.photos && user.photos.length > 0) {
+      user.photos.forEach(photo => {
+        if (photo.imageUrl) {
+          allPhotos.push(photo.imageUrl);
+        }
+      });
+    }
+    
+    // Eğer profileImageUrl varsa ve photos listesinde yoksa ekle
+    if (user.profileImageUrl && !allPhotos.includes(user.profileImageUrl)) {
+      allPhotos.unshift(user.profileImageUrl); // Başa ekle
+    }
+    
+    return allPhotos;
+  };
+
+  const allPhotos = getAllPhotos();
+  const currentPhotoUrl = allPhotos.length > 0 
+    ? allPhotos[Math.min(photoIndex, allPhotos.length - 1)] 
+    : null;
+
+  // Debug: İlk render'da fotoğraf bilgilerini logla
+  React.useEffect(() => {
+    console.log(`🎯 [${user.firstName}] Kullanıcı fotoğraf bilgileri:`);
+    console.log(`   - photos array:`, user.photos);
+    console.log(`   - profileImageUrl:`, user.profileImageUrl);
+    console.log(`   - Toplam fotoğraf:`, allPhotos.length);
+    console.log(`   - Mevcut index:`, photoIndex);
+    console.log(`   - Gösterilen fotoğraf:`, currentPhotoUrl);
+  }, [user.id]); // Sadece kullanıcı değiştiğinde çalışsın
 
   const zodiacEmoji = getZodiacEmoji(user.zodiacSign);
   const zodiacDisplay = getZodiacDisplay(user.zodiacSign);
@@ -199,9 +262,9 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
             />
 
             {/* Fotoğraf göstergeleri */}
-            {user.photos.length > 1 && (
+            {allPhotos.length > 1 && (
               <View style={styles.photoIndicators}>
-                {user.photos.map((_, index) => (
+                {allPhotos.map((_, index) => (
                   <View
                     key={index}
                     style={[

@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import {
-    Dimensions,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Dimensions,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { DiscoverUser } from '../../services/api';
 import { getCompatibilityColor, getCompatibilityLabel } from '../../types/compatibility';
@@ -33,12 +34,15 @@ const UserDetailPanel: React.FC<UserDetailPanelProps> = ({
 }) => {
   if (!user) {
     return (
-      <View style={styles.container}>
+      <LinearGradient
+        colors={['#1a1a2e', '#16213e']}
+        style={styles.container}
+      >
         <View style={styles.handle} />
         <View style={styles.emptyContent}>
           <Text style={styles.emptyText}>Kullanıcı bilgisi bulunamadı</Text>
         </View>
-      </View>
+      </LinearGradient>
     );
   }
 
@@ -56,7 +60,10 @@ const UserDetailPanel: React.FC<UserDetailPanelProps> = ({
   const isFullOpen = panelState === PanelState.FULL;
 
   return (
-    <View style={styles.container}>
+    <LinearGradient
+      colors={['#1a1a2e', '#16213e', '#0f3460']}
+      style={styles.container}
+    >
       {/* Drag Handle */}
       <View style={styles.handleContainer}>
         <View style={styles.handle} />
@@ -68,7 +75,7 @@ const UserDetailPanel: React.FC<UserDetailPanelProps> = ({
               <Text style={styles.minimizedZodiac}>{zodiacDisplay}</Text>
             </View>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <Ionicons name="chevron-down" size={20} color="#666" />
+              <Ionicons name="chevron-down" size={20} color="rgba(255, 255, 255, 0.7)" />
             </TouchableOpacity>
           </View>
         )}
@@ -103,7 +110,7 @@ const UserDetailPanel: React.FC<UserDetailPanelProps> = ({
                 </View>
               </View>
               <TouchableOpacity style={styles.closeButtonHeader} onPress={onClose}>
-                <Ionicons name="close" size={24} color="#666" />
+                <Ionicons name="close" size={24} color="rgba(255, 255, 255, 0.7)" />
               </TouchableOpacity>
             </View>
           </View>
@@ -120,7 +127,7 @@ const UserDetailPanel: React.FC<UserDetailPanelProps> = ({
           {user.compatibilityDescription && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
-                <Ionicons name="heart" size={16} color="#8000FF" /> Uyumluluk Analizi
+                <Ionicons name="heart" size={16} color="#B57EDC" /> Uyumluluk Analizi
               </Text>
               <View style={styles.compatibilityCard}>
                 <Text style={styles.compatibilityDescription}>
@@ -133,7 +140,7 @@ const UserDetailPanel: React.FC<UserDetailPanelProps> = ({
           {/* Burç Özellikleri */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
-              <Ionicons name="star-outline" size={16} color="#8000FF" /> Burç Özellikleri
+              <Ionicons name="star-outline" size={16} color="#B57EDC" /> Burç Özellikleri
             </Text>
             
             <View style={styles.zodiacDetails}>
@@ -169,7 +176,7 @@ const UserDetailPanel: React.FC<UserDetailPanelProps> = ({
           {/* Kişilik Özellikleri */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
-              <Ionicons name="person-outline" size={16} color="#8000FF" /> Kişilik Özellikleri
+              <Ionicons name="person-outline" size={16} color="#B57EDC" /> Kişilik Özellikleri
             </Text>
             
             <View style={styles.personalityTraits}>
@@ -190,20 +197,20 @@ const UserDetailPanel: React.FC<UserDetailPanelProps> = ({
           {/* İstatistikler */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
-              <Ionicons name="analytics-outline" size={16} color="#8000FF" /> Profil İstatistikleri
+              <Ionicons name="analytics-outline" size={16} color="#B57EDC" /> Profil İstatistikleri
             </Text>
             
             <View style={styles.statsGrid}>
               {user.distance && (
                 <View style={styles.statItem}>
-                  <Ionicons name="location-outline" size={20} color="#8000FF" />
+                  <Ionicons name="location-outline" size={20} color="#B57EDC" />
                   <Text style={styles.statValue}>{user.distance}km</Text>
                   <Text style={styles.statLabel}>Uzaklık</Text>
                 </View>
               )}
               
               <View style={styles.statItem}>
-                <Ionicons name="time-outline" size={20} color="#8000FF" />
+                <Ionicons name="time-outline" size={20} color="#B57EDC" />
                 <Text style={styles.statValue}>Aktif</Text>
                 <Text style={styles.statLabel}>
                   {user.isOnline ? 'Şimdi' : 'Geçmişte'}
@@ -211,7 +218,7 @@ const UserDetailPanel: React.FC<UserDetailPanelProps> = ({
               </View>
               
               <View style={styles.statItem}>
-                <Ionicons name="star" size={20} color="#8000FF" />
+                <Ionicons name="star" size={20} color="#B57EDC" />
                 <Text style={styles.statValue}>{user.compatibilityScore}%</Text>
                 <Text style={styles.statLabel}>Uyumluluk</Text>
               </View>
@@ -222,7 +229,7 @@ const UserDetailPanel: React.FC<UserDetailPanelProps> = ({
           <View style={styles.bottomSpacing} />
         </ScrollView>
       )}
-    </View>
+    </LinearGradient>
   );
 };
 
@@ -273,7 +280,6 @@ const getPersonalityTraits = (zodiacSign: string) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'white',
   },
   handleContainer: {
     paddingVertical: 12,
@@ -282,7 +288,7 @@ const styles = StyleSheet.create({
   handle: {
     width: 40,
     height: 4,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
     borderRadius: 2,
     marginBottom: 8,
   },
@@ -302,11 +308,11 @@ const styles = StyleSheet.create({
   minimizedName: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#333',
+    color: 'white',
   },
   minimizedZodiac: {
     fontSize: 14,
-    color: '#666',
+    color: 'rgba(255, 255, 255, 0.7)',
   },
   closeButton: {
     padding: 8,
@@ -329,12 +335,12 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: 'rgba(128, 0, 255, 0.1)',
+    backgroundColor: 'rgba(181, 126, 220, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 15,
     borderWidth: 2,
-    borderColor: 'rgba(128, 0, 255, 0.3)',
+    borderColor: 'rgba(181, 126, 220, 0.4)',
   },
   zodiacEmojiLarge: {
     fontSize: 28,
@@ -345,12 +351,12 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#333',
+    color: 'white',
     marginBottom: 4,
   },
   userZodiac: {
     fontSize: 16,
-    color: '#666',
+    color: 'rgba(255, 255, 255, 0.8)',
     marginBottom: 8,
   },
   compatibilityBadge: {
@@ -376,25 +382,25 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
+    color: 'white',
     marginBottom: 12,
   },
   bioText: {
     fontSize: 16,
     lineHeight: 24,
-    color: '#666',
+    color: 'rgba(255, 255, 255, 0.8)',
   },
   compatibilityCard: {
-    backgroundColor: 'rgba(128, 0, 255, 0.05)',
+    backgroundColor: 'rgba(181, 126, 220, 0.15)',
     borderRadius: 12,
     padding: 16,
     borderLeftWidth: 4,
-    borderLeftColor: '#8000FF',
+    borderLeftColor: '#B57EDC',
   },
   compatibilityDescription: {
     fontSize: 16,
     lineHeight: 24,
-    color: '#333',
+    color: 'rgba(255, 255, 255, 0.9)',
     fontStyle: 'italic',
   },
   zodiacDetails: {
@@ -409,7 +415,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(128, 0, 255, 0.1)',
+    backgroundColor: 'rgba(181, 126, 220, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -422,23 +428,25 @@ const styles = StyleSheet.create({
   },
   zodiacDetailTitle: {
     fontSize: 14,
-    color: '#666',
+    color: 'rgba(255, 255, 255, 0.6)',
     marginBottom: 2,
   },
   zodiacDetailValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: 'white',
   },
   zodiacDescription: {
-    backgroundColor: '#F8F9FA',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 12,
     padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(181, 126, 220, 0.3)',
   },
   zodiacDescriptionText: {
     fontSize: 15,
     lineHeight: 22,
-    color: '#555',
+    color: 'rgba(255, 255, 255, 0.8)',
   },
   personalityTraits: {
     marginTop: 8,
@@ -452,7 +460,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(128, 0, 255, 0.1)',
+    backgroundColor: 'rgba(181, 126, 220, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -467,20 +475,22 @@ const styles = StyleSheet.create({
   traitTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: 'white',
     marginBottom: 4,
   },
   traitDescription: {
     fontSize: 14,
     lineHeight: 20,
-    color: '#666',
+    color: 'rgba(255, 255, 255, 0.7)',
   },
   statsGrid: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    backgroundColor: '#F8F9FA',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 12,
     padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(181, 126, 220, 0.3)',
   },
   statItem: {
     alignItems: 'center',
@@ -489,13 +499,13 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#333',
+    color: 'white',
     marginTop: 8,
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
-    color: '#666',
+    color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',
   },
   bottomSpacing: {
@@ -509,7 +519,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: '#666',
+    color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',
   },
 }); 
