@@ -1,5 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -9,7 +7,6 @@ import {
     StatusBar,
     StyleSheet,
     Text,
-    TouchableOpacity,
     View
 } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
@@ -24,14 +21,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Context imports
 import { useAuth } from '../context/AuthContext';
-import { useProfile } from '../context/ProfileContext';
 
 // API imports
 import { DiscoverUser, Match, swipeApi, userApi } from '../services/api';
 
 // Component imports
 import MatchScreen from '../components/match/MatchScreen';
-import ProfileDrawer from '../components/profile/ProfileDrawer';
 
 // Swipe components
 // @ts-ignore
@@ -54,18 +49,19 @@ const TOTAL_HEADER_HEIGHT = LAYOUT_CONSTANTS.headerHeight + LAYOUT_CONSTANTS.sta
 
 enum PanelState {
   CLOSED = 0,
-  FULL = 1, // HALF durumunu kaldırdık
+  HALF = 1,
+  FULL = 2,
 }
 
 const PANEL_POSITIONS = {
   [PanelState.CLOSED]: LAYOUT_CONSTANTS.panelMaxHeight - LAYOUT_CONSTANTS.panelMinHeight,
-  [PanelState.FULL]: 0, // Tam üste çıkar
+  [PanelState.HALF]: LAYOUT_CONSTANTS.panelMaxHeight * 0.5, // %50 açık
+  [PanelState.FULL]: LAYOUT_CONSTANTS.panelMaxHeight * 0.1, // %90 açık (üstten %10 boşluk)
 };
 
 export default function ZodiacSwipeScreen() {
   const router = useRouter();
   const { currentMode, switchMode } = useAuth();
-  const { showProfile, isProfileVisible, hideProfile, userProfile, isLoading: profileLoading } = useProfile();
   const insets = useSafeAreaInsets();
   
   // State
@@ -80,7 +76,6 @@ export default function ZodiacSwipeScreen() {
   
   // Animation values
   const panelTranslateY = useSharedValue(PANEL_POSITIONS[PanelState.CLOSED]);
-  const headerOpacity = useSharedValue(1);
   
   // Kullanıcıları yükle
   const loadUsers = useCallback(async () => {
@@ -198,19 +193,27 @@ export default function ZodiacSwipeScreen() {
       
       let targetState = PanelState.CLOSED;
       
-      // Hızlı yukarı çekme - tam aç
-      if (velocity < -800) {
+      // Hızlı yukarı çekme - direkt tam aç
+      if (velocity < -1200) {
         targetState = PanelState.FULL;
       } 
       // Hızlı aşağı itme - kapat
-      else if (velocity > 800) {
+      else if (velocity > 1200) {
         targetState = PanelState.CLOSED;
       } 
-      // Pozisyona göre karar ver - ekranın yarısından yukarıdaysa aç, altındaysa kapat
+      // Pozisyona göre karar ver - 3 seviyeli sistem
       else {
-        if (currentY < LAYOUT_CONSTANTS.panelMaxHeight * 0.5) {
+        const panelHeight = LAYOUT_CONSTANTS.panelMaxHeight;
+        const currentPosition = currentY / panelHeight;
+        
+        if (currentPosition < 0.25) {
+          // Üst %25'te - tam aç
           targetState = PanelState.FULL;
+        } else if (currentPosition < 0.65) {
+          // Orta bölge - yarım aç
+          targetState = PanelState.HALF;
         } else {
+          // Alt bölge - kapat
           targetState = PanelState.CLOSED;
         }
       }
@@ -228,19 +231,6 @@ export default function ZodiacSwipeScreen() {
   const panelAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: panelTranslateY.value }],
   }));
-
-  const headerAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: headerOpacity.value,
-  }));
-
-  // Mod değiştirme
-  const handleModeSwitch = useCallback(() => {
-    const newMode = currentMode === 'astrology' ? 'music' : 'astrology';
-    switchMode(newMode);
-    if (newMode === 'music') {
-      router.push('/music');
-    }
-  }, [currentMode, switchMode, router]);
 
   // Match screen kapatma
   const handleCloseMatch = useCallback(() => {
@@ -267,29 +257,6 @@ export default function ZodiacSwipeScreen() {
         colors={['#1a1a2e', '#16213e', '#0f3460']}
         style={styles.background}
       />
-
-      {/* Header */}
-      <Animated.View style={[styles.header, headerAnimatedStyle]}>
-        <BlurView intensity={20} style={styles.headerBlur}>
-          <View style={styles.headerContent}>
-            {/* Sol - Profil ikonu */}
-            <TouchableOpacity style={styles.headerButton} onPress={showProfile}>
-              <Ionicons name="person-circle-outline" size={28} color="white" />
-            </TouchableOpacity>
-
-            {/* Orta - Başlık */}
-            <View style={styles.headerTitle}>
-              <Text style={styles.headerTitleText}>Burçlar Arası Aşk</Text>
-              <Text style={styles.headerSubtitle}>Yıldızların Rehberliği</Text>
-            </View>
-
-            {/* Sağ - Mod değiştirme */}
-            <TouchableOpacity style={styles.modeButton} onPress={handleModeSwitch}>
-              <Ionicons name="musical-notes" size={18} color="white" />
-            </TouchableOpacity>
-          </View>
-        </BlurView>
-      </Animated.View>
 
       {/* Ana içerik alanı */}
       <View style={styles.mainContent}>
@@ -365,14 +332,6 @@ export default function ZodiacSwipeScreen() {
           onSendMessage={handleSendMessage}
         />
       )}
-
-      {/* Profile Drawer */}
-      <ProfileDrawer
-        visible={isProfileVisible}
-        onClose={hideProfile}
-        user={userProfile}
-        isLoading={profileLoading}
-      />
     </View>
   );
 }
@@ -386,55 +345,9 @@ const styles = StyleSheet.create({
     width: screenWidth,
     height: screenHeight,
   },
-  header: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: TOTAL_HEADER_HEIGHT,
-    zIndex: 100,
-  },
-  headerBlur: {
-    flex: 1,
-    paddingTop: LAYOUT_CONSTANTS.statusBarHeight,
-  },
-  headerContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 15,
-  },
-  headerButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerTitleText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-  modeButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    borderRadius: 22,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
   mainContent: {
     flex: 1,
-    paddingTop: TOTAL_HEADER_HEIGHT,
+    paddingTop: LAYOUT_CONSTANTS.statusBarHeight,
     paddingBottom: LAYOUT_CONSTANTS.tabBarHeight,
   },
   cardsContainer: {

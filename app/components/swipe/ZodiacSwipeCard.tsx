@@ -75,10 +75,66 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
       'worklet';
       if (!isTop) return;
 
-      const { translationX, translationY, velocityX } = event;
+      const { translationX, translationY, velocityX, velocityY } = event;
 
-      // Süper beğeni (yukarı swipe)
-      if (translationY < -120 && Math.abs(translationX) < 100) {
+      // Dikey fotoğraf geçişi - aşağı kaydırma
+      if (translationY > 80 && Math.abs(translationX) < 100 && velocityY > 300) {
+        // Sonraki fotoğrafa geç
+        translateY.value = withSpring(0, { damping: 15, stiffness: 150 });
+        translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
+        rotate.value = withSpring(0, { damping: 15, stiffness: 150 });
+        
+        runOnJS(() => {
+          const allPhotos: string[] = [];
+          if (user.photos && user.photos.length > 0) {
+            user.photos.forEach(photo => {
+              if (photo.imageUrl) {
+                allPhotos.push(photo.imageUrl);
+              }
+            });
+          }
+          if (user.profileImageUrl && !allPhotos.includes(user.profileImageUrl)) {
+            allPhotos.unshift(user.profileImageUrl);
+          }
+          
+          if (allPhotos.length > 1) {
+            const nextIndex = (photoIndex + 1) % allPhotos.length;
+            setPhotoIndex(nextIndex);
+          }
+        })();
+        return;
+      }
+
+      // Yukarı fotoğraf geçişi
+      if (translationY < -80 && Math.abs(translationX) < 100 && velocityY < -300) {
+        // Önceki fotoğrafa geç
+        translateY.value = withSpring(0, { damping: 15, stiffness: 150 });
+        translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
+        rotate.value = withSpring(0, { damping: 15, stiffness: 150 });
+        
+        runOnJS(() => {
+          const allPhotos: string[] = [];
+          if (user.photos && user.photos.length > 0) {
+            user.photos.forEach(photo => {
+              if (photo.imageUrl) {
+                allPhotos.push(photo.imageUrl);
+              }
+            });
+          }
+          if (user.profileImageUrl && !allPhotos.includes(user.profileImageUrl)) {
+            allPhotos.unshift(user.profileImageUrl);
+          }
+          
+          if (allPhotos.length > 1) {
+            const prevIndex = photoIndex === 0 ? allPhotos.length - 1 : photoIndex - 1;
+            setPhotoIndex(prevIndex);
+          }
+        })();
+        return;
+      }
+
+      // Süper beğeni (yukarı swipe) - daha yüksek threshold
+      if (translationY < -150 && Math.abs(translationX) < 100 && velocityY < -800) {
         translateY.value = withTiming(-screenHeight * 1.5, { duration: 300 });
         translateX.value = withTiming(0, { duration: 300 });
         rotate.value = withTiming(0, { duration: 300 });

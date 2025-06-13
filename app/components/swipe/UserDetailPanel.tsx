@@ -17,7 +17,8 @@ const { width: screenWidth } = Dimensions.get('window');
 
 enum PanelState {
   CLOSED = 0,
-  FULL = 1,
+  HALF = 1,
+  FULL = 2,
 }
 
 interface UserDetailPanelProps {
@@ -55,6 +56,7 @@ const UserDetailPanel: React.FC<UserDetailPanelProps> = ({
 
   // Panel durumuna göre içerik
   const isMinimized = panelState === PanelState.CLOSED;
+  const isHalfOpen = panelState === PanelState.HALF;
   const isFullOpen = panelState === PanelState.FULL;
 
   return (
