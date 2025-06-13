@@ -312,7 +312,7 @@ export default function AstrologyScreen() {
         {/* Swipe Eşleşme Butonu */}
         <TouchableOpacity 
           style={styles.swipeMatchButton} 
-          onPress={() => router.push('/astrology-matches' as any)}
+          onPress={() => router.push('/zodiac-swipe' as any)}
         >
           <LinearGradient
             colors={['#8000FF', '#6A00D6', '#4B0082']}
