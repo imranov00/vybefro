@@ -3,27 +3,28 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    Dimensions,
-    FlatList,
-    Image,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Alert,
+  Dimensions,
+  FlatList,
+  Image,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import Swiper from 'react-native-deck-swiper';
 import Animated, {
-    useAnimatedStyle,
-    useSharedValue,
-    withRepeat,
-    withSpring,
-    withTiming
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSpring,
+  withTiming
 } from 'react-native-reanimated';
+import { SwipeCard } from '../../components/swipe/SwipeCard';
 import { useAuth } from '../context/AuthContext';
+import { usePhotoIndex } from '../hooks/usePhotoIndex';
 import { DiscoverUser, PremiumStatus, userApi, UserWhoLikedMe } from '../services/api';
 import { getZodiacEmoji } from '../types/zodiac';
 
@@ -55,12 +56,15 @@ export default function AstrologyMatchesScreen() {
   const [discoverUsers, setDiscoverUsers] = useState<DiscoverUser[]>([]);
   const [premiumStatus, setPremiumStatus] = useState<PremiumStatus | null>(null);
   const [swipeLimitInfo, setSwipeLimitInfo] = useState<any>(null);
+  const [showSwipeScreen, setShowSwipeScreen] = useState(false);
   
   // Animasyon değerleri
   const fadeAnim = useSharedValue(1);
   const scaleAnim = useSharedValue(1);
   const slideAnim = useSharedValue(0);
   const pulseAnim = useSharedValue(1);
+
+  const { photoIndexes, setPhotoIndex } = usePhotoIndex();
 
   // Burç çarkı animasyonu
   useEffect(() => {
@@ -268,22 +272,16 @@ export default function AstrologyMatchesScreen() {
   const renderUserCard = (user: DiscoverUser) => (
     <View style={styles.card}>
       <Image
-        source={{ uri: user.profileImageUrl }}
+        source={{ uri: user.profileImageUrl || '' }}
         style={styles.cardImage}
       />
       <View style={styles.cardContent}>
-        <Text style={styles.cardName}>{user.fullName}</Text>
+        <Text style={styles.cardName}>{user.firstName} {user.lastName}</Text>
         <Text style={styles.cardAge}>{user.age} yaşında</Text>
         <Text style={styles.cardZodiac}>
           {getZodiacEmoji(user.zodiacSign)} {user.zodiacSign}
         </Text>
         <Text style={styles.cardBio}>{user.bio}</Text>
-        <Text style={styles.cardLocation}>
-          <Ionicons name="location" size={16} color="#666" /> {user.location}
-        </Text>
-        <Text style={styles.cardLastActive}>
-          <Ionicons name="time" size={16} color="#666" /> {user.lastActiveTime}
-        </Text>
         <Text style={styles.cardCompatibility}>
           Uyumluluk: {user.compatibilityScore}%
         </Text>
@@ -294,20 +292,14 @@ export default function AstrologyMatchesScreen() {
   const renderLikedUserCard = (user: UserWhoLikedMe) => (
     <View style={styles.card}>
       <Image
-        source={{ uri: user.profileImageUrl }}
+        source={{ uri: user.profileImageUrl || '' }}
         style={styles.cardImage}
       />
       <View style={styles.cardContent}>
-        <Text style={styles.cardName}>{user.fullName}</Text>
+        <Text style={styles.cardName}>{user.firstName} {user.lastName}</Text>
         <Text style={styles.cardAge}>{user.age} yaşında</Text>
         <Text style={styles.cardZodiac}>
           {getZodiacEmoji(user.zodiacSign)} {user.zodiacSign}
-        </Text>
-        <Text style={styles.cardLocation}>
-          <Ionicons name="location" size={16} color="#666" /> {user.location}
-        </Text>
-        <Text style={styles.cardLastActive}>
-          <Ionicons name="time" size={16} color="#666" /> {user.lastActiveTime}
         </Text>
         <Text style={styles.cardCompatibility}>
           Uyumluluk: {user.compatibilityScore}%
@@ -316,42 +308,38 @@ export default function AstrologyMatchesScreen() {
     </View>
   );
 
-  const handleSwipeLeft = async (index: number) => {
+  const handleSwipe = async (direction: 'left' | 'right', userId: number) => {
     try {
-      const user = discoverUsers[index];
+      const swipeAction = direction === 'right' ? 'LIKE' : 'DISLIKE';
       const response = await userApi.swipe({
-        targetUserId: user.id,
-        action: 'DISLIKE'
+        toUserId: userId,
+        action: swipeAction
       });
-      
-      if (response.success) {
-        console.log('Dislike başarılı:', response);
-      } else {
-        console.error('Dislike başarısız:', response.message);
-      }
-    } catch (error) {
-      console.error('Dislike hatası:', error);
-    }
-  };
 
-  const handleSwipeRight = async (index: number) => {
-    try {
-      const user = discoverUsers[index];
-      const response = await userApi.swipe({
-        targetUserId: user.id,
-        action: 'LIKE'
-      });
-      
       if (response.success) {
-        console.log('Like başarılı:', response);
+        console.log('Swipe başarılı:', response);
         if (response.isMatch) {
           Alert.alert('Eşleşme!', 'Tebrikler! Yeni bir eşleşmeniz var!');
         }
       } else {
-        console.error('Like başarısız:', response.message);
+        console.error('Swipe başarısız:', response.message);
       }
     } catch (error) {
-      console.error('Like hatası:', error);
+      console.error('Swipe hatası:', error);
+    }
+  };
+
+  const handleActionButton = (action: 'like' | 'dislike' | 'superlike') => {
+    if (discoverUsers.length === 0) return;
+    
+    const currentUser = discoverUsers[0];
+    if (action === 'like') {
+      handleSwipe('right', currentUser.id);
+    } else if (action === 'dislike') {
+      handleSwipe('left', currentUser.id);
+    } else {
+      // superlike UI'da gösterilebilir ama API'ya gönderilmez
+      Alert.alert('Super Like', 'Super Like özelliği henüz desteklenmiyor.');
     }
   };
 
@@ -359,7 +347,7 @@ export default function AstrologyMatchesScreen() {
     return (
       <View style={styles.card}>
         <Image
-          source={{ uri: card.profileImageUrl }}
+          source={{ uri: card.profileImageUrl || '' }}
           style={styles.cardImage}
         />
         <LinearGradient
@@ -367,18 +355,12 @@ export default function AstrologyMatchesScreen() {
           style={styles.cardGradient}
         >
           <View style={styles.cardContent}>
-            <Text style={styles.cardName}>{card.fullName}</Text>
+            <Text style={styles.cardName}>{card.firstName} {card.lastName}</Text>
             <Text style={styles.cardAge}>{card.age} yaşında</Text>
             <Text style={styles.cardZodiac}>
               {getZodiacEmoji(card.zodiacSign)} {card.zodiacSign}
             </Text>
             <Text style={styles.cardBio}>{card.bio}</Text>
-            <Text style={styles.cardLocation}>
-              <Ionicons name="location" size={16} color="white" /> {card.location}
-            </Text>
-            <Text style={styles.cardLastActive}>
-              <Ionicons name="time" size={16} color="white" /> {card.lastActiveTime}
-            </Text>
             <Text style={styles.cardCompatibility}>
               Uyumluluk: {card.compatibilityScore}%
             </Text>
@@ -398,202 +380,221 @@ export default function AstrologyMatchesScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={true} />
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
       {/* Arka plan gradyan */}
-      <LinearGradient
-        colors={['#8000FF', '#6A00D6', '#4B0082']}
-        style={styles.background}
-      />
+      <LinearGradient colors={['#1a1a2e', '#16213e', '#0f3460']} style={styles.background} />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Burç Eşleşmelerim</Text>
-        <Text style={styles.subtitle}>Yıldızların Rehberliğinde Aşkı Keşfet</Text>
-      </View>
-
-      {/* Tab Bar */}
-      <View style={styles.tabBar}>
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'matches' && styles.activeTab]}
-          onPress={() => setActiveTab('matches')}
-        >
-          <Ionicons 
-            name="star" 
-            size={20} 
-            color={activeTab === 'matches' ? '#FFFFFF' : 'rgba(255,255,255,0.6)'} 
-          />
-          <Text style={[styles.tabText, activeTab === 'matches' && styles.activeTabText]}>
-            Eşleşmeler
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'suggestions' && styles.activeTab]}
-          onPress={() => setActiveTab('suggestions')}
-        >
-          <Ionicons 
-            name="sparkles" 
-            size={20} 
-            color={activeTab === 'suggestions' ? '#FFFFFF' : 'rgba(255,255,255,0.6)'} 
-          />
-          <Text style={[styles.tabText, activeTab === 'suggestions' && styles.activeTabText]}>
-            Öneriler
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'likes' && styles.activeTab]}
-          onPress={() => setActiveTab('likes')}
-        >
-          <Ionicons 
-            name="heart" 
-            size={20} 
-            color={activeTab === 'likes' ? '#FFFFFF' : 'rgba(255,255,255,0.6)'} 
-          />
-          <Text style={[styles.tabText, activeTab === 'likes' && styles.activeTabText]}>
-            Beğeniler
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Content */}
-      <Animated.View style={[styles.content, animatedStyle]}>
-        {activeTab === 'matches' && (
-          <FlatList
-            data={discoverUsers}
-            renderItem={renderAstrologyMatchCard}
-            keyExtractor={(item) => item.id.toString()}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.listContainer}
-          />
-        )}
-        
-        {activeTab === 'suggestions' && (
-          <ScrollView 
-            style={styles.scrollView}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
-          >
-            {discoverUsers.slice(0, 5).map((user) => (
-              <View key={user.id}>
-                {renderAstrologySuggestionCard({ item: user })}
-              </View>
-            ))}
-          </ScrollView>
-        )}
-        
-        {activeTab === 'likes' && (
-          <ScrollView 
-            style={styles.scrollView}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
-          >
-            {renderPremiumBanner()}
-            
-            {/* Beğeni Listesi */}
-            <View style={styles.likesContainer}>
-              <Text style={styles.sectionTitle}>
-                {isPremium ? 'Seni Beğenenler' : 'Beğeni Alındı'}
+      {!showSwipeScreen ? (
+        // Eşleşmeler Ekranı
+        <Animated.View style={[styles.content, animatedStyle]}>
+          <View style={styles.header}>
+            <Text style={styles.title}>Eşleşmeler</Text>
+            <TouchableOpacity 
+              style={styles.swipeButton}
+              onPress={() => setShowSwipeScreen(true)}
+            >
+              <Ionicons name="heart" size={24} color="white" />
+              <Text style={styles.swipeButtonText}>Swipe Yap</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {/* Tab Bar */}
+          <View style={styles.tabBar}>
+            <TouchableOpacity 
+              style={[styles.tab, activeTab === 'matches' && styles.activeTab]}
+              onPress={() => setActiveTab('matches')}
+            >
+              <Ionicons 
+                name="star" 
+                size={20} 
+                color={activeTab === 'matches' ? '#FFFFFF' : 'rgba(255,255,255,0.6)'} 
+              />
+              <Text style={[styles.tabText, activeTab === 'matches' && styles.activeTabText]}>
+                Eşleşmeler
               </Text>
-              
-              {likedUsers.slice(0, 3).map((user) => (
-                <View key={user.id} style={[styles.likeCard, !isPremium && styles.blurredCard]}>
-                  <View style={styles.likeCardContent}>
-                    <View style={styles.likeImageContainer}>
-                      <Text style={styles.zodiacIcon}>{getZodiacEmoji(user.zodiacSign)}</Text>
-                    </View>
-                    
-                    <View style={styles.likeUserInfo}>
-                      <Text style={[styles.likeUserName, !isPremium && styles.blurredText]}>
-                        {isPremium ? `${user.fullName}, ${user.age}` : '••••••, ••'}
-                      </Text>
-                      <Text style={[styles.likeZodiacText, !isPremium && styles.blurredText]}>
-                        {isPremium ? user.zodiacSignDisplay : '••••••'}
-                      </Text>
-                      <Text style={styles.likeTimeText}>{user.lastActiveTime}</Text>
-                    </View>
-                    
-                    <View style={styles.likeCompatibility}>
-                      <Text style={styles.likeCompatibilityText}>
-                        %{user.compatibilityScore}
-                      </Text>
-                    </View>
-                  </View>
-                  
-                  {!isPremium && (
-                    <View style={styles.blurOverlay}>
-                      <Ionicons name="lock-closed" size={24} color="white" />
-                    </View>
-                  )}
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.tab, activeTab === 'suggestions' && styles.activeTab]}
+              onPress={() => setActiveTab('suggestions')}
+            >
+              <Ionicons 
+                name="sparkles" 
+                size={20} 
+                color={activeTab === 'suggestions' ? '#FFFFFF' : 'rgba(255,255,255,0.6)'} 
+              />
+              <Text style={[styles.tabText, activeTab === 'suggestions' && styles.activeTabText]}>
+                Öneriler
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.tab, activeTab === 'likes' && styles.activeTab]}
+              onPress={() => setActiveTab('likes')}
+            >
+              <Ionicons 
+                name="heart" 
+                size={20} 
+                color={activeTab === 'likes' ? '#FFFFFF' : 'rgba(255,255,255,0.6)'} 
+              />
+              <Text style={[styles.tabText, activeTab === 'likes' && styles.activeTabText]}>
+                Beğeniler
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Content */}
+          {activeTab === 'matches' && (
+            <FlatList
+              data={discoverUsers}
+              renderItem={renderAstrologyMatchCard}
+              keyExtractor={(item) => item.id.toString()}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.listContainer}
+            />
+          )}
+          
+          {activeTab === 'suggestions' && (
+            <ScrollView 
+              style={styles.scrollView}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+            >
+              {discoverUsers.slice(0, 5).map((user) => (
+                <View key={user.id}>
+                  {renderAstrologySuggestionCard({ item: user })}
                 </View>
               ))}
+            </ScrollView>
+          )}
+          
+          {activeTab === 'likes' && (
+            <ScrollView 
+              style={styles.scrollView}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+            >
+              {renderPremiumBanner()}
               
-              {!isPremium && (
-                <TouchableOpacity style={styles.viewMoreButton}>
-                  <Ionicons name="add" size={20} color="white" />
-                  <Text style={styles.viewMoreText}>
-                    Daha fazla beğeni görmek için premium'a geç
-                  </Text>
-                </TouchableOpacity>
+              {/* Beğeni Listesi */}
+              <View style={styles.likesContainer}>
+                <Text style={styles.sectionTitle}>
+                  {isPremium ? 'Seni Beğenenler' : 'Beğeni Alındı'}
+                </Text>
+                
+                {likedUsers.slice(0, 3).map((user) => (
+                  <View key={user.id} style={[styles.likeCard, !isPremium && styles.blurredCard]}>
+                    <View style={styles.likeCardContent}>
+                      <View style={styles.likeImageContainer}>
+                        <Text style={styles.zodiacIcon}>{getZodiacEmoji(user.zodiacSign)}</Text>
+                      </View>
+                      
+                      <View style={styles.likeUserInfo}>
+                        <Text style={[styles.likeUserName, !isPremium && styles.blurredText]}>
+                          {isPremium ? `${user.firstName} ${user.lastName}, ${user.age}` : '••••••, ••'}
+                        </Text>
+                        <Text style={[styles.likeZodiacText, !isPremium && styles.blurredText]}>
+                          {isPremium ? user.zodiacSign : '••••••'}
+                        </Text>
+                      </View>
+                      
+                      <View style={styles.likeCompatibility}>
+                        <Text style={styles.likeCompatibilityText}>
+                          %{user.compatibilityScore}
+                        </Text>
+                      </View>
+                    </View>
+                    
+                    {!isPremium && (
+                      <View style={styles.blurOverlay}>
+                        <Ionicons name="lock-closed" size={24} color="white" />
+                      </View>
+                    )}
+                  </View>
+                ))}
+                
+                {!isPremium && (
+                  <TouchableOpacity style={styles.viewMoreButton}>
+                    <Ionicons name="add" size={20} color="white" />
+                    <Text style={styles.viewMoreText}>
+                      Daha fazla beğeni görmek için premium'a geç
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </ScrollView>
+          )}
+        </Animated.View>
+      ) : (
+        // Swipe Ekranı
+        <>
+          <View style={styles.header}>
+            <TouchableOpacity 
+              style={styles.backButton} 
+              onPress={() => setShowSwipeScreen(false)}
+            >
+              <Ionicons name="arrow-back" size={24} color="white" />
+            </TouchableOpacity>
+            <View style={styles.headerCenter}>
+              <Text style={styles.title}>Burç Eşleşmeleri</Text>
+              {swipeLimitInfo && (
+                <Text style={styles.swipeLimit}>
+                  {swipeLimitInfo.isPremium ? '∞ ' : `${swipeLimitInfo.remainingSwipes}/${swipeLimitInfo.totalSwipes} `}
+                  Swipe Hakkı
+                </Text>
               )}
             </View>
-          </ScrollView>
-        )}
-      </Animated.View>
+            <TouchableOpacity style={styles.filterButton}>
+              <Ionicons name="options" size={24} color="white" />
+            </TouchableOpacity>
+          </View>
 
-      {discoverUsers.length > 0 ? (
-        <Swiper
-          cards={discoverUsers}
-          renderCard={renderCard}
-          onSwipedLeft={handleSwipeLeft}
-          onSwipedRight={handleSwipeRight}
-          cardIndex={0}
-          backgroundColor="transparent"
-          stackSize={3}
-          stackSeparation={15}
-          animateOverlayLabelsOpacity
-          overlayLabels={{
-            left: {
-              title: 'PAS',
-              style: {
-                label: {
-                  backgroundColor: '#ff3b30',
-                  color: 'white',
-                  fontSize: 24
-                },
-                wrapper: {
-                  flexDirection: 'column',
-                  alignItems: 'flex-end',
-                  justifyContent: 'flex-start',
-                  marginTop: 30,
-                  marginLeft: -30
-                }
-              }
-            },
-            right: {
-              title: 'BEĞEN',
-              style: {
-                label: {
-                  backgroundColor: '#4cd964',
-                  color: 'white',
-                  fontSize: 24
-                },
-                wrapper: {
-                  flexDirection: 'column',
-                  alignItems: 'flex-start',
-                  justifyContent: 'flex-start',
-                  marginTop: 30,
-                  marginLeft: 30
-                }
-              }
-            }
-          }}
-        />
-      ) : (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>Şu an için gösterilecek kullanıcı yok</Text>
-        </View>
+          {/* Swipe Cards Container */}
+          <View style={styles.cardsContainer}>
+            {discoverUsers.map((user, index) => (
+              <SwipeCard
+                key={user.id}
+                user={user}
+                onSwipe={handleSwipe}
+                style={{
+                  zIndex: discoverUsers.length - index,
+                  transform: [
+                    { scale: 1 - index * 0.02 },
+                    { translateY: index * -8 }
+                  ]
+                }}
+                isTop={index === 0}
+                photoIndex={photoIndexes[user.id] || 0}
+                setPhotoIndex={(newIndex: number) => setPhotoIndex(user.id, newIndex)}
+              />
+            ))}
+          </View>
+
+          {/* Action Buttons */}
+          <View style={styles.actionButtons}>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.dislikeButton]}
+              onPress={() => handleActionButton('dislike')}
+            >
+              <Ionicons name="close" size={32} color="#FF5722" />
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.superLikeButton]}
+              onPress={() => handleActionButton('superlike')}
+            >
+              <Ionicons name="star" size={28} color="#FFD700" />
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.likeButton]}
+              onPress={() => handleActionButton('like')}
+            >
+              <Ionicons name="heart" size={32} color="#4CAF50" />
+            </TouchableOpacity>
+          </View>
+        </>
       )}
     </View>
   );
@@ -924,10 +925,6 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.8)',
     marginBottom: 2,
   },
-  likeTimeText: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.6)',
-  },
   likeCompatibility: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     paddingHorizontal: 8,
@@ -1016,16 +1013,6 @@ const styles = StyleSheet.create({
     color: 'white',
     marginBottom: 8,
   },
-  cardLocation: {
-    fontSize: 14,
-    color: 'white',
-    marginBottom: 4,
-  },
-  cardLastActive: {
-    fontSize: 14,
-    color: 'white',
-    marginBottom: 4,
-  },
   cardCompatibility: {
     fontSize: 16,
     color: 'white',
@@ -1049,5 +1036,63 @@ const styles = StyleSheet.create({
   emptyText: {
     color: 'white',
     fontSize: 16,
+  },
+  swipeButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 12,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  swipeButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: 'white',
+    marginLeft: 8,
+  },
+  backButton: {
+    padding: 12,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  headerCenter: {
+    flex: 1,
+  },
+  filterButton: {
+    padding: 12,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  cardsContainer: {
+    flex: 1,
+    padding: 20,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    padding: 20,
+  },
+  actionButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  dislikeButton: {
+    backgroundColor: 'rgba(255, 87, 34, 0.2)',
+  },
+  superLikeButton: {
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+  },
+  likeButton: {
+    backgroundColor: 'rgba(76, 175, 80, 0.2)',
+  },
+  swipeLimit: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 8,
   },
 }); 

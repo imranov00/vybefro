@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState } from 'react';
+import React from 'react';
 import {
     Dimensions,
     Image,
@@ -21,7 +21,7 @@ import Animated, {
     withSpring,
     withTiming
 } from 'react-native-reanimated';
-import { PotentialMatch } from '../../services/api';
+import { DiscoverUser } from '../../services/api';
 import { getCompatibilityColor, getCompatibilityLabel } from '../../types/compatibility';
 import { getZodiacDisplay, getZodiacEmoji } from '../../types/zodiac';
 
@@ -29,40 +29,29 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const CARD_WIDTH = screenWidth * 0.85;
 const CARD_HEIGHT = screenHeight * 0.65;
 const SWIPE_THRESHOLD = screenWidth * 0.3;
-const ROTATION_STRENGTH = 0.1;
 
 interface SwipeCardProps {
-  user: PotentialMatch;
+  user: DiscoverUser;
   onSwipe: (direction: 'left' | 'right' | 'up', userId: number) => void;
   isTop?: boolean;
-  index?: number;
+  style?: any;
+  photoIndex: number;
+  setPhotoIndex: (index: number) => void;
 }
 
-const SwipeCard: React.FC<SwipeCardProps> = ({ 
-  user, 
-  onSwipe, 
-  isTop = false, 
-  index = 0 
+export const SwipeCard: React.FC<SwipeCardProps> = ({
+  user,
+  onSwipe,
+  isTop = false,
+  style,
+  photoIndex,
+  setPhotoIndex
 }) => {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const rotate = useSharedValue(0);
-  const scale = useSharedValue(isTop ? 1 : 0.95 - index * 0.02);
-  const opacity = useSharedValue(isTop ? 1 : 0.8 - index * 0.1);
+  const opacity = useSharedValue(1);
 
-  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
-  
-  // Fotoğraf dizisini düzenle
-  const photos = user.photos && user.photos.length > 0 
-    ? user.photos 
-    : user.profileImageUrl 
-      ? [user.profileImageUrl] 
-      : [];
-
-  const compatibilityColor = getCompatibilityColor(user.compatibilityScore);
-  const compatibilityLabel = getCompatibilityLabel(user.compatibilityScore);
-
-  // Gesture handler
   const gestureHandler = useAnimatedGestureHandler({
     onStart: () => {
       'worklet';
@@ -75,7 +64,6 @@ const SwipeCard: React.FC<SwipeCardProps> = ({
       translateX.value = event.translationX;
       translateY.value = event.translationY;
       
-      // Rotasyon hesaplama
       rotate.value = interpolate(
         event.translationX,
         [-screenWidth / 2, screenWidth / 2],
@@ -89,7 +77,6 @@ const SwipeCard: React.FC<SwipeCardProps> = ({
 
       const { translationX, translationY, velocityX } = event;
 
-      // Super like kontrolü (yukarı kaydırma)
       if (translationY < -120 && Math.abs(translationX) < 100) {
         translateY.value = withTiming(-screenHeight * 1.5, { duration: 300 });
         translateX.value = withTiming(0, { duration: 300 });
@@ -98,7 +85,6 @@ const SwipeCard: React.FC<SwipeCardProps> = ({
         return;
       }
 
-      // Sağa/sola kaydırma kontrolü
       const shouldSwipe = Math.abs(translationX) > SWIPE_THRESHOLD || Math.abs(velocityX) > 800;
       
       if (shouldSwipe) {
@@ -112,7 +98,6 @@ const SwipeCard: React.FC<SwipeCardProps> = ({
         
         runOnJS(onSwipe)(direction, user.id);
       } else {
-        // Geri dön
         translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
         translateY.value = withSpring(0, { damping: 15, stiffness: 150 });
         rotate.value = withSpring(0, { damping: 15, stiffness: 150 });
@@ -120,175 +105,129 @@ const SwipeCard: React.FC<SwipeCardProps> = ({
     },
   });
 
-  // Animasyon stilleri
-  const cardStyle = useAnimatedStyle(() => {
-    return {
-      transform: [
-        { translateX: translateX.value },
-        { translateY: translateY.value },
-        { rotate: `${rotate.value}deg` },
-        { scale: scale.value },
-      ],
-      opacity: opacity.value,
-      zIndex: isTop ? 1000 : 999 - index,
-    };
-  });
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { rotate: `${rotate.value}deg` }
+    ],
+    opacity: opacity.value
+  }));
 
-  // Overlay animasyonları
-  const likeOverlayStyle = useAnimatedStyle(() => {
-    const opacity = interpolate(
+  const likeOverlayStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(
       translateX.value,
-      [0, SWIPE_THRESHOLD],
+      [0, screenWidth * 0.25],
       [0, 1],
       Extrapolate.CLAMP
-    );
-    return { opacity };
-  });
+    )
+  }));
 
-  const dislikeOverlayStyle = useAnimatedStyle(() => {
-    const opacity = interpolate(
+  const dislikeOverlayStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(
       translateX.value,
-      [-SWIPE_THRESHOLD, 0],
+      [-screenWidth * 0.25, 0],
       [1, 0],
       Extrapolate.CLAMP
-    );
-    return { opacity };
-  });
+    )
+  }));
 
-  const superLikeOverlayStyle = useAnimatedStyle(() => {
-    const opacity = interpolate(
+  const superLikeOverlayStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(
       translateY.value,
-      [-120, 0],
+      [-screenHeight * 0.15, 0],
       [1, 0],
       Extrapolate.CLAMP
-    );
-    return { opacity };
-  });
+    )
+  }));
 
-  // Fotoğraf navigasyonu
-  const nextPhoto = () => {
-    if (photos.length > 1) {
-      setCurrentPhotoIndex((prev) => (prev + 1) % photos.length);
+  const handlePhotoTap = (side: 'left' | 'right') => {
+    const photos = user.photos.map(p => p.imageUrl);
+    if (side === 'left' && photoIndex > 0) {
+      setPhotoIndex(photoIndex - 1);
+    } else if (side === 'right' && photoIndex < photos.length - 1) {
+      setPhotoIndex(photoIndex + 1);
     }
   };
 
-  const prevPhoto = () => {
-    if (photos.length > 1) {
-      setCurrentPhotoIndex((prev) => (prev - 1 + photos.length) % photos.length);
-    }
-  };
-
-  // Yaş hesaplama
-  const age = typeof user.age === 'number' ? user.age : 25;
+  const currentPhotoUrl = user.photos.length > 0 
+    ? user.photos[photoIndex]?.imageUrl || user.profileImageUrl 
+    : user.profileImageUrl;
 
   return (
-    <PanGestureHandler onGestureEvent={gestureHandler} enabled={isTop}>
-      <Animated.View style={[styles.cardContainer, cardStyle]}>
+    <PanGestureHandler onGestureEvent={gestureHandler}>
+      <Animated.View style={[styles.cardContainer, style, animatedStyle]}>
         <View style={styles.card}>
-          {/* Ana fotoğraf alanı */}
           <View style={styles.imageContainer}>
-            {photos.length > 0 && photos[currentPhotoIndex] ? (
-              <Image 
-                source={{ uri: photos[currentPhotoIndex] }} 
+            {currentPhotoUrl ? (
+              <Image
+                source={{ uri: currentPhotoUrl }}
                 style={styles.image}
                 resizeMode="cover"
               />
             ) : (
-              <LinearGradient
-                colors={['#8000FF', '#5B00B5', '#3D007A']}
-                style={styles.placeholderImage}
-              >
+              <View style={styles.placeholderImage}>
                 <Text style={styles.zodiacEmoji}>
                   {getZodiacEmoji(user.zodiacSign)}
                 </Text>
-                <Text style={styles.placeholderText}>Fotoğraf Yok</Text>
-              </LinearGradient>
+                <Text style={styles.placeholderText}>
+                  {user.firstName}
+                </Text>
+              </View>
             )}
 
-            {/* Fotoğraf navigasyon alanları */}
-            {photos.length > 1 && (
-              <>
-                <TouchableOpacity 
-                  style={styles.photoNavLeft} 
-                  onPress={prevPhoto}
-                  activeOpacity={1}
-                />
-                <TouchableOpacity 
-                  style={styles.photoNavRight} 
-                  onPress={nextPhoto}
-                  activeOpacity={1}
-                />
-                
-                {/* Fotoğraf göstergeleri */}
-                <View style={styles.photoIndicators}>
-                  {photos.map((_, photoIndex) => (
-                    <View
-                      key={photoIndex}
-                      style={[
-                        styles.photoIndicator,
-                        photoIndex === currentPhotoIndex && styles.activePhotoIndicator
-                      ]}
-                    />
-                  ))}
-                </View>
-              </>
-            )}
+            <TouchableOpacity
+              style={styles.photoNavLeft}
+              onPress={() => handlePhotoTap('left')}
+            />
+            <TouchableOpacity
+              style={styles.photoNavRight}
+              onPress={() => handlePhotoTap('right')}
+            />
 
-            {/* Uyumluluk badge */}
-            <View style={[styles.compatibilityBadge, { backgroundColor: compatibilityColor }]}>
-              <Text style={styles.compatibilityScore}>%{user.compatibilityScore}</Text>
-              <Text style={styles.compatibilityLabel}>{compatibilityLabel}</Text>
+            <View style={styles.photoIndicators}>
+              {user.photos.map((_, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.photoIndicator,
+                    index === photoIndex && styles.activePhotoIndicator
+                  ]}
+                />
+              ))}
             </View>
 
-            {/* Online göstergesi */}
-            {user.isOnline && (
-              <View style={styles.onlineIndicator}>
-                <View style={styles.onlineDot} />
-                <Text style={styles.onlineText}>Çevrimiçi</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Kullanıcı bilgileri */}
-          <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.9)']}
-            style={styles.infoGradient}
-          >
-            <View style={styles.userInfo}>
-              <View style={styles.nameRow}>
-                <Text style={styles.userName}>
-                  {user.firstName} {user.lastName}
+            <LinearGradient
+              colors={['transparent', 'rgba(0,0,0,0.8)']}
+              style={styles.gradient}
+            >
+              <View style={styles.userInfo}>
+                <Text style={styles.name}>
+                  {user.firstName}, {user.age}
                 </Text>
-                <Text style={styles.userAge}>{age}</Text>
-              </View>
-              
-              <View style={styles.zodiacRow}>
-                <Text style={styles.zodiacDisplay}>
+                <Text style={styles.zodiacSign}>
                   {getZodiacDisplay(user.zodiacSign)}
                 </Text>
-                {user.distance && (
-                  <View style={styles.distanceContainer}>
-                    <Ionicons name="location-outline" size={14} color="rgba(255,255,255,0.8)" />
-                    <Text style={styles.distance}>{user.distance} km</Text>
-                  </View>
+                <View style={[
+                  styles.compatibilityBadge,
+                  { backgroundColor: getCompatibilityColor(user.compatibilityScore) }
+                ]}>
+                  <Text style={styles.compatibilityScore}>
+                    %{user.compatibilityScore}
+                  </Text>
+                  <Text style={styles.compatibilityLabel}>
+                    {getCompatibilityLabel(user.compatibilityScore)}
+                  </Text>
+                </View>
+                {user.compatibilityDescription && (
+                  <Text style={styles.compatibilityDescription} numberOfLines={2}>
+                    {user.compatibilityDescription}
+                  </Text>
                 )}
               </View>
+            </LinearGradient>
+          </View>
 
-              {user.bio && (
-                <Text style={styles.bio} numberOfLines={2}>
-                  {user.bio}
-                </Text>
-              )}
-
-              {user.compatibilityDescription && (
-                <Text style={styles.compatibilityDescription} numberOfLines={2}>
-                  {user.compatibilityDescription}
-                </Text>
-              )}
-            </View>
-          </LinearGradient>
-
-          {/* Swipe overlay'leri */}
           <Animated.View style={[styles.overlay, styles.likeOverlay, likeOverlayStyle]}>
             <View style={styles.overlayContent}>
               <Ionicons name="heart" size={50} color="#4CAF50" />
@@ -398,15 +337,35 @@ const styles = StyleSheet.create({
   activePhotoIndicator: {
     backgroundColor: 'rgba(255,255,255,0.9)',
   },
-  compatibilityBadge: {
+  gradient: {
     position: 'absolute',
-    top: 15,
-    right: 15,
-    paddingHorizontal: 10,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '50%',
+    padding: 20,
+    justifyContent: 'flex-end',
+  },
+  userInfo: {
+    marginBottom: 20,
+  },
+  name: {
+    color: 'white',
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  zodiacSign: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 16,
+    marginBottom: 8,
+  },
+  compatibilityBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 15,
-    alignItems: 'center',
-    zIndex: 5,
+    marginBottom: 8,
   },
   compatibilityScore: {
     color: 'white',
@@ -415,92 +374,12 @@ const styles = StyleSheet.create({
   },
   compatibilityLabel: {
     color: 'white',
-    fontSize: 9,
-    fontWeight: '600',
-  },
-  onlineIndicator: {
-    position: 'absolute',
-    bottom: 15,
-    right: 15,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    zIndex: 5,
-  },
-  onlineDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#4CAF50',
-    marginRight: 4,
-  },
-  onlineText: {
-    color: 'white',
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  infoGradient: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 160,
-    justifyContent: 'flex-end',
-  },
-  userInfo: {
-    padding: 20,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 5,
-  },
-  userName: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: 'white',
-    flex: 1,
-  },
-  userAge: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  zodiacRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  zodiacDisplay: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
-    fontWeight: '600',
-  },
-  distanceContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  distance: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
-    marginLeft: 2,
-  },
-  bio: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
-    lineHeight: 18,
-    marginBottom: 6,
   },
   compatibilityDescription: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.7)',
-    fontStyle: 'italic',
-    lineHeight: 16,
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 14,
+    lineHeight: 20,
   },
   overlay: {
     position: 'absolute',
@@ -508,34 +387,26 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 4,
+    borderRadius: 20,
   },
   likeOverlay: {
-    transform: [{ rotate: '-15deg' }],
+    borderColor: '#4CAF50',
   },
   dislikeOverlay: {
-    transform: [{ rotate: '15deg' }],
+    borderColor: '#F44336',
   },
   superLikeOverlay: {
-    transform: [{ rotate: '0deg' }],
+    borderColor: '#FFD700',
   },
   overlayContent: {
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderRadius: 15,
-    borderWidth: 3,
-    borderColor: 'currentColor',
   },
   overlayText: {
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: 'bold',
-    marginTop: 5,
-    textAlign: 'center',
+    marginTop: 8,
   },
-});
-
-export default SwipeCard; 
+}); 

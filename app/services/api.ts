@@ -163,13 +163,15 @@ export interface PremiumCancelResponse {
 // Beğeni işlemleri için interface'ler
 export interface UserWhoLikedMe {
   id: string;
-  fullName: string;
+  firstName: string;
+  lastName: string;
+  fullName?: string;
   age: number;
   profileImageUrl: string;
   zodiacSign: string;
   compatibilityScore: number;
-  lastActiveTime: string;
-  location: string;
+  lastActiveTime?: string;
+  location?: string;
 }
 
 export interface UsersWhoLikedMeResponse {
@@ -208,7 +210,8 @@ export interface PotentialMatch {
 }
 
 export interface SwipeRequest {
-  targetUserId: string;
+  toUserId?: number;
+  targetUserId?: string;
   action: 'LIKE' | 'DISLIKE';
 }
 
@@ -270,18 +273,18 @@ export interface SwipeLimitInfo {
 }
 
 export interface DiscoverUser {
-  id: string;
-  fullName: string;
+  id: number;
+  firstName: string;
+  lastName: string;
   age: number;
-  profileImageUrl: string;
-  bio: string;
   zodiacSign: string;
+  profileImageUrl: string | null;
+  photos: Array<{ imageUrl: string }>;
   compatibilityScore: number;
-  photos: string[];
-  isPremium: boolean;
-  activityStatus: string;
-  lastActiveTime: string;
-  location: string;
+  compatibilityDescription: string;
+  isOnline?: boolean;
+  distance?: number;
+  bio?: string;
 }
 
 export interface DiscoverResponse {
