@@ -7,6 +7,7 @@ import {
   Platform,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View
 } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
@@ -31,7 +32,7 @@ const SWIPE_THRESHOLD = screenWidth * 0.3;
 
 interface ZodiacSwipeCardProps {
   user: DiscoverUser;
-  onSwipe: (direction: 'left' | 'right' | 'up', userId: number) => void;
+  onSwipe: (direction: 'left' | 'right', userId: number) => void;
   isTop?: boolean;
   style?: any;
   photoIndex: number;
@@ -100,30 +101,6 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
     setPhotoIndex(user.id, nextIndex);
   };
 
-  // Tap gesture handler - ayrı gesture handler
-  const tapGestureHandler = useAnimatedGestureHandler({
-    onEnd: (event) => {
-      'worklet';
-      if (!isTop) return;
-      
-      const { x } = event;
-      const screenMiddle = CARD_WIDTH / 2;
-      
-      console.log('👆 [ZodiacSwipeCard] Tap tespit edildi:', { x, screenMiddle });
-      
-      const allPhotos = createPhotoList(user.photos, user.profileImageUrl);
-      if (allPhotos.length <= 1) return;
-      
-      if (x > screenMiddle) {
-        // Sağ taraf - sonraki fotoğraf
-        runOnJS(handlePhotoChange)('next');
-      } else {
-        // Sol taraf - önceki fotoğraf
-        runOnJS(handlePhotoChange)('prev');
-      }
-    },
-  });
-
   const gestureHandler = useAnimatedGestureHandler({
     onStart: () => {
       'worklet';
@@ -147,23 +124,27 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
       'worklet';
       if (!isTop) return;
 
-      const { translationX, translationY, velocityX, velocityY } = event;
+      const { translationX, translationY, velocityX, velocityY, x } = event;
       
-      // Küçük movement ise tap olarak algıla
-      if (Math.abs(translationX) < 10 && Math.abs(translationY) < 10) {
-        const { x } = event;
-        const screenMiddle = CARD_WIDTH / 2;
+      console.log('🎮 [Gesture] Event data:', { translationX, translationY, velocityX, velocityY, x });
+      
+      // TAP Detection - çok küçük hareket
+      if (Math.abs(translationX) < 15 && Math.abs(translationY) < 15 && Math.abs(velocityX) < 100 && Math.abs(velocityY) < 100) {
+        console.log('👆 [TAP] Tespit edildi:', { x, cardWidth: CARD_WIDTH });
         
         runOnJS(() => {
-          console.log('👆 [ZodiacSwipeCard] Tap tespit edildi (PanGesture):', { x, screenMiddle });
-          
           const allPhotos = createPhotoList(user.photos, user.profileImageUrl);
-          if (allPhotos.length <= 1) return;
+          console.log('📸 [TAP] Fotoğraf sayısı:', allPhotos.length);
           
-          if (x > screenMiddle) {
-            handlePhotoChange('next');
-          } else {
-            handlePhotoChange('prev');
+          if (allPhotos.length > 1) {
+            const screenMiddle = CARD_WIDTH / 2;
+            if (x > screenMiddle) {
+              console.log('👆 [TAP] Sonraki fotoğraf');
+              handlePhotoChange('next');
+            } else {
+              console.log('👆 [TAP] Önceki fotoğraf');
+              handlePhotoChange('prev');
+            }
           }
         })();
         
@@ -173,39 +154,33 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
         rotate.value = withSpring(0);
         return;
       }
-
-      // Fotoğraf değiştirme - daha duyarlı koşullar (sadece swipe için)
-      if (Math.abs(translationX) < 80 && Math.abs(velocityX) < 500) {
-        // Yukarı kaydırma - önceki fotoğraf
-        if (translationY < -50 && velocityY < -300) {
-          translateY.value = withSpring(0, { damping: 15, stiffness: 150 });
-          translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
-          rotate.value = withSpring(0, { damping: 15, stiffness: 150 });
-          
-          runOnJS(handlePhotoChange)('prev');
-          return;
-        }
-        
-        // Aşağı kaydırma - sonraki fotoğraf
-        if (translationY > 50 && velocityY > 300) {
-          translateY.value = withSpring(0, { damping: 15, stiffness: 150 });
-          translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
-          rotate.value = withSpring(0, { damping: 15, stiffness: 150 });
+      
+      // SWIPE Detection - fotoğraf değiştirme
+      if (Math.abs(translationX) < 100) {
+        // Aşağı swipe - sonraki fotoğraf
+        if (translationY > 60 && velocityY > 400) {
+          console.log('👋 [SWIPE] Aşağı - sonraki fotoğraf');
+          translateY.value = withSpring(0);
+          translateX.value = withSpring(0);
+          rotate.value = withSpring(0);
           
           runOnJS(handlePhotoChange)('next');
           return;
         }
+        
+        // Yukarı swipe - önceki fotoğraf
+        if (translationY < -60 && velocityY < -400) {
+          console.log('👋 [SWIPE] Yukarı - önceki fotoğraf');
+          translateY.value = withSpring(0);
+          translateX.value = withSpring(0);
+          rotate.value = withSpring(0);
+          
+          runOnJS(handlePhotoChange)('prev');
+          return;
+        }
       }
 
-      // Süper beğeni (yukarı swipe) - yüksek hızlı yukarı
-      if (translationY < -150 && Math.abs(translationX) < 80 && velocityY < -1000) {
-        translateY.value = withTiming(-screenHeight * 1.5, { duration: 300 });
-        translateX.value = withTiming(0, { duration: 300 });
-        rotate.value = withTiming(0, { duration: 300 });
-        runOnJS(onSwipe)('up', user.id);
-        return;
-      }
-
+      // CARD SWIPE - beğenme/beğenmeme
       const shouldSwipe = Math.abs(translationX) > SWIPE_THRESHOLD || Math.abs(velocityX) > 800;
       
       if (shouldSwipe) {
@@ -213,12 +188,15 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
         const targetX = direction === 'right' ? screenWidth * 1.5 : -screenWidth * 1.5;
         const targetRotation = direction === 'right' ? 30 : -30;
         
+        console.log('💫 [CARD SWIPE]:', direction);
+        
         translateX.value = withTiming(targetX, { duration: 300 });
         rotate.value = withTiming(targetRotation, { duration: 300 });
         opacity.value = withTiming(0, { duration: 300 });
         
         runOnJS(onSwipe)(direction, user.id);
       } else {
+        // Reset position
         translateX.value = withSpring(0, { damping: 15, stiffness: 150 });
         translateY.value = withSpring(0, { damping: 15, stiffness: 150 });
         rotate.value = withSpring(0, { damping: 15, stiffness: 150 });
@@ -248,15 +226,6 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
     opacity: interpolate(
       translateX.value,
       [-screenWidth * 0.25, 0],
-      [1, 0],
-      Extrapolate.CLAMP
-    )
-  }));
-
-  const superLikeOverlayStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(
-      translateY.value,
-      [-screenHeight * 0.15, 0],
       [1, 0],
       Extrapolate.CLAMP
     )
@@ -308,12 +277,16 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
             {allPhotos.length > 1 && (
               <View style={styles.photoIndicators}>
                 {allPhotos.map((_, index) => (
-                  <View
+                  <TouchableOpacity
                     key={index}
                     style={[
                       styles.photoIndicator,
                       index === photoIndex && styles.activePhotoIndicator
                     ]}
+                    onPress={() => {
+                      console.log('📍 [DOT] Fotoğraf göstergesine tıklandı:', index);
+                      setPhotoIndex(user.id, index);
+                    }}
                   />
                 ))}
               </View>
@@ -394,13 +367,6 @@ const ZodiacSwipeCard: React.FC<ZodiacSwipeCardProps> = ({
             <View style={styles.overlayContent}>
               <Ionicons name="close" size={50} color="#F44336" />
               <Text style={[styles.overlayText, { color: '#F44336' }]}>UYUMSUZ</Text>
-            </View>
-          </Animated.View>
-
-          <Animated.View style={[styles.overlay, styles.superLikeOverlay, superLikeOverlayStyle]}>
-            <View style={styles.overlayContent}>
-              <Ionicons name="star" size={50} color="#8000FF" />
-              <Text style={[styles.overlayText, { color: '#8000FF' }]}>MÜKEMMEL UYUM</Text>
             </View>
           </Animated.View>
         </View>
@@ -604,10 +570,6 @@ const styles = StyleSheet.create({
   dislikeOverlay: {
     borderColor: '#F44336',
     backgroundColor: 'rgba(244, 67, 54, 0.1)',
-  },
-  superLikeOverlay: {
-    borderColor: '#8000FF',
-    backgroundColor: 'rgba(128, 0, 255, 0.1)',
   },
   overlayContent: {
     alignItems: 'center',

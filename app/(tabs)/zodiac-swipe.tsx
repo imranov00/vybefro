@@ -121,9 +121,11 @@ export default function ZodiacSwipeScreen() {
   }, [loadUsers, loadCurrentUserProfile]);
 
   // Swipe işlemi
-  const handleSwipe = useCallback(async (direction: 'left' | 'right' | 'up', userId: number) => {
+  const handleSwipe = useCallback(async (direction: 'left' | 'right', userId: number) => {
     try {
-      const action = direction === 'right' || direction === 'up' ? 'LIKE' : 'DISLIKE';
+      const action = direction === 'right' ? 'LIKE' : 'DISLIKE';
+      
+      console.log('💫 [ZodiacSwipe] Swipe yapıldı:', { direction, action, userId });
       
       const response = await swipeApi.swipe({
         targetUserId: userId.toString(),
