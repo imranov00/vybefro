@@ -73,14 +73,17 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
 
-  // Cache süresi (5 dakika)
-  const CACHE_DURATION = 5 * 60 * 1000;
+  // Cache süresi (15 dakika)
+  const CACHE_DURATION = 15 * 60 * 1000;
 
   // Profil drawer'ını göster
   const showProfile = () => {
     setIsProfileVisible(true);
-    // Drawer açıldığında profili kontrol et (cache'e göre)
-    checkAndFetchProfile();
+    // Drawer açıldığında sadece cache süresi dolmuşsa profili güncelle
+    const now = Date.now();
+    if ((now - lastFetchTime) >= CACHE_DURATION) {
+      checkAndFetchProfile();
+    }
   };
 
   // Profil drawer'ını gizle
@@ -115,7 +118,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     const cacheValid = (now - lastFetchTime) < CACHE_DURATION;
     
     if (!force && cacheValid && userProfile.id) {
-      console.log('Profil cache\'den alındı');
+      console.log('📱 [PROFILE] Cache kullanılıyor');
       return;
     }
     
@@ -124,6 +127,11 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
   // Kullanıcı profilini API'den çek
   const fetchUserProfile = async () => {
+    if (isLoading) {
+      console.log('📱 [PROFILE] Zaten yükleme yapılıyor, yeni istek atılmıyor');
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     
@@ -139,46 +147,28 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         return;
       }
       
-      console.log('Profil bilgileri getiriliyor...');
-      // Önce profil bilgilerini çek
-      const profileData = await userApi.getProfile();
-      console.log('API profil yanıtı:', JSON.stringify(profileData, null, 2));
+      console.log('📱 [PROFILE] Profil bilgileri getiriliyor...');
+      // Profil bilgilerini ve fotoğrafları paralel olarak çek
+      const [profileData, userPhotos] = await Promise.all([
+        userApi.getProfile(),
+        userApi.getPhotos().catch(error => {
+          console.warn('📱 [PROFILE] Fotoğraflar getirilemedi:', error);
+          return [];
+        })
+      ]);
+
       const mappedProfile = mapApiResponseToUserProfile(profileData);
       
-      // Sonra kullanıcı fotoğraflarını çek
-      try {
-        console.log('Kullanıcı fotoğrafları getiriliyor...');
-        const userPhotos = await userApi.getPhotos();
-        console.log('API fotoğraf yanıtı:', JSON.stringify(userPhotos, null, 2));
-        
-        // Profil fotoğrafı varsa, profil bilgisini güncelle
-        if (userPhotos && userPhotos.length > 0) {
-          console.log('Toplam fotoğraf sayısı:', userPhotos.length);
-          
-          const profilePhoto = userPhotos.find(photo => photo.isProfilePhoto);
-          
-          if (profilePhoto) {
-            console.log('Profil fotoğrafı bulundu:', profilePhoto.url);
-            mappedProfile.profileImage = profilePhoto.url;
-          } else if (userPhotos.length > 0) {
-            // Profil fotoğrafı olarak işaretlenmiş bir fotoğraf yoksa, ilk fotoğrafı kullan
-            console.log('Profil fotoğrafı bulunamadı, ilk fotoğraf kullanılıyor:', userPhotos[0].url);
-            mappedProfile.profileImage = userPhotos[0].url;
-          }
-        } else {
-          console.log('Kullanıcı fotoğrafı bulunamadı, varsayılan profil resmi kullanılıyor');
+      // Profil fotoğrafı varsa, profil bilgisini güncelle
+      if (userPhotos && userPhotos.length > 0) {
+        const profilePhoto = userPhotos.find(photo => photo.isProfilePhoto);
+        if (profilePhoto) {
+          mappedProfile.profileImage = profilePhoto.url;
+        } else if (userPhotos.length > 0) {
+          mappedProfile.profileImage = userPhotos[0].url;
         }
-      } catch (photoError: any) {
-        console.error('Fotoğrafları getirme hatası:', photoError);
-        if (photoError.response) {
-          console.error('API fotoğraf hata yanıtı:', photoError.response.data);
-          console.error('API fotoğraf hata durumu:', photoError.response.status);
-        }
-        // Fotoğraf getirme hatası olsa bile profil bilgilerini göster
       }
       
-      console.log('Güncellenmiş profil bilgisi:', JSON.stringify(mappedProfile, null, 2));
-      // Güncellenen profil bilgisini state'e kaydet
       setUserProfile(mappedProfile);
       setLastFetchTime(Date.now());
       
@@ -187,11 +177,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       setCurrentUserId(userId);
       
     } catch (error: any) {
-      console.error('Profil çekme hatası:', error);
-      if (error.response) {
-        console.error('API profil hata yanıtı:', error.response.data);
-        console.error('API profil hata durumu:', error.response.status);
-      }
+      console.error('❌ [PROFILE] Hata:', error);
       setError(error.message || 'Profil yüklenemedi');
     } finally {
       setIsLoading(false);
@@ -225,7 +211,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     };
 
     // Sadece giriş durumu kontrol edilmesi gereken durumlarda çalıştır
-    let interval: NodeJS.Timeout | null = null;
+    let interval: ReturnType<typeof setInterval> | null = null;
     
     const startChecking = async () => {
       await checkUserChange(); // İlk kontrol
