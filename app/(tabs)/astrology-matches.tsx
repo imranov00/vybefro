@@ -3,6 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     Dimensions,
     Platform,
@@ -367,10 +368,12 @@ export default function AstrologyMatchesScreen() {
   const colorScheme = useColorScheme();
   const { userProfile } = useProfile();
   const { isPremium } = useAuth();
-  const [users, setUsers] = useState<DiscoverUser[]>(SAMPLE_ASTROLOGY_MATCHES);
+  const [users, setUsers] = useState<DiscoverUser[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [swipeCount, setSwipeCount] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(1);
   const maxSwipes = isPremium ? 999 : 20;
 
   // Animasyon değerleri
@@ -388,6 +391,61 @@ export default function AstrologyMatchesScreen() {
 
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    loadDiscoverUsers();
+  }, []);
+
+  const loadDiscoverUsers = async () => {
+    if (isLoading || !hasMore) return;
+    
+    setIsLoading(true);
+    try {
+      console.log('🔄 Gerçek kullanıcılar yükleniyor..., sayfa:', page);
+      
+      const response = await swipeApi.getDiscoverUsers(page, 10);
+      
+      if (response.success && response.users && response.users.length > 0) {
+        console.log('✅ Gerçek kullanıcılar yüklendi:', response.users.length);
+        
+        if (page === 1) {
+          // İlk sayfa - tümünü değiştir
+          setUsers(response.users);
+        } else {
+          // Sonraki sayfalar - ekle
+          setUsers(prev => [...prev, ...response.users]);
+        }
+        
+        setHasMore(response.hasMore);
+        setPage(prev => prev + 1);
+      } else {
+        console.log('⚠️ API den kullanıcı bulunamadı, fallback veriler kullanılıyor...');
+        // Fallback: Sample data kullan
+        if (page === 1) {
+          setUsers(SAMPLE_ASTROLOGY_MATCHES);
+        }
+        setHasMore(false);
+      }
+    } catch (error: any) {
+      console.error('❌ Kullanıcı yükleme hatası:', error);
+      // Hata durumunda sample data kullan
+      if (page === 1) {
+        console.log('🔄 Fallback: Sample veriler yükleniyor...');
+        setUsers(SAMPLE_ASTROLOGY_MATCHES);
+      }
+      setHasMore(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Kartlar azaldığında yeni veri yükle
+  useEffect(() => {
+    const remainingCards = users.length - currentIndex;
+    if (remainingCards <= 2 && hasMore && !isLoading) {
+      loadDiscoverUsers();
+    }
+  }, [currentIndex, users.length, hasMore, isLoading]);
 
   const handleSwipeLeft = async (user: DiscoverUser) => {
     console.log('👎 Dislike:', user.firstName);
@@ -503,7 +561,12 @@ export default function AstrologyMatchesScreen() {
 
       {/* Swipe Stack */}
       <View style={styles.stackContainer}>
-        {remainingCards > 0 ? (
+        {isLoading && users.length === 0 ? (
+          <View style={styles.loadingState}>
+            <ActivityIndicator size="large" color="white" />
+            <Text style={styles.loadingText}>Uyumlu eşleşmeler aranıyor...</Text>
+          </View>
+        ) : remainingCards > 0 ? (
           <>
             {users.slice(currentIndex, currentIndex + 3).map((user, index) => (
               <SwipeCard
@@ -801,8 +864,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     alignItems: 'center',
     paddingHorizontal: 40,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+    paddingBottom: Platform.OS === 'ios' ? 120 : 100, // Tab bar için ekstra boşluk
     paddingTop: 20,
+    backgroundColor: 'rgba(139, 92, 246, 0.1)', // Hafif arka plan
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
   },
   actionButton: {
     width: 60,
@@ -833,6 +899,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 159, 243, 0.2)',
     borderWidth: 2,
     borderColor: '#FF9FF3',
+  },
+  // Loading state
+  loadingState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+  },
+  loadingText: {
+    fontSize: 18,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 16,
+    textAlign: 'center',
   },
   // Empty state
   emptyState: {
