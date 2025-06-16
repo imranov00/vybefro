@@ -401,41 +401,64 @@ export default function AstrologyMatchesScreen() {
     
     setIsLoading(true);
     try {
-      console.log('🔄 Gerçek kullanıcılar yükleniyor..., sayfa:', page);
+      console.log('🔄 [ASTROLOGY] Gerçek kullanıcılar yükleniyor..., sayfa:', page);
+      
+      // Önce token kontrolü yapalım
+      const { getToken } = await import('../utils/tokenStorage');
+      const token = await getToken();
+      console.log('🔑 [ASTROLOGY] Token durumu:', token ? 'Mevcut' : 'Yok');
+      
+      if (!token) {
+        console.log('❌ [ASTROLOGY] Token bulunamadı, fallback kullanılıyor');
+        throw new Error('Token bulunamadı');
+      }
       
       const response = await swipeApi.getDiscoverUsers(page, 10);
+      console.log('📊 [ASTROLOGY] API Response:', {
+        success: response?.success,
+        usersLength: response?.users?.length,
+        hasMore: response?.hasMore,
+        totalCount: response?.totalCount
+      });
       
-      if (response.success && response.users && response.users.length > 0) {
-        console.log('✅ Gerçek kullanıcılar yüklendi:', response.users.length);
+      if (response && response.success && response.users && response.users.length > 0) {
+        console.log('✅ [ASTROLOGY] Gerçek kullanıcılar yüklendi:', response.users.length);
         
         if (page === 1) {
           // İlk sayfa - tümünü değiştir
           setUsers(response.users);
+          setCurrentIndex(0); // Index'i sıfırla
         } else {
           // Sonraki sayfalar - ekle
           setUsers(prev => [...prev, ...response.users]);
         }
         
-        setHasMore(response.hasMore);
+        setHasMore(response.hasMore || false);
         setPage(prev => prev + 1);
       } else {
-        console.log('⚠️ API den kullanıcı bulunamadı, fallback veriler kullanılıyor...');
-        // Fallback: Sample data kullan
-        if (page === 1) {
-          setUsers(SAMPLE_ASTROLOGY_MATCHES);
-        }
-        setHasMore(false);
+        console.log('⚠️ [ASTROLOGY] API den kullanıcı bulunamadı veya boş response');
+        throw new Error('API response invalid');
       }
     } catch (error: any) {
-      console.error('❌ Kullanıcı yükleme hatası:', error);
-      // Hata durumunda sample data kullan
+      console.error('❌ [ASTROLOGY] Kullanıcı yükleme hatası:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        stack: error.stack
+      });
+      
+      // Hata durumunda fallback sample data kullan
       if (page === 1) {
-        console.log('🔄 Fallback: Sample veriler yükleniyor...');
+        console.log('🔄 [ASTROLOGY] Fallback: Sample veriler yükleniyor...');
         setUsers(SAMPLE_ASTROLOGY_MATCHES);
+        setCurrentIndex(0);
+        setHasMore(false);
       }
-      setHasMore(false);
     } finally {
-      setIsLoading(false);
+      // Loading'i 2 saniye sonra kapat (animasyon için)
+      setTimeout(() => {
+        setIsLoading(false);
+      }, 500);
     }
   };
 
@@ -564,7 +587,40 @@ export default function AstrologyMatchesScreen() {
         {isLoading && users.length === 0 ? (
           <View style={styles.loadingState}>
             <ActivityIndicator size="large" color="white" />
-            <Text style={styles.loadingText}>Uyumlu eşleşmeler aranıyor...</Text>
+            <Text style={styles.loadingText}>
+              {page === 1 ? 'Uyumlu eşleşmeler aranıyor...' : 'Yeni eşleşmeler yükleniyor...'}
+            </Text>
+            <Text style={styles.loadingSubtext}>
+              Bu işlem birkaç saniye sürebilir
+            </Text>
+            
+            {/* Debug butonları */}
+            <View style={styles.debugButtons}>
+              <TouchableOpacity 
+                style={styles.debugButton}
+                onPress={() => {
+                  console.log('🔄 [DEBUG] Manuel fallback tetikleniyor...');
+                  setUsers(SAMPLE_ASTROLOGY_MATCHES);
+                  setCurrentIndex(0);
+                  setIsLoading(false);
+                  setHasMore(false);
+                }}
+              >
+                <Text style={styles.debugButtonText}>Sample Data Yükle</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.debugButton}
+                onPress={() => {
+                  console.log('🔄 [DEBUG] API yeniden deneniyor...');
+                  setPage(1);
+                  setHasMore(true);
+                  loadDiscoverUsers();
+                }}
+              >
+                <Text style={styles.debugButtonText}>API Yeniden Dene</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : remainingCards > 0 ? (
           <>
@@ -911,6 +967,31 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.8)',
     marginTop: 16,
     textAlign: 'center',
+  },
+  loadingSubtext: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  debugButtons: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: 20,
+  },
+  debugButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  debugButtonText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
   },
   // Empty state
   emptyState: {
