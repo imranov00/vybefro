@@ -175,9 +175,9 @@ export default function TabLayout() {
           }}
         />
 
-        {/* Zodiac Swipe Tab - Sadece astrology mode'da görünür */}
+        {/* Astrology Matches Tab - Sadece astrology mode'da görünür */}
         <Tabs.Screen
-          name="zodiac-swipe"
+          name="astrology-matches"
           options={{
             title: 'Burç Swipe',
             tabBarIcon: ({ color, focused }) => (
@@ -187,23 +187,7 @@ export default function TabLayout() {
                 color={color} 
               />
             ),
-            href: currentMode === 'astrology' ? undefined : null,
-          }}
-        />
-
-        {/* Astrology Matches Tab - Sadece astrology mode'da görünür */}
-        <Tabs.Screen
-          name="astrology-matches"
-          options={{
-            title: 'Eşleşmelerim',
-            tabBarIcon: ({ color, focused }) => (
-              <Ionicons 
-                name={focused ? 'people' : 'people-outline'} 
-                size={28} 
-                color={color} 
-              />
-            ),
-            href: currentMode === 'astrology' ? undefined : null,
+            href: currentMode === 'astrology' ? '/astrology-matches' : null,
           }}
         />
         

@@ -214,6 +214,11 @@ export const getZodiacTurkish = (zodiacSign: string | ZodiacSign): string => {
   return info ? info.turkishName : 'Belirtilmemiş';
 };
 
+export const getZodiacTurkishName = (zodiacSign: string | ZodiacSign): string => {
+  const info = getZodiacInfo(zodiacSign);
+  return info ? info.turkishName : 'Belirtilmemiş';
+};
+
 export const getZodiacEmoji = (zodiacSign: string | ZodiacSign): string => {
   const info = getZodiacInfo(zodiacSign);
   return info ? info.emoji : '🌟';
