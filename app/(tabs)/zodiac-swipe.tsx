@@ -1,6 +1,8 @@
+import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Dimensions, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Modal, StyleSheet, TouchableOpacity, View } from 'react-native';
 import ZodiacSwipeCard from '../../components/swipe/ZodiacSwipeCard';
+import MatchScreen from '../components/match/MatchScreen';
 import UserDetailPanel, { PanelState } from '../components/swipe/UserDetailPanel';
 import { DiscoverUser, swipeApi } from '../services/api';
 
@@ -9,8 +11,10 @@ const { height } = Dimensions.get('window');
 const ZodiacSwipeScreen: React.FC = () => {
   const [users, setUsers] = useState<DiscoverUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedUser, setSelectedUser] = useState<DiscoverUser | undefined>(undefined);
+  const [activeIndex, setActiveIndex] = useState(0);
   const [panelState, setPanelState] = useState<PanelState>(PanelState.CLOSED);
+  const [showMatch, setShowMatch] = useState(false);
+  const [matchData, setMatchData] = useState<any>(null);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -18,16 +22,48 @@ const ZodiacSwipeScreen: React.FC = () => {
       try {
         const data = await swipeApi.getDiscoverUsers(1, 10);
         setUsers(data.users || []);
-        setSelectedUser(data.users?.[0]);
-      } catch (e) {
-        // Hata yönetimi
-      }
+      } catch (e) {}
       setLoading(false);
     };
     fetchUsers();
   }, []);
 
-  // TODO: ZodiacSwipeCard eklenecek
+  const handleLike = async () => {
+    if (!users[activeIndex]) return;
+    try {
+      // API'ye swipe isteği at
+      const res = await swipeApi.swipe({ toUserId: users[activeIndex].id, action: 'LIKE' });
+      if (res.isMatch) {
+        setMatchData({
+          match: {
+            matchedUser: users[activeIndex],
+            compatibilityScore: users[activeIndex].compatibilityScore,
+            compatibilityDescription: users[activeIndex].compatibilityDescription,
+          },
+          currentUser: {}, // Burada kendi kullanıcı bilgini ekleyebilirsin
+        });
+        setShowMatch(true);
+      }
+    } catch (e) {}
+    handleNext();
+  };
+
+  const handleDislike = async () => {
+    handleNext();
+  };
+
+  const handleNext = () => {
+    setPanelState(PanelState.CLOSED);
+    setActiveIndex((prev) => (prev + 1 < users.length ? prev + 1 : 0));
+  };
+
+  const handlePrev = () => {
+    setPanelState(PanelState.CLOSED);
+    setActiveIndex((prev) => (prev - 1 >= 0 ? prev - 1 : users.length - 1));
+  };
+
+  const selectedUser = users[activeIndex];
+
   return (
     <View style={styles.container}>
       {/* Swipe Card Alanı */}
@@ -35,10 +71,10 @@ const ZodiacSwipeScreen: React.FC = () => {
         {loading ? (
           <ActivityIndicator size="large" color="#B57EDC" />
         ) : (
-          users[0] && (
+          selectedUser && (
             <ZodiacSwipeCard
-              photos={users[0].photos ? users[0].photos.map(p => p.imageUrl) : []}
-              name={users[0].firstName}
+              photos={selectedUser.photos ? selectedUser.photos.map(p => p.imageUrl) : []}
+              name={selectedUser.firstName}
             />
           )
         )}
@@ -52,6 +88,32 @@ const ZodiacSwipeScreen: React.FC = () => {
           onPanelStateChange={setPanelState}
         />
       </View>
+      {/* Footer Alanı */}
+      <View style={styles.footer}>
+        <TouchableOpacity style={styles.footerBtn} onPress={handlePrev}>
+          <Ionicons name="arrow-back" size={28} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.footerBtn, styles.dislikeBtn]} onPress={handleDislike}>
+          <Ionicons name="close" size={32} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.footerBtn, styles.likeBtn]} onPress={handleLike}>
+          <Ionicons name="heart" size={32} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.footerBtn} onPress={handleNext}>
+          <Ionicons name="arrow-forward" size={28} color="#fff" />
+        </TouchableOpacity>
+      </View>
+      {/* MatchScreen Modal */}
+      <Modal visible={showMatch} transparent animationType="fade">
+        {matchData && (
+          <MatchScreen
+            match={matchData.match}
+            currentUser={matchData.currentUser}
+            onClose={() => setShowMatch(false)}
+            onSendMessage={() => setShowMatch(false)}
+          />
+        )}
+      </Modal>
     </View>
   );
 };
@@ -79,8 +141,37 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0,
+    bottom: 80,
     zIndex: 1,
+  },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-evenly',
+    backgroundColor: 'rgba(20,20,40,0.95)',
+    paddingVertical: 16,
+    paddingBottom: 24,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 10,
+  },
+  footerBtn: {
+    backgroundColor: '#22223b',
+    padding: 14,
+    borderRadius: 32,
+    marginHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  likeBtn: {
+    backgroundColor: '#B57EDC',
+  },
+  dislikeBtn: {
+    backgroundColor: '#FF6B9D',
   },
 });
 
