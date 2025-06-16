@@ -392,33 +392,71 @@ export default function AstrologyMatchesScreen() {
     return () => clearInterval(interval);
   }, []);
 
+  // Manuel test fonksiyonu
+  const testApiConnection = async () => {
+    console.log('🧪 [TEST] API bağlantı testi başlatılıyor...');
+    try {
+      const { getToken } = await import('../utils/tokenStorage');
+      const token = await getToken();
+      console.log('🔑 [TEST] Token:', token ? 'VAR' : 'YOK');
+      
+      if (!token) {
+        console.log('❌ [TEST] Token yok, giriş yapmanız gerekiyor');
+        return;
+      }
+      
+      console.log('📡 [TEST] SwipeApi.getDiscoverUsers çağrılıyor...');
+      const response = await swipeApi.getDiscoverUsers(1, 5);
+      console.log('✅ [TEST] API başarılı:', response);
+    } catch (error: any) {
+      console.error('❌ [TEST] API hatası:', error);
+    }
+  };
+
   useEffect(() => {
-    loadDiscoverUsers();
+    console.log('🎯 [ASTROLOGY] Component mount edildi');
+    // İlk yükleme için 1 saniye bekle
+    setTimeout(() => {
+      loadDiscoverUsers();
+    }, 1000);
   }, []);
 
   const loadDiscoverUsers = async () => {
-    if (isLoading || !hasMore) return;
+    if (isLoading || !hasMore) {
+      console.log('⏳ [ASTROLOGY] Skip loading:', { isLoading, hasMore });
+      return;
+    }
     
+    console.log('🚀 [ASTROLOGY] loadDiscoverUsers başlatıldı, sayfa:', page);
     setIsLoading(true);
+    
     try {
       console.log('🔄 [ASTROLOGY] Gerçek kullanıcılar yükleniyor..., sayfa:', page);
       
       // Önce token kontrolü yapalım
       const { getToken } = await import('../utils/tokenStorage');
       const token = await getToken();
-      console.log('🔑 [ASTROLOGY] Token durumu:', token ? 'Mevcut' : 'Yok');
+      console.log('🔑 [ASTROLOGY] Token durumu:', token ? `Mevcut (${token.substring(0, 20)}...)` : 'Yok');
       
       if (!token) {
         console.log('❌ [ASTROLOGY] Token bulunamadı, fallback kullanılıyor');
         throw new Error('Token bulunamadı');
       }
       
+      // API çağrısı öncesi log
+      console.log('📡 [ASTROLOGY] API çağrısı yapılıyor...', {
+        endpoint: '/api/swipes/discover',
+        params: { page, limit: 10 }
+      });
+      
       const response = await swipeApi.getDiscoverUsers(page, 10);
-      console.log('📊 [ASTROLOGY] API Response:', {
+      
+      console.log('📊 [ASTROLOGY] API Response alındı:', {
         success: response?.success,
         usersLength: response?.users?.length,
         hasMore: response?.hasMore,
-        totalCount: response?.totalCount
+        totalCount: response?.totalCount,
+        fullResponse: response
       });
       
       if (response && response.success && response.users && response.users.length > 0) {
@@ -619,6 +657,32 @@ export default function AstrologyMatchesScreen() {
                 }}
               >
                 <Text style={styles.debugButtonText}>API Yeniden Dene</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.debugButton}
+                onPress={async () => {
+                  console.log('🌐 [DEBUG] Network test başlatılıyor...');
+                  try {
+                    const { getToken } = await import('../utils/tokenStorage');
+                    const token = await getToken();
+                    console.log('🔑 [DEBUG] Token:', token ? 'Var' : 'Yok');
+                    
+                    // API base URL'ini test et
+                    const testResponse = await fetch('https://ae51-95-70-131-250.ngrok-free.app/api/swipes/discover', {
+                      method: 'GET',
+                      headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                      },
+                    });
+                    console.log('🌐 [DEBUG] Fetch response:', testResponse.status, testResponse.statusText);
+                  } catch (error: any) {
+                    console.error('🌐 [DEBUG] Network error:', error.message);
+                  }
+                }}
+              >
+                <Text style={styles.debugButtonText}>Network Test</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -975,8 +1039,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   debugButtons: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: 'column',
+    alignItems: 'center',
     gap: 12,
     marginTop: 20,
   },
