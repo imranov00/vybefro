@@ -84,9 +84,9 @@ const ZodiacSwipeScreen = () => {
           onSendMessage={handleCloseMatch}
         />
       ) : (
-        <View style={styles.innerContainer}>
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#0f3460' }}>
           {/* Swipe Card Alanı */}
-          <View style={styles.swipeCardContainer}>
+          <View style={{ position: 'absolute', top: '10%', left: 0, right: 0, alignItems: 'center', zIndex: 20 }}>
             {currentUser && (
               <ZodiacSwipeCard
                 user={currentUser}
@@ -95,7 +95,7 @@ const ZodiacSwipeScreen = () => {
             )}
           </View>
           {/* User Detail Panel */}
-          <View style={styles.detailPanelContainer}>
+          <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 30 }}>
             <UserDetailPanel
               user={currentUser}
               panelState={panelState}
