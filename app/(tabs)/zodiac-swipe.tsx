@@ -125,9 +125,10 @@ const styles = StyleSheet.create({
   },
   swipeCardContainer: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    zIndex: 2,
+    paddingTop: height * 0.09,
+    zIndex: 10,
   },
   mockCard: {
     width: 280,
@@ -142,7 +143,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 80,
-    zIndex: 1,
+    zIndex: 2,
+    pointerEvents: 'box-none',
   },
   footer: {
     flexDirection: 'row',
@@ -157,7 +159,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 10,
+    zIndex: 20,
   },
   footerBtn: {
     backgroundColor: '#22223b',
