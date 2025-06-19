@@ -2,7 +2,7 @@ import axios from 'axios';
 import { ZodiacSign } from '../types/zodiac';
 import { getToken, saveToken } from '../utils/tokenStorage';
 
-const API_URL = 'https://ae51-95-70-131-250.ngrok-free.app';
+const API_URL = 'https://3b09-95-70-131-250.ngrok-free.app';
 
 console.log('🔗 [API CONFIG] Base URL:', API_URL);
 
