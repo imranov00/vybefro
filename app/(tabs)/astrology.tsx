@@ -12,10 +12,17 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import {
+    PanGestureHandler,
+    PanGestureHandlerGestureEvent
+} from 'react-native-gesture-handler';
 import Animated, {
     Easing,
+    runOnJS,
+    useAnimatedGestureHandler,
     useAnimatedStyle,
     useSharedValue,
+    withDecay,
     withRepeat,
     withSpring,
     withTiming
@@ -73,32 +80,56 @@ const DAILY_HOROSCOPE: Record<ZodiacSign, string> = {
   [ZodiacSign.PISCES]: "Hayal gücünüzü kullanın ve yaratıcı olun. Spiritüel konulara ilgi gösterin. Empati yeteneğinizi kullanın.",
 };
 
+// Açıdan radyana çevirme fonksiyonu
+const degToRad = (degrees: number) => degrees * (Math.PI / 180);
+
+// İki nokta arasındaki açıyı hesaplama
+const getAngle = (x: number, y: number) => {
+  'worklet';
+  return Math.atan2(y, x) * (180 / Math.PI);
+};
+
 export default function AstrologyScreen() {
   const colorScheme = useColorScheme();
   const { userProfile } = useProfile();
   const [selectedZodiac, setSelectedZodiac] = useState<ZodiacSign | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [isManualRotation, setIsManualRotation] = useState(false);
   
   // Animasyon değerleri
   const wheelRotation = useSharedValue(0);
   const starPulse = useSharedValue(1);
   const cardScale = useSharedValue(1);
   const selectedScale = useSharedValue(1);
+  
+  // Manuel döndürme için değerler
+  const lastRotation = useSharedValue(0);
+  const startRotation = useSharedValue(0);
 
   // Kullanıcının burcu
   const userZodiac = userProfile?.zodiacSign as ZodiacSign;
   const userZodiacInfo = userZodiac ? getZodiacInfo(userZodiac) : null;
 
-  useEffect(() => {
-    // Burç çarkı döndürme animasyonu
+  // Otomatik döndürmeyi başlat/durdur
+  const startAutoRotation = () => {
+    setIsManualRotation(false);
     wheelRotation.value = withRepeat(
-      withTiming(360, { 
+      withTiming(wheelRotation.value + 360, { 
         duration: 300000, // 5 dakika
         easing: Easing.linear 
       }), 
       -1,
       false
     );
+  };
+
+  const stopAutoRotation = () => {
+    setIsManualRotation(true);
+  };
+
+  useEffect(() => {
+    // Başlangıçta otomatik döndürme
+    startAutoRotation();
 
     // Yıldız pulse animasyonu
     starPulse.value = withRepeat(
@@ -107,6 +138,67 @@ export default function AstrologyScreen() {
       true
     );
   }, []);
+
+  // Manuel döndürme gesture handler
+  const panGestureHandler = useAnimatedGestureHandler<
+    PanGestureHandlerGestureEvent,
+    { startAngle: number }
+  >({
+    onStart: (event, context) => {
+      // Otomatik döndürmeyi durdur
+      runOnJS(stopAutoRotation)();
+      
+      // Başlangıç açısını kaydet
+      startRotation.value = wheelRotation.value;
+      
+      // Çark merkezine göre başlangıç açısını hesapla
+      const centerX = width * 0.4; // Çark genişliğinin yarısı
+      const centerY = width * 0.4; // Çark yüksekliğinin yarısı
+      const startAngle = getAngle(event.x - centerX, event.y - centerY);
+      context.startAngle = startAngle;
+    },
+    onActive: (event, context) => {
+      // Çark merkezine göre mevcut açıyı hesapla
+      const centerX = width * 0.4;
+      const centerY = width * 0.4;
+      const currentAngle = getAngle(event.x - centerX, event.y - centerY);
+      
+      // Açı farkını hesapla
+      let angleDiff = currentAngle - context.startAngle;
+      
+      // Açı farkını normalize et (-180 ile 180 arasında)
+      if (angleDiff > 180) angleDiff -= 360;
+      if (angleDiff < -180) angleDiff += 360;
+      
+      // Yeni rotasyon değerini ayarla
+      wheelRotation.value = startRotation.value + angleDiff;
+    },
+    onEnd: (event) => {
+      // Momentum ile döndürmeye devam et
+      const velocity = Math.sqrt(event.velocityX * event.velocityX + event.velocityY * event.velocityY);
+      
+      if (velocity > 500) {
+        // Hızlı hareket varsa momentum ile devam et
+        const direction = event.velocityX > 0 ? 1 : -1;
+        wheelRotation.value = withDecay({
+          velocity: direction * velocity * 0.002,
+          clamp: [wheelRotation.value - 720, wheelRotation.value + 720],
+          deceleration: 0.998,
+        });
+      } else {
+        // Yavaş hareket, yumuşak durma
+        wheelRotation.value = withSpring(wheelRotation.value, {
+          damping: 20,
+          stiffness: 90,
+        });
+      }
+      
+      // 3 saniye sonra otomatik döndürmeyi tekrar başlat
+      setTimeout(() => {
+        runOnJS(startAutoRotation)();
+      }, 3000);
+    },
+  });
 
   // Burç seçimi
   useEffect(() => {
@@ -186,7 +278,8 @@ export default function AstrologyScreen() {
 
         {/* Burç Çarkı */}
         <View style={styles.zodiacWheelContainer}>
-          <Animated.View style={[styles.zodiacWheel, wheelStyle]}>
+          <PanGestureHandler onGestureEvent={panGestureHandler}>
+            <Animated.View style={[styles.zodiacWheel, wheelStyle]}>
             {/* Çark çemberleri */}
             <View style={styles.outerRing} />
             <View style={styles.middleRing} />
@@ -238,6 +331,7 @@ export default function AstrologyScreen() {
               <Ionicons name="star" size={24} color="#FFD700" />
             </View>
           </Animated.View>
+          </PanGestureHandler>
         </View>
 
         {/* Seçili Burç Detayları */}
