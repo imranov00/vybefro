@@ -101,66 +101,120 @@ export default function AstrologyScreen() {
 
   // Otomatik döndürmeyi başlat/durdur
   const startAutoRotation = () => {
-    setIsManualRotation(false);
-    wheelRotation.value = withRepeat(
-      withTiming(wheelRotation.value + 360, { 
-        duration: 200000, // 3.3 dakika (daha hızlı)
-        easing: Easing.linear 
-      }), 
-      -1,
-      false
-    );
+    try {
+      setIsManualRotation(false);
+      wheelRotation.value = withRepeat(
+        withTiming(wheelRotation.value + 360, { 
+          duration: 200000, // 3.3 dakika (daha hızlı)
+          easing: Easing.linear 
+        }), 
+        -1,
+        false
+      );
+    } catch (error) {
+      console.log('Auto rotation start error:', error);
+    }
   };
 
   const stopAutoRotation = () => {
-    setIsManualRotation(true);
+    try {
+      setIsManualRotation(true);
+      // Mevcut rotasyonu durdur
+      wheelRotation.value = wheelRotation.value;
+    } catch (error) {
+      console.log('Auto rotation stop error:', error);
+    }
   };
 
   // Elle döndürme gesture handler'ı
   const panGestureHandler = useAnimatedGestureHandler({
     onStart: (_, context: any) => {
-      context.startRotation = wheelRotation.value;
-      runOnJS(stopAutoRotation)();
+      try {
+        context.startRotation = wheelRotation.value;
+        runOnJS(stopAutoRotation)();
+      } catch (error) {
+        console.log('Gesture start error:', error);
+      }
     },
     onActive: (event, context: any) => {
-      // Basit rotasyon hesaplama - sadece x hareketi kullan
-      const sensitivity = Platform.OS === 'ios' ? 0.5 : 0.3;
-      const rotation = event.translationX * sensitivity;
-      
-      wheelRotation.value = context.startRotation + rotation;
+      try {
+        // Güvenlik kontrolleri
+        if (!context.startRotation && context.startRotation !== 0) {
+          context.startRotation = wheelRotation.value;
+        }
+        
+        // Basit ve güvenli rotasyon hesaplama
+        const sensitivity = Platform.OS === 'ios' ? 0.3 : 0.2;
+        const maxRotation = 720; // Maksimum 2 tam tur
+        const rotation = Math.max(-maxRotation, Math.min(maxRotation, event.translationX * sensitivity));
+        
+        wheelRotation.value = context.startRotation + rotation;
+      } catch (error) {
+        console.log('Gesture active error:', error);
+      }
     },
     onEnd: () => {
-      // Elle döndürme bittiğinde 3 saniye sonra otomatik döndürmeyi başlat
-      setTimeout(() => {
-        runOnJS(startAutoRotation)();
-      }, 3000);
+      try {
+        // Elle döndürme bittiğinde 2 saniye sonra otomatik döndürmeyi başlat
+        setTimeout(() => {
+          runOnJS(startAutoRotation)();
+        }, 2000);
+      } catch (error) {
+        console.log('Gesture end error:', error);
+      }
     },
   });
 
   useEffect(() => {
-    // Başlangıçta otomatik döndürme
-    startAutoRotation();
+    try {
+      // Başlangıçta otomatik döndürme
+      startAutoRotation();
 
-    // Yıldız pulse animasyonu
-    starPulse.value = withRepeat(
-      withTiming(1.2, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true
-    );
+      // Yıldız pulse animasyonu
+      starPulse.value = withRepeat(
+        withTiming(1.2, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        true
+      );
+    } catch (error) {
+      console.log('Initial animation error:', error);
+    }
   }, []);
-
-
 
   // Burç seçimi
   useEffect(() => {
-    if (userZodiac) {
-      setSelectedZodiac(userZodiac);
+    try {
+      if (userZodiac) {
+        setSelectedZodiac(userZodiac);
+      }
+    } catch (error) {
+      console.log('Zodiac selection error:', error);
     }
   }, [userZodiac]);
 
   const wheelStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${wheelRotation.value}deg` }],
   }));
+
+  // Burçların hep dik durması için dinamik rotasyon hesaplama
+  const getZodiacRotation = (angle: number) => {
+    'worklet';
+    return useAnimatedStyle(() => ({
+      transform: [
+        { rotate: `${angle}deg` },
+        { translateY: -(width * 0.35) },
+      ],
+    }));
+  };
+
+  const getZodiacContentRotation = (angle: number) => {
+    'worklet';
+    return useAnimatedStyle(() => ({
+      transform: [
+        { rotate: `${-angle - wheelRotation.value}deg` }, // Çark rotasyonunu da kompanse et
+      ],
+    }));
+  };
 
   const starStyle = useAnimatedStyle(() => ({
     transform: [{ scale: starPulse.value }],
@@ -229,7 +283,13 @@ export default function AstrologyScreen() {
 
         {/* Burç Çarkı */}
         <View style={styles.zodiacWheelContainer}>
-          <PanGestureHandler onGestureEvent={panGestureHandler}>
+          <PanGestureHandler 
+            onGestureEvent={panGestureHandler}
+            minDist={10}
+            activeOffsetX={[-10, 10]}
+            failOffsetY={[-50, 50]}
+            shouldCancelWhenOutside={false}
+          >
             <Animated.View>
               <Animated.View style={[styles.zodiacWheel, wheelStyle]}>
                 {/* Çark çemberleri */}
@@ -244,47 +304,41 @@ export default function AstrologyScreen() {
                   const isUserZodiac = userZodiac === item.sign;
                   
                   return (
-                    <View
+                    <Animated.View
                       key={item.sign}
                       style={[
                         styles.zodiacContainer,
-                        {
-                          transform: [
-                            { rotate: `${item.angle}deg` },
-                            { translateY: -(width * 0.35) },
-                          ],
-                        },
+                        getZodiacRotation(item.angle),
                       ]}
                     >
-                      <TouchableOpacity
-                        style={[
-                          styles.zodiacButton,
-                          {
-                            transform: [
-                              { rotate: `-${item.angle}deg` }, // Burç içeriğini düz tut
-                            ],
-                          },
-                          isSelected && styles.selectedZodiacButton,
-                          isUserZodiac && styles.userZodiacButton,
-                        ]}
-                        onPress={() => handleZodiacSelect(item.sign)}
+                      <Animated.View
+                        style={getZodiacContentRotation(item.angle)}
                       >
-                        <Text style={[
-                          styles.zodiacSymbol,
-                          isSelected && styles.selectedSymbol,
-                          isUserZodiac && styles.userSymbol,
-                        ]}>
-                          {zodiacInfo?.emoji}
-                        </Text>
-                        <Text style={[
-                          styles.zodiacName,
-                          isSelected && styles.selectedName,
-                          isUserZodiac && styles.userName,
-                        ]}>
-                          {zodiacInfo?.turkishName}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
+                        <TouchableOpacity
+                          style={[
+                            styles.zodiacButton,
+                            isSelected && styles.selectedZodiacButton,
+                            isUserZodiac && styles.userZodiacButton,
+                          ]}
+                          onPress={() => handleZodiacSelect(item.sign)}
+                        >
+                          <Text style={[
+                            styles.zodiacSymbol,
+                            isSelected && styles.selectedSymbol,
+                            isUserZodiac && styles.userSymbol,
+                          ]}>
+                            {zodiacInfo?.emoji}
+                          </Text>
+                          <Text style={[
+                            styles.zodiacName,
+                            isSelected && styles.selectedName,
+                            isUserZodiac && styles.userName,
+                          ]}>
+                            {zodiacInfo?.turkishName}
+                          </Text>
+                        </TouchableOpacity>
+                      </Animated.View>
+                    </Animated.View>
                   );
                 })}
                 
@@ -292,19 +346,23 @@ export default function AstrologyScreen() {
                 <TouchableOpacity 
                   style={styles.centerDot}
                   onPress={() => {
-                    // Merkeze tıklandığında 90 derece çevir
-                    stopAutoRotation();
-                    wheelRotation.value = withSpring(wheelRotation.value + 90, {
-                      damping: 12,
-                      stiffness: 80,
-                    });
-                    
-                    // 2 saniye sonra otomatik döndürmeyi tekrar başlat
-                    setTimeout(() => {
-                      if (!isManualRotation) {
-                        startAutoRotation();
-                      }
-                    }, 2000);
+                    try {
+                      // Merkeze tıklandığında 90 derece çevir
+                      stopAutoRotation();
+                      wheelRotation.value = withSpring(wheelRotation.value + 90, {
+                        damping: 12,
+                        stiffness: 80,
+                      });
+                      
+                      // 2 saniye sonra otomatik döndürmeyi tekrar başlat
+                      setTimeout(() => {
+                        if (!isManualRotation) {
+                          startAutoRotation();
+                        }
+                      }, 2000);
+                    } catch (error) {
+                      console.log('Center button error:', error);
+                    }
                   }}
                 >
                   <Ionicons name="star" size={28} color="#FFD700" />
