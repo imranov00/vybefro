@@ -55,9 +55,7 @@
       "typedRoutes": true
     },
     "owner": "imranow",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.0",
     "extra": {
       "router": {},
       "eas": {
