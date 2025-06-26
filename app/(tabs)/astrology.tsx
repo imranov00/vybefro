@@ -202,7 +202,7 @@ export default function AstrologyScreen() {
         {/* Burç Çarkı */}
         <View style={styles.zodiacWheelContainer}>
           <TouchableOpacity 
-            activeOpacity={1}
+            activeOpacity={0.8}
             onPress={() => {
               // Çarka tıklandığında otomatik döndürmeyi durdur/başlat
               if (isManualRotation) {
@@ -225,37 +225,47 @@ export default function AstrologyScreen() {
               const isUserZodiac = userZodiac === item.sign;
               
               return (
-                <TouchableOpacity
+                <View
                   key={item.sign}
                   style={[
-                    styles.zodiacButton,
+                    styles.zodiacContainer,
                     {
                       transform: [
                         { rotate: `${item.angle}deg` },
                         { translateY: -(width * 0.35) },
-                        { rotate: `-${item.angle}deg` }, // Metni düz tut
                       ],
                     },
-                    isSelected && styles.selectedZodiacButton,
-                    isUserZodiac && styles.userZodiacButton,
                   ]}
-                  onPress={() => handleZodiacSelect(item.sign)}
                 >
-                  <Text style={[
-                    styles.zodiacSymbol,
-                    isSelected && styles.selectedSymbol,
-                    isUserZodiac && styles.userSymbol,
-                  ]}>
-                    {zodiacInfo?.emoji}
-                  </Text>
-                  <Text style={[
-                    styles.zodiacName,
-                    isSelected && styles.selectedName,
-                    isUserZodiac && styles.userName,
-                  ]}>
-                    {zodiacInfo?.turkishName}
-                  </Text>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.zodiacButton,
+                      {
+                        transform: [
+                          { rotate: `-${item.angle}deg` }, // Burç içeriğini düz tut
+                        ],
+                      },
+                      isSelected && styles.selectedZodiacButton,
+                      isUserZodiac && styles.userZodiacButton,
+                    ]}
+                    onPress={() => handleZodiacSelect(item.sign)}
+                  >
+                    <Text style={[
+                      styles.zodiacSymbol,
+                      isSelected && styles.selectedSymbol,
+                      isUserZodiac && styles.userSymbol,
+                    ]}>
+                      {zodiacInfo?.emoji}
+                    </Text>
+                    <Text style={[
+                      styles.zodiacName,
+                      isSelected && styles.selectedName,
+                      isUserZodiac && styles.userName,
+                    ]}>
+                      {zodiacInfo?.turkishName}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               );
             })}
             
@@ -263,14 +273,22 @@ export default function AstrologyScreen() {
             <TouchableOpacity 
               style={styles.centerDot}
               onPress={() => {
-                // Merkeze tıklandığında döndürme yönünü değiştir
+                // Merkeze tıklandığında 90 derece çevir
+                stopAutoRotation();
                 wheelRotation.value = withSpring(wheelRotation.value + 90, {
-                  damping: 15,
-                  stiffness: 100,
+                  damping: 12,
+                  stiffness: 80,
                 });
+                
+                // 2 saniye sonra otomatik döndürmeyi tekrar başlat
+                setTimeout(() => {
+                  if (!isManualRotation) {
+                    startAutoRotation();
+                  }
+                }, 2000);
               }}
             >
-              <Ionicons name="star" size={24} color="#FFD700" />
+              <Ionicons name="star" size={28} color="#FFD700" />
               <Text style={styles.centerText}>Çevir</Text>
             </TouchableOpacity>
           </Animated.View>
@@ -491,29 +509,47 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
-  zodiacButton: {
+  zodiacContainer: {
     position: 'absolute',
+  },
+  zodiacButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 65,
+    height: 65,
+    borderRadius: 32.5,
     backgroundColor: 'rgba(255,255,255,0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: 'rgba(255,255,255,0.3)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   selectedZodiacButton: {
-    backgroundColor: 'rgba(138,43,226,0.3)',
+    backgroundColor: 'rgba(138,43,226,0.4)',
     borderColor: '#8A2BE2',
-    borderWidth: 2,
+    borderWidth: 3,
+    shadowColor: '#8A2BE2',
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 8,
   },
   userZodiacButton: {
-    backgroundColor: 'rgba(255,215,0,0.3)',
+    backgroundColor: 'rgba(255,215,0,0.4)',
     borderColor: '#FFD700',
-    borderWidth: 2,
+    borderWidth: 3,
+    shadowColor: '#FFD700',
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 8,
   },
   zodiacSymbol: {
-    fontSize: 24,
+    fontSize: 26,
     color: 'white',
     marginBottom: 2,
   },
@@ -536,14 +572,22 @@ const styles = StyleSheet.create({
   },
   centerDot: {
     position: 'absolute',
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(255,215,0,0.2)',
-    borderWidth: 2,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255,215,0,0.3)',
+    borderWidth: 3,
     borderColor: '#FFD700',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#FFD700',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
+    elevation: 10,
   },
   centerText: {
     fontSize: 8,

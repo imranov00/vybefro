@@ -42,7 +42,7 @@ type ProfileDrawerProps = {
 export default function ProfileDrawer({ visible, onClose, user, isLoading = false }: ProfileDrawerProps) {
   const colorScheme = useColorScheme();
   const { currentMode, switchMode, logout, isPremium, isLoggedIn, setPremium } = useAuth();
-  const { showProfile, isLoading: profileLoading } = useProfile();
+  const { showProfile, isLoading: profileLoading, userProfile } = useProfile();
   const router = useRouter();
   const [isRendered, setIsRendered] = useState(visible);
   
@@ -183,7 +183,7 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
             style={styles.avatarGradient}
           >
             <Image
-              source={{ uri: user.profileImage || 'https://via.placeholder.com/120' }}
+              source={{ uri: userProfile.profileImage || 'https://via.placeholder.com/120' }}
               style={styles.avatarImage}
             />
           </LinearGradient>
@@ -191,8 +191,8 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
         </View>
 
         {/* Profil Bilgileri */}
-        <Text style={styles.userName}>{user.name}</Text>
-        <Text style={styles.userHandle}>@{user.username}</Text>
+        <Text style={styles.userName}>{userProfile.name}</Text>
+        <Text style={styles.userHandle}>@{userProfile.username}</Text>
 
         {/* Premium Badge */}
         {isPremium && (
@@ -208,13 +208,13 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
         )}
 
         {/* Burç Bilgisi */}
-        {(user.zodiacSign || user.zodiacSignTurkish) && (
+        {(userProfile.zodiacSign || userProfile.zodiacSignTurkish) && (
           <View style={[styles.zodiacCard, { borderColor: theme.primary, backgroundColor: theme.cardBg }]}>
             <Text style={styles.zodiacEmoji}>
-              {getZodiacEmoji(user.zodiacSign || '')}
+              {getZodiacEmoji(userProfile.zodiacSign || '')}
             </Text>
             <Text style={[styles.zodiacName, { color: theme.primary }]}>
-              {user.zodiacSign ? getZodiacDisplay(user.zodiacSign) : user.zodiacSignTurkish}
+              {userProfile.zodiacSign ? getZodiacDisplay(userProfile.zodiacSign) : userProfile.zodiacSignTurkish}
             </Text>
           </View>
         )}
