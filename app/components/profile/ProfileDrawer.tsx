@@ -42,10 +42,9 @@ type ProfileDrawerProps = {
 export default function ProfileDrawer({ visible, onClose, user, isLoading = false }: ProfileDrawerProps) {
   const colorScheme = useColorScheme();
   const { currentMode, switchMode, logout, isPremium, isLoggedIn, setPremium } = useAuth();
-  const { showProfile } = useProfile();
+  const { showProfile, isLoading: profileLoading } = useProfile();
   const router = useRouter();
   const [isRendered, setIsRendered] = useState(visible);
-  const [hasInitialLoad, setHasInitialLoad] = useState(false);
   
   const slideAnimation = useRef(new Animated.Value(DRAWER_WIDTH)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
@@ -53,32 +52,15 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
   // Premium animasyon
   const premiumGlow = useSharedValue(0);
   
-  // ProfileContext artık otomatik olarak kullanıcı değişikliğini takip ediyor
-  // showProfile çağrısı cache kontrolü yapıp gerekirse profili günceller
+  // ProfileDrawer her açıldığında güncel verileri getir
   
   useEffect(() => {
-    if (visible && !hasInitialLoad) {
+    if (visible) {
       setIsRendered(true);
-      // İlk açılışta profil context'e bildir
+      // Her açılışta profil verilerini güncelle (güncel veri için)
       showProfile();
-      setHasInitialLoad(true);
       
       // Slide ve fade animasyonlarını paralel çalıştır
-      Animated.parallel([
-        Animated.timing(slideAnimation, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(fadeAnimation, {
-          toValue: 1,
-          duration: 250,
-          useNativeDriver: true,
-        })
-      ]).start();
-    } else if (visible) {
-      setIsRendered(true);
-      // Sadece animasyonları çalıştır, profil güncelleme yapma
       Animated.parallel([
         Animated.timing(slideAnimation, {
           toValue: 0,
@@ -181,12 +163,12 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
 
   // Profil içerik renderer
   const renderProfileHeader = () => {
-    if (isLoading) {
+    if (isLoading || profileLoading) {
       return (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
           <Text style={[styles.loadingText, { color: theme.primary }]}>
-            Yükleniyor...
+            Profil güncelleniyor...
           </Text>
         </View>
       );

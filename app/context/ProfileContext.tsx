@@ -79,6 +79,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     
     // Cache kontrolü - son 5 dakika içinde güncelleme yapıldıysa ve force false ise güncelleme yapma
     if (!force && now - lastFetchTime.current < CACHE_DURATION) {
+      console.log('Cache\'den profil bilgileri kullanılıyor');
       return;
     }
 
@@ -86,14 +87,17 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     setError(null);
     
     try {
+      console.log('Profil bilgileri API\'den getiriliyor...');
       const response = await userApi.getProfile();
       
       if (response) {
         const mappedProfile = mapApiResponseToUserProfile(response);
         setUserProfile(mappedProfile);
         lastFetchTime.current = now;
+        console.log('Profil başarıyla güncellendi:', mappedProfile.name);
       } else {
         setError('Profil bilgileri alınamadı');
+        console.warn('API yanıtı boş');
       }
     } catch (err) {
       setError('Profil yüklenirken bir hata oluştu');
@@ -105,7 +109,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
   const showProfile = async () => {
     setIsProfileVisible(true); // Drawer'ı aç
-    await fetchProfile(false); // Cache kontrolü ile güncelleme
+    await fetchProfile(true); // Her drawer açılışında güncel veri getir
   };
 
   const hideProfile = () => {
@@ -136,41 +140,23 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    const checkUserChange = async () => {
-      const newUserId = await getCurrentUserId();
+    // Sadece ilk yüklemede kullanıcı bilgilerini kontrol et
+    const initializeUser = async () => {
+      const userId = await getCurrentUserId();
+      setCurrentUserId(userId);
       
-      if (newUserId !== currentUserId) {
-        console.log('Kullanıcı değişti:', { eski: currentUserId, yeni: newUserId });
-        setCurrentUserId(newUserId);
-        
-        if (newUserId) {
-          // Yeni kullanıcı için profil getir
-          await fetchProfile();
-        } else {
-          // Logout durumu
-          setUserProfile(defaultUserProfile);
-          setError(null);
-        }
+      if (userId) {
+        // İlk kez profil bilgilerini getir
+        await fetchProfile();
+      } else {
+        // Logout durumu
+        setUserProfile(defaultUserProfile);
+        setError(null);
       }
     };
 
-    let interval: ReturnType<typeof setInterval> | null = null;
-    
-    const startChecking = async () => {
-      await checkUserChange(); // İlk kontrol
-      
-      // Her 3 saniyede bir kontrol et (performans için)
-      interval = setInterval(checkUserChange, 3000);
-    };
-
-    startChecking();
-
-    return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
-    };
-  }, []);
+    initializeUser();
+  }, []); // Sadece component mount olduğunda çalışır
 
   return (
     <ProfileContext.Provider
