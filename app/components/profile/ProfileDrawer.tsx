@@ -183,8 +183,13 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
             style={styles.avatarGradient}
           >
             <Image
-              source={{ uri: userProfile.profileImage || 'https://via.placeholder.com/120' }}
+              source={{ 
+                uri: userProfile.profileImage || 'https://via.placeholder.com/120',
+                cache: 'reload'
+              }}
+              key={`profile-${userProfile.profileImage}-${Date.now()}`}
               style={styles.avatarImage}
+              resizeMode="cover"
             />
           </LinearGradient>
           <View style={styles.onlineIndicator} />

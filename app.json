@@ -41,6 +41,7 @@
     },
     "plugins": [
       "expo-router",
+      "react-native-gesture-handler",
       [
         "expo-splash-screen",
         {

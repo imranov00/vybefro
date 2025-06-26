@@ -12,8 +12,11 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { PanGestureHandler } from 'react-native-gesture-handler';
 import Animated, {
     Easing,
+    runOnJS,
+    useAnimatedGestureHandler,
     useAnimatedStyle,
     useSharedValue,
     withRepeat,
@@ -86,6 +89,10 @@ export default function AstrologyScreen() {
   const cardScale = useSharedValue(1);
   const selectedScale = useSharedValue(1);
   
+  // Gesture handler için değerler
+  const lastRotation = useSharedValue(0);
+  const gestureRotation = useSharedValue(0);
+  
 
   
   // Kullanıcının burcu
@@ -108,6 +115,27 @@ export default function AstrologyScreen() {
   const stopAutoRotation = () => {
     setIsManualRotation(true);
   };
+
+  // Elle döndürme gesture handler'ı
+  const panGestureHandler = useAnimatedGestureHandler({
+    onStart: (_, context: any) => {
+      context.startRotation = wheelRotation.value;
+      runOnJS(stopAutoRotation)();
+    },
+    onActive: (event, context: any) => {
+      // Basit rotasyon hesaplama - sadece x hareketi kullan
+      const sensitivity = Platform.OS === 'ios' ? 0.5 : 0.3;
+      const rotation = event.translationX * sensitivity;
+      
+      wheelRotation.value = context.startRotation + rotation;
+    },
+    onEnd: () => {
+      // Elle döndürme bittiğinde 3 saniye sonra otomatik döndürmeyi başlat
+      setTimeout(() => {
+        runOnJS(startAutoRotation)();
+      }, 3000);
+    },
+  });
 
   useEffect(() => {
     // Başlangıçta otomatik döndürme
@@ -201,98 +229,90 @@ export default function AstrologyScreen() {
 
         {/* Burç Çarkı */}
         <View style={styles.zodiacWheelContainer}>
-          <TouchableOpacity 
-            activeOpacity={0.8}
-            onPress={() => {
-              // Çarka tıklandığında otomatik döndürmeyi durdur/başlat
-              if (isManualRotation) {
-                startAutoRotation();
-              } else {
-                stopAutoRotation();
-              }
-            }}
-          >
-            <Animated.View style={[styles.zodiacWheel, wheelStyle]}>
-            {/* Çark çemberleri */}
-            <View style={styles.outerRing} />
-            <View style={styles.middleRing} />
-            <View style={styles.innerRing} />
-            
-            {/* Burç sembolleri */}
-            {ZODIAC_WHEEL.map((item, index) => {
-              const zodiacInfo = getZodiacInfo(item.sign);
-              const isSelected = selectedZodiac === item.sign;
-              const isUserZodiac = userZodiac === item.sign;
-              
-              return (
-                <View
-                  key={item.sign}
-                  style={[
-                    styles.zodiacContainer,
-                    {
-                      transform: [
-                        { rotate: `${item.angle}deg` },
-                        { translateY: -(width * 0.35) },
-                      ],
-                    },
-                  ]}
-                >
-                  <TouchableOpacity
-                    style={[
-                      styles.zodiacButton,
-                      {
-                        transform: [
-                          { rotate: `-${item.angle}deg` }, // Burç içeriğini düz tut
-                        ],
-                      },
-                      isSelected && styles.selectedZodiacButton,
-                      isUserZodiac && styles.userZodiacButton,
-                    ]}
-                    onPress={() => handleZodiacSelect(item.sign)}
-                  >
-                    <Text style={[
-                      styles.zodiacSymbol,
-                      isSelected && styles.selectedSymbol,
-                      isUserZodiac && styles.userSymbol,
-                    ]}>
-                      {zodiacInfo?.emoji}
-                    </Text>
-                    <Text style={[
-                      styles.zodiacName,
-                      isSelected && styles.selectedName,
-                      isUserZodiac && styles.userName,
-                    ]}>
-                      {zodiacInfo?.turkishName}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              );
-            })}
-            
-            {/* Merkez - Döndürme Kontrolü */}
-            <TouchableOpacity 
-              style={styles.centerDot}
-              onPress={() => {
-                // Merkeze tıklandığında 90 derece çevir
-                stopAutoRotation();
-                wheelRotation.value = withSpring(wheelRotation.value + 90, {
-                  damping: 12,
-                  stiffness: 80,
-                });
+          <PanGestureHandler onGestureEvent={panGestureHandler}>
+            <Animated.View>
+              <Animated.View style={[styles.zodiacWheel, wheelStyle]}>
+                {/* Çark çemberleri */}
+                <View style={styles.outerRing} />
+                <View style={styles.middleRing} />
+                <View style={styles.innerRing} />
                 
-                // 2 saniye sonra otomatik döndürmeyi tekrar başlat
-                setTimeout(() => {
-                  if (!isManualRotation) {
-                    startAutoRotation();
-                  }
-                }, 2000);
-              }}
-            >
-              <Ionicons name="star" size={28} color="#FFD700" />
-              <Text style={styles.centerText}>Çevir</Text>
-            </TouchableOpacity>
-          </Animated.View>
-          </TouchableOpacity>
+                {/* Burç sembolleri */}
+                {ZODIAC_WHEEL.map((item, index) => {
+                  const zodiacInfo = getZodiacInfo(item.sign);
+                  const isSelected = selectedZodiac === item.sign;
+                  const isUserZodiac = userZodiac === item.sign;
+                  
+                  return (
+                    <View
+                      key={item.sign}
+                      style={[
+                        styles.zodiacContainer,
+                        {
+                          transform: [
+                            { rotate: `${item.angle}deg` },
+                            { translateY: -(width * 0.35) },
+                          ],
+                        },
+                      ]}
+                    >
+                      <TouchableOpacity
+                        style={[
+                          styles.zodiacButton,
+                          {
+                            transform: [
+                              { rotate: `-${item.angle}deg` }, // Burç içeriğini düz tut
+                            ],
+                          },
+                          isSelected && styles.selectedZodiacButton,
+                          isUserZodiac && styles.userZodiacButton,
+                        ]}
+                        onPress={() => handleZodiacSelect(item.sign)}
+                      >
+                        <Text style={[
+                          styles.zodiacSymbol,
+                          isSelected && styles.selectedSymbol,
+                          isUserZodiac && styles.userSymbol,
+                        ]}>
+                          {zodiacInfo?.emoji}
+                        </Text>
+                        <Text style={[
+                          styles.zodiacName,
+                          isSelected && styles.selectedName,
+                          isUserZodiac && styles.userName,
+                        ]}>
+                          {zodiacInfo?.turkishName}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+                
+                {/* Merkez - Döndürme Kontrolü */}
+                <TouchableOpacity 
+                  style={styles.centerDot}
+                  onPress={() => {
+                    // Merkeze tıklandığında 90 derece çevir
+                    stopAutoRotation();
+                    wheelRotation.value = withSpring(wheelRotation.value + 90, {
+                      damping: 12,
+                      stiffness: 80,
+                    });
+                    
+                    // 2 saniye sonra otomatik döndürmeyi tekrar başlat
+                    setTimeout(() => {
+                      if (!isManualRotation) {
+                        startAutoRotation();
+                      }
+                    }, 2000);
+                  }}
+                >
+                  <Ionicons name="star" size={28} color="#FFD700" />
+                  <Text style={styles.centerText}>Çevir</Text>
+                </TouchableOpacity>
+              </Animated.View>
+            </Animated.View>
+          </PanGestureHandler>
         </View>
 
         {/* Seçili Burç Detayları */}

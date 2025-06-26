@@ -44,6 +44,11 @@ const defaultUserProfile: UserProfile = {
 
 // API yanıtını UserProfile formatına dönüştürür
 const mapApiResponseToUserProfile = (data: UserProfileResponse): UserProfile => {
+  // Profil fotoğrafına timestamp ekleyerek cache sorununu çöz
+  const profileImageUrl = data.profileImageUrl 
+    ? `${data.profileImageUrl}?t=${Date.now()}` 
+    : `https://picsum.photos/400?t=${Date.now()}`;
+    
   return {
     id: data.id,
     name: `${data.firstName} ${data.lastName}`,
@@ -56,7 +61,7 @@ const mapApiResponseToUserProfile = (data: UserProfileResponse): UserProfile => 
     zodiacSign: data.zodiacSign,
     zodiacSignEmoji: data.zodiacSignEmoji,
     zodiacSignTurkish: data.zodiacSignTurkish,
-    profileImage: data.profileImageUrl || 'https://picsum.photos/400', // Default profil resmi
+    profileImage: profileImageUrl,
     bio: data.bio || 'Kullanıcı biyografisi burada görünecek.', // API'den gelen biyografi
   };
 };
