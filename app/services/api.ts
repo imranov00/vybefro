@@ -2,9 +2,61 @@ import axios from 'axios';
 import { ZodiacSign } from '../types/zodiac';
 import { getToken, saveToken } from '../utils/tokenStorage';
 
-const API_URL = 'https://334d-95-70-131-250.ngrok-free.app';
+// NGROK URL'i - değişebilir
+const NGROK_URL = 'https://103d-95-70-131-250.ngrok-free.app';
+
+// Alternative endpoints (gerektiğinde eklenebilir)
+const FALLBACK_URLS: string[] = [
+  // Buraya alternatif URL'ler eklenebilir
+  // 'https://your-backend.herokuapp.com',
+  // 'https://api.yourdomain.com',
+];
+
+// Aktif API URL
+let API_URL = NGROK_URL;
 
 console.log('🔗 [API CONFIG] Base URL:', API_URL);
+
+// Network durumunu kontrol eden fonksiyon
+const checkNetworkHealth = async (url: string): Promise<boolean> => {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 saniye timeout
+    
+    const response = await fetch(`${url}/health`, { 
+      method: 'GET',
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    return response.ok;
+  } catch (error) {
+    console.warn(`[NETWORK CHECK] ${url} erişilemez:`, error);
+    return false;
+  }
+};
+
+// En iyi URL'i bulan fonksiyon
+const findBestApiUrl = async (): Promise<string> => {
+  // Önce ana URL'i dene
+  const mainUrlWorks = await checkNetworkHealth(NGROK_URL);
+  if (mainUrlWorks) {
+    return NGROK_URL;
+  }
+
+  // Fallback URL'leri dene
+  for (const fallbackUrl of FALLBACK_URLS) {
+    const works = await checkNetworkHealth(fallbackUrl);
+    if (works) {
+      console.log(`[API FAILOVER] ${fallbackUrl} kullanılıyor`);
+      return fallbackUrl;
+    }
+  }
+
+  // Hiçbiri çalışmıyorsa ana URL'i döndür (hata mesajı için)
+  console.error('[API FAILOVER] Hiçbir endpoint erişilebilir değil');
+  return NGROK_URL;
+};
 
 // API isteği için bir axios örneği oluşturuluyor
 const api = axios.create({
@@ -12,12 +64,22 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000, // 10 saniye timeout ekle
+  timeout: 15000, // 15 saniye timeout (artırıldı)
 });
+
+// Dynamic base URL güncelleme
+const updateApiBaseUrl = async () => {
+  const bestUrl = await findBestApiUrl();
+  if (bestUrl !== API_URL) {
+    API_URL = bestUrl;
+    api.defaults.baseURL = bestUrl;
+    console.log(`[API UPDATE] Base URL güncellendi: ${bestUrl}`);
+  }
+};
 
 // İstek/yanıt durumlarını kontrol eden interceptor'lar
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
     console.log(`[API REQUEST] ${config.method?.toUpperCase()} ${config.url}`);
     return config;
   },
@@ -32,17 +94,40 @@ api.interceptors.response.use(
     console.log(`[API RESPONSE] ${response.status} ${response.config.url}`);
     return response;
   },
-  (error) => {
+  async (error) => {
     if (error.response) {
       console.error(`[API RESPONSE ERROR] ${error.response.status}`, error.response.data);
     } else if (error.request) {
       console.error('[API REQUEST FAILED]', error.request);
+      
+      // Network hatası varsa, URL'i yeniden kontrol et
+      if (error.code === 'NETWORK_ERROR' || error.message.includes('Network Error')) {
+        console.log('[API RETRY] Network hatası, alternative URL deneniyor...');
+        await updateApiBaseUrl();
+      }
     } else {
       console.error('[API ERROR]', error.message);
     }
     return Promise.reject(error);
   }
 );
+
+// Mock data için fallback fonksiyonları
+const createMockUserProfile = (): UserProfileResponse => ({
+  id: 1,
+  username: 'demo_user',
+  email: 'demo@example.com',
+  firstName: 'Demo',
+  lastName: 'User',
+  birthDate: '1995-06-15',
+  gender: 'MALE',
+  zodiacSign: ZodiacSign.GEMINI,
+  zodiacSignTurkish: 'İkizler',
+  zodiacSignEmoji: '♊',
+  zodiacSignDisplayName: '♊ İkizler',
+  profileImageUrl: null,
+  bio: 'Demo kullanıcı profili - Backend bağlantısı kuruluyor...'
+});
 
 // API için veri türleri
 export interface RegisterRequest {
