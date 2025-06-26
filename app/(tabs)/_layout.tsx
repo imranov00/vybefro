@@ -175,21 +175,7 @@ export default function TabLayout() {
           }}
         />
 
-        {/* Astrology Matches Tab - Sadece astrology mode'da görünür */}
-        <Tabs.Screen
-          name="astrology-matches"
-          options={{
-            title: 'Burç Swipe',
-            tabBarIcon: ({ color, focused }) => (
-              <Ionicons 
-                name={focused ? 'heart' : 'heart-outline'} 
-                size={28} 
-                color={color} 
-              />
-            ),
-            href: currentMode === 'astrology' ? '/astrology-matches' : null,
-          }}
-        />
+
         
         {/* Music Tab */}
         <Tabs.Screen
