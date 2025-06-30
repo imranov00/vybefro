@@ -30,7 +30,7 @@ import { ZodiacSign, getZodiacInfo } from '../types/zodiac';
 
 const { width, height } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.9;
-const CARD_HEIGHT = height * 0.7;
+const CARD_HEIGHT = height * 0.8;
 
 // Swipe API Types
 interface SwipeUser {
@@ -310,12 +310,48 @@ export default function AstrologyMatchesScreen() {
 
   // Animasyonları sıfırla
   const resetAnimations = () => {
-    translateX.value = withSpring(0);
-    // translateY kaldırıldı - artık kullanılmıyor
-    rotate.value = withSpring(0);
-    scale.value = withSpring(1);
-    likeOpacity.value = withSpring(0);
-    dislikeOpacity.value = withSpring(0);
+    'worklet';
+    try {
+      console.log('resetAnimations çağrıldı');
+      translateX.value = withSpring(0, { 
+        damping: 20, 
+        stiffness: 200,
+        mass: 1,
+        restDisplacementThreshold: 0.1,
+        restSpeedThreshold: 0.1
+      });
+      rotate.value = withSpring(0, { 
+        damping: 20, 
+        stiffness: 200,
+        mass: 1,
+        restDisplacementThreshold: 0.1,
+        restSpeedThreshold: 0.1
+      });
+      scale.value = withSpring(1, { 
+        damping: 20, 
+        stiffness: 200,
+        mass: 1,
+        restDisplacementThreshold: 0.1,
+        restSpeedThreshold: 0.1
+      });
+      likeOpacity.value = withSpring(0, { 
+        damping: 20, 
+        stiffness: 200,
+        mass: 1,
+        restDisplacementThreshold: 0.1,
+        restSpeedThreshold: 0.1
+      });
+      dislikeOpacity.value = withSpring(0, { 
+        damping: 20, 
+        stiffness: 200,
+        mass: 1,
+        restDisplacementThreshold: 0.1,
+        restSpeedThreshold: 0.1
+      });
+      console.log('Reset animations başarılı');
+    } catch (error) {
+      console.error('Reset animations hatası:', error);
+    }
   };
 
   // Eşleşme animasyonu
@@ -359,24 +395,79 @@ export default function AstrologyMatchesScreen() {
       }
     },
     onEnd: (event) => {
-      const threshold = width * 0.4; // Threshold artırıldı %25'ten %40'a
+      const threshold = width * 0.75; // Threshold %75'e çıkarıldı - daha kesin swipe gerekli
+      const velocityThreshold = 1000; // Velocity threshold artırıldı - daha hızlı swipe gerekli
       
-      if (event.translationX > threshold) {
-        // LIKE
+      // Debug log
+      console.log('Swipe end:', {
+        translationX: event.translationX,
+        velocityX: event.velocityX,
+        threshold,
+        velocityThreshold,
+        willTrigger: Math.abs(event.translationX) > threshold || Math.abs(event.velocityX) > velocityThreshold
+      });
+      
+      // Sadece kesin swipe hareketlerini kabul et
+      const isDistanceSwipe = Math.abs(event.translationX) > threshold;
+      const isVelocitySwipe = Math.abs(event.velocityX) > velocityThreshold;
+      const shouldSwipe = isDistanceSwipe || isVelocitySwipe;
+      
+      if (shouldSwipe && event.translationX > 0) {
+        // LIKE - Sağa kaydırma
+        console.log('LIKE tetiklendi');
         translateX.value = withTiming(width * 1.5, { duration: 300 });
         rotate.value = withTiming(30, { duration: 300 });
-        runOnJS(performSwipe)(users[currentUserIndex]?.id, 'LIKE');
-      } else if (event.translationX < -threshold) {
-        // DISLIKE
+        scale.value = withTiming(0.8, { duration: 300 });
+        
+        // Güvenli swipe çağrısı
+        if (users[currentUserIndex]?.id) {
+          runOnJS(performSwipe)(users[currentUserIndex].id, 'LIKE');
+        }
+      } else if (shouldSwipe && event.translationX < 0) {
+        // DISLIKE - Sola kaydırma
+        console.log('DISLIKE tetiklendi');
         translateX.value = withTiming(-width * 1.5, { duration: 300 });
         rotate.value = withTiming(-30, { duration: 300 });
-        runOnJS(performSwipe)(users[currentUserIndex]?.id, 'DISLIKE');
+        scale.value = withTiming(0.8, { duration: 300 });
+        
+        // Güvenli swipe çağrısı
+        if (users[currentUserIndex]?.id) {
+          runOnJS(performSwipe)(users[currentUserIndex].id, 'DISLIKE');
+        }
       } else {
         // Geri dön - card eski pozisyonuna döner
-        resetAnimations();
+        console.log('Card geri dönüyor... translationX:', event.translationX, 'threshold:', threshold);
+        console.log('Reset işlemi başlatılıyor...');
+        
+        // Önce animate et, sonra reset fonksiyonunu çağır
+        translateX.value = withSpring(0, { 
+          damping: 20, 
+          stiffness: 200,
+          mass: 1
+        });
+        rotate.value = withSpring(0, { 
+          damping: 20, 
+          stiffness: 200,
+          mass: 1
+        });
+        scale.value = withSpring(1, { 
+          damping: 20, 
+          stiffness: 200,
+          mass: 1
+        });
+        likeOpacity.value = withSpring(0, { 
+          damping: 20, 
+          stiffness: 200,
+          mass: 1
+        });
+        dislikeOpacity.value = withSpring(0, { 
+          damping: 20, 
+          stiffness: 200,
+          mass: 1
+        });
+        
+        console.log('Reset animasyonları tamamlandı');
       }
-      
-      scale.value = withSpring(1);
     },
   });
 
