@@ -1,5 +1,4 @@
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
 import {
@@ -8,6 +7,7 @@ import {
     Dimensions,
     Image,
     Platform,
+    ScrollView,
     StatusBar,
     StyleSheet,
     Text,
@@ -30,7 +30,7 @@ import { ZodiacSign, getZodiacInfo } from '../types/zodiac';
 
 const { width, height } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.9;
-const CARD_HEIGHT = height * 0.7;
+const CARD_HEIGHT = height * 0.9;
 
 // Swipe API Types
 interface SwipeUser {
@@ -81,6 +81,79 @@ interface SwipeResponse {
   message: string;
 }
 
+// Detaylı astrolojik veriler
+const ASTROLOGY_DETAILS: Record<ZodiacSign, {
+  sun: { positive: string[]; negative: string[] };
+  moon: ZodiacSign;
+  rising: ZodiacSign;  
+  venus: ZodiacSign;
+  mars: ZodiacSign;
+  element: string;
+  quality: string;
+  rulingPlanet: string;
+}> = {
+  [ZodiacSign.ARIES]: {
+    sun: { positive: ["Liderlik ruhu", "Cesur ve kararlı", "Enerjik yapı", "Girişimci ruh"], negative: ["Aceleci davranış", "Sabırsızlık", "Öfkeli anlar", "Dikkatli olmama"] },
+    moon: ZodiacSign.SCORPIO, rising: ZodiacSign.LEO, venus: ZodiacSign.TAURUS, mars: ZodiacSign.ARIES,
+    element: "Ateş", quality: "Kardinal", rulingPlanet: "Mars"
+  },
+  [ZodiacSign.TAURUS]: {
+    sun: { positive: ["Kararlı yapı", "Güvenilir kişi", "Sanatsal yetenek", "Praktik zeka"], negative: ["İnatçı davranış", "Değişime direnç", "Maddi kaygılar", "Yavaş hareket"] },
+    moon: ZodiacSign.CANCER, rising: ZodiacSign.VIRGO, venus: ZodiacSign.TAURUS, mars: ZodiacSign.CAPRICORN,
+    element: "Toprak", quality: "Sabit", rulingPlanet: "Venüs"
+  },
+  [ZodiacSign.GEMINI]: {
+    sun: { positive: ["İletişim becerisi", "Hızlı öğrenme", "Çok yönlülük", "Sosyal yapı"], negative: ["Kararsızlık", "Yüzeysellik", "Odaklanamama", "Değişkenlik"] },
+    moon: ZodiacSign.AQUARIUS, rising: ZodiacSign.SAGITTARIUS, venus: ZodiacSign.GEMINI, mars: ZodiacSign.VIRGO,
+    element: "Hava", quality: "Değişken", rulingPlanet: "Merkür"
+  },
+  [ZodiacSign.CANCER]: {
+    sun: { positive: ["Duygusal zeka", "Koruyucu yapı", "Sezgisel güç", "Şefkatli ruh"], negative: ["Aşırı duyarlılık", "Geçmişe takılma", "Kaygı durumu", "Kapanık tavır"] },
+    moon: ZodiacSign.PISCES, rising: ZodiacSign.SCORPIO, venus: ZodiacSign.CANCER, mars: ZodiacSign.TAURUS,
+    element: "Su", quality: "Kardinal", rulingPlanet: "Ay"
+  },
+  [ZodiacSign.LEO]: {
+    sun: { positive: ["Doğal liderlik", "Yaratıcılık", "Cömert kalp", "İlham verici"], negative: ["Egoist davranış", "Dikkat arayışı", "Kibirli tavır", "Eleştiriye tahammülsüzlük"] },
+    moon: ZodiacSign.ARIES, rising: ZodiacSign.LEO, venus: ZodiacSign.LIBRA, mars: ZodiacSign.LEO,
+    element: "Ateş", quality: "Sabit", rulingPlanet: "Güneş"
+  },
+  [ZodiacSign.VIRGO]: {
+    sun: { positive: ["Detay odaklı", "Analitik zeka", "Yardımsever", "Mükemmeliyetçi"], negative: ["Aşırı eleştiri", "Endişeli yapı", "Takıntılı davranış", "Kendini suçlama"] },
+    moon: ZodiacSign.TAURUS, rising: ZodiacSign.CAPRICORN, venus: ZodiacSign.VIRGO, mars: ZodiacSign.GEMINI,
+    element: "Toprak", quality: "Değişken", rulingPlanet: "Merkür"
+  },
+  [ZodiacSign.LIBRA]: {
+    sun: { positive: ["Adalet duygusu", "Estetik anlayış", "Diplomasi", "Uyumlu yapı"], negative: ["Kararsızlık", "Çelişkili tavır", "Çatışmadan kaçma", "Başkalarına bağımlılık"] },
+    moon: ZodiacSign.GEMINI, rising: ZodiacSign.AQUARIUS, venus: ZodiacSign.LIBRA, mars: ZodiacSign.LIBRA,
+    element: "Hava", quality: "Kardinal", rulingPlanet: "Venüs"
+  },
+  [ZodiacSign.SCORPIO]: {
+    sun: { positive: ["Güçlü sezgi", "Derin analiz", "Sadakat", "Dönüşüm gücü"], negative: ["Kıskançlık", "İntikam alma", "Gizli saklama", "Aşırı şüphecilik"] },
+    moon: ZodiacSign.CANCER, rising: ZodiacSign.SCORPIO, venus: ZodiacSign.SCORPIO, mars: ZodiacSign.SCORPIO,
+    element: "Su", quality: "Sabit", rulingPlanet: "Plüton"
+  },
+  [ZodiacSign.SAGITTARIUS]: {
+    sun: { positive: ["Özgürlük sevgisi", "Felsefik bakış", "İyimserlik", "Macera ruhu"], negative: ["Sorumsuz davranış", "Taktik eksikliği", "Kaba konuşma", "Sabırsızlık"] },
+    moon: ZodiacSign.ARIES, rising: ZodiacSign.GEMINI, venus: ZodiacSign.SAGITTARIUS, mars: ZodiacSign.SAGITTARIUS,
+    element: "Ateş", quality: "Değişken", rulingPlanet: "Jüpiter"
+  },
+  [ZodiacSign.CAPRICORN]: {
+    sun: { positive: ["Disiplinli yapı", "Hedef odaklı", "Sorumluluk sahibi", "Dayanıklılık"], negative: ["Katı kurallar", "Pesimist bakış", "Duygusuz görünme", "Aşırı ciddiyet"] },
+    moon: ZodiacSign.VIRGO, rising: ZodiacSign.TAURUS, venus: ZodiacSign.CAPRICORN, mars: ZodiacSign.CAPRICORN,
+    element: "Toprak", quality: "Kardinal", rulingPlanet: "Satürn"
+  },
+  [ZodiacSign.AQUARIUS]: {
+    sun: { positive: ["Özgün düşünce", "Yenilikçilik", "Hümanizm", "Bağımsızlık"], negative: ["Soğuk davranış", "İsyankarlık", "Öngörülemezlik", "Mesafeli tavır"] },
+    moon: ZodiacSign.LIBRA, rising: ZodiacSign.AQUARIUS, venus: ZodiacSign.AQUARIUS, mars: ZodiacSign.AQUARIUS,
+    element: "Hava", quality: "Sabit", rulingPlanet: "Uranüs"
+  },
+  [ZodiacSign.PISCES]: {
+    sun: { positive: ["Empati yetisi", "Hayal gücü", "Spiritüel bağ", "Şefkat dolu"], negative: ["Aşırı duygusallık", "Kaçış eğilimi", "Sınır belirsizliği", "Mağduriyet"] },
+    moon: ZodiacSign.SCORPIO, rising: ZodiacSign.CANCER, venus: ZodiacSign.PISCES, mars: ZodiacSign.CANCER,
+    element: "Su", quality: "Değişken", rulingPlanet: "Neptün"
+  }
+};
+
 export default function AstrologyMatchesScreen() {
   const colorScheme = useColorScheme();
   const { isPremium } = useAuth();
@@ -92,6 +165,8 @@ export default function AstrologyMatchesScreen() {
   const [swipeLimitInfo, setSwipeLimitInfo] = useState<SwipeLimitInfo | null>(null);
   const [isSwipeInProgress, setIsSwipeInProgress] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+  const [showDetailView, setShowDetailView] = useState(false);
+  const [showNewUserOverlay, setShowNewUserOverlay] = useState(false);
 
   // Animation values
   const translateX = useSharedValue(0);
@@ -332,6 +407,14 @@ export default function AstrologyMatchesScreen() {
   // Mevcut kullanıcı
   const currentUser = users[currentUserIndex];
   const zodiacInfo = currentUser ? getZodiacInfo(currentUser.zodiacSign) : null;
+  const astrologyDetails = currentUser ? ASTROLOGY_DETAILS[currentUser.zodiacSign] : null;
+
+  // New user overlay kontrolü
+  useEffect(() => {
+    if (currentUser && currentUser.isNewUser && !showNewUserOverlay) {
+      setShowNewUserOverlay(true);
+    }
+  }, [currentUser]);
 
   // Burç uyumluluk rengi
   const getCompatibilityColor = (score: number) => {
@@ -419,27 +502,6 @@ export default function AstrologyMatchesScreen() {
         {/* Ana kart */}
         <PanGestureHandler onGestureEvent={gestureHandler}>
           <Animated.View style={[styles.card, cardStyle]}>
-            {/* Fotoğraf */}
-            <Image
-              source={{ 
-                uri: currentUser.profileImageUrl || `https://picsum.photos/400/600?random=${currentUser.id}` 
-              }}
-              style={styles.cardImage}
-              resizeMode="cover"
-              onError={(error) => {
-                console.log('Fotoğraf yükleme hatası:', currentUser.profileImageUrl, error.nativeEvent.error);
-                // Fallback image'e geç
-                setUsers(prevUsers => 
-                  prevUsers.map(user => 
-                    user.id === currentUser.id 
-                      ? { ...user, profileImageUrl: `https://picsum.photos/400/600?random=${Date.now()}` }
-                      : user
-                  )
-                );
-              }}
-              onLoad={() => console.log('Fotoğraf başarıyla yüklendi:', currentUser.fullName)}
-            />
-
             {/* Like/Dislike Overlays */}
             <Animated.View style={[styles.likeOverlay, likeStyle]}>
               <Text style={styles.likeText}>BEĞEN</Text>
@@ -449,109 +511,198 @@ export default function AstrologyMatchesScreen() {
               <Text style={styles.dislikeText}>GEÇE</Text>
             </Animated.View>
 
-            {/* Kullanıcı Bilgileri */}
-            <LinearGradient
-              colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.8)']}
-              style={styles.cardInfo}
+            {/* Scrollable İçerik */}
+            <ScrollView
+              style={styles.cardScrollView}
+              contentContainerStyle={styles.cardScrollContent}
+              showsVerticalScrollIndicator={false}
+              bounces={true}
             >
-              {/* Burç Uyumluluk Skoru */}
-              <View style={styles.compatibilityHeader}>
-                <View style={[
-                  styles.compatibilityBadge,
-                  { backgroundColor: getCompatibilityColor(currentUser.compatibilityScore) }
-                ]}>
-                  <Text style={styles.compatibilityScore}>
-                    %{currentUser.compatibilityScore}
-                  </Text>
-                  <Text style={styles.compatibilityLabel}>Uyum</Text>
-                </View>
+              {/* Ana Fotoğraf ve Başlık */}
+              <View style={styles.cardHeader}>
+                <Image
+                  source={{ 
+                    uri: currentUser.profileImageUrl || `https://picsum.photos/400/600?random=${currentUser.id}` 
+                  }}
+                  style={styles.mainPhoto}
+                  resizeMode="cover"
+                />
                 
-                {zodiacInfo && (
-                  <View style={styles.zodiacInfo}>
-                    <Text style={styles.zodiacEmoji}>{zodiacInfo.emoji}</Text>
-                    <Text style={styles.zodiacName}>{zodiacInfo.turkishName}</Text>
+                {/* Üst Bilgi Bandı */}
+                <LinearGradient
+                  colors={['transparent', 'rgba(0,0,0,0.6)']}
+                  style={styles.headerOverlay}
+                >
+                  <View style={styles.headerInfo}>
+                    <View style={styles.nameSection}>
+                      <Text style={styles.userName}>
+                        {currentUser.fullName}, {currentUser.age}
+                      </Text>
+                      {zodiacInfo && (
+                        <Text style={styles.zodiacName}>
+                          {zodiacInfo.emoji} {zodiacInfo.turkishName}
+                        </Text>
+                      )}
+                    </View>
+                    
+                    <View style={[
+                      styles.compatibilityBadge,
+                      { backgroundColor: getCompatibilityColor(currentUser.compatibilityScore) }
+                    ]}>
+                      <Text style={styles.compatibilityScore}>
+                        %{currentUser.compatibilityScore}
+                      </Text>
+                    </View>
                   </View>
-                )}
+                </LinearGradient>
               </View>
 
-              {/* Kullanıcı Detayları */}
-              <View style={styles.userInfo}>
-                <View style={styles.nameRow}>
-                  <Text style={styles.userName}>
-                    {currentUser.fullName}, {currentUser.age}
-                  </Text>
-                  {currentUser.isVerified && (
-                    <Ionicons name="checkmark-circle" size={20} color="#00FF7F" />
-                  )}
-                  {currentUser.isPremium && (
-                    <Ionicons name="diamond" size={16} color="#FFD700" />
-                  )}
+              {/* Diğer Fotoğraflar */}
+              {currentUser.photos && currentUser.photos.length > 1 && (
+                <View style={styles.photoGallery}>
+                  <Text style={styles.sectionTitle}>📸 Diğer Fotoğraflar</Text>
+                  {currentUser.photos.slice(1).map((photo, index) => (
+                    <Image
+                      key={photo.id}
+                      source={{ uri: photo.photoUrl }}
+                      style={styles.galleryPhoto}
+                      resizeMode="cover"
+                    />
+                  ))}
                 </View>
+              )}
 
-                <Text style={styles.location}>
-                  📍 {currentUser.location} • {currentUser.distanceKm} km
-                </Text>
+              {/* Bio */}
+              {currentUser.bio && (
+                <View style={styles.bioSection}>
+                  <Text style={styles.sectionTitle}>✨ Hakkımda</Text>
+                  <Text style={styles.bioText}>{currentUser.bio}</Text>
+                </View>
+              )}
 
-                <Text style={styles.compatibility}>
+              {/* Astroloji Detayları */}
+              {astrologyDetails && (
+                <View style={styles.astrologySection}>
+                  <Text style={styles.sectionTitle}>🌟 Astroloji Haritası</Text>
+                  
+                  {/* Güneş Burcu */}
+                  <View style={styles.zodiacCard}>
+                    <View style={styles.zodiacHeader}>
+                      <Text style={styles.zodiacIcon}>☀️</Text>
+                      <Text style={styles.zodiacTitle}>Güneş Burcu</Text>
+                      <Text style={styles.zodiacSubtitle}>{zodiacInfo?.turkishName}</Text>
+                    </View>
+                    
+                    <View style={styles.traitsList}>
+                      <Text style={styles.traitsTitle}>✅ Olumlu Özellikler:</Text>
+                      {astrologyDetails.sun.positive.map((trait, index) => (
+                        <Text key={index} style={styles.traitItem}>• {trait}</Text>
+                      ))}
+                      
+                      <Text style={styles.traitsTitle}>⚠️ Dikkat Edilmesi Gerekenler:</Text>
+                      {astrologyDetails.sun.negative.map((trait, index) => (
+                        <Text key={index} style={styles.traitItem}>• {trait}</Text>
+                      ))}
+                    </View>
+                  </View>
+
+                  {/* Ay Burcu */}
+                  <View style={styles.zodiacCard}>
+                    <View style={styles.zodiacHeader}>
+                      <Text style={styles.zodiacIcon}>🌙</Text>
+                      <Text style={styles.zodiacTitle}>Ay Burcu</Text>
+                                             <Text style={styles.zodiacSubtitle}>{getZodiacInfo(astrologyDetails.moon)?.turkishName}</Text>
+                    </View>
+                    <Text style={styles.zodiacDescription}>
+                      Duygusal dünyasını ve iç dünyasını etkileyen burç
+                    </Text>
+                  </View>
+
+                  {/* Yükselen Burcu */}
+                  <View style={styles.zodiacCard}>
+                    <View style={styles.zodiacHeader}>
+                      <Text style={styles.zodiacIcon}>⬆️</Text>
+                      <Text style={styles.zodiacTitle}>Yükselen Burcu</Text>
+                                             <Text style={styles.zodiacSubtitle}>{getZodiacInfo(astrologyDetails.rising)?.turkishName}</Text>
+                    </View>
+                    <Text style={styles.zodiacDescription}>
+                      Dış dünyaya karşı sergilediği kişilik ve davranış tarzı
+                    </Text>
+                  </View>
+
+                  {/* Venüs */}
+                  <View style={styles.zodiacCard}>
+                    <View style={styles.zodiacHeader}>
+                      <Text style={styles.zodiacIcon}>💖</Text>
+                      <Text style={styles.zodiacTitle}>Venüs</Text>
+                                             <Text style={styles.zodiacSubtitle}>{getZodiacInfo(astrologyDetails.venus)?.turkishName}</Text>
+                    </View>
+                    <Text style={styles.zodiacDescription}>
+                      Aşk hayatı, estetik anlayışı ve ilişki tarzı
+                    </Text>
+                  </View>
+
+                  {/* Mars */}
+                  <View style={styles.zodiacCard}>
+                    <View style={styles.zodiacHeader}>
+                      <Text style={styles.zodiacIcon}>🔥</Text>
+                      <Text style={styles.zodiacTitle}>Mars</Text>
+                                             <Text style={styles.zodiacSubtitle}>{getZodiacInfo(astrologyDetails.mars)?.turkishName}</Text>
+                    </View>
+                    <Text style={styles.zodiacDescription}>
+                      Enerji kaynağı, motivasyon ve tutkulu yanları
+                    </Text>
+                  </View>
+
+                  {/* Element ve Kalite */}
+                  <View style={styles.elementCard}>
+                    <Text style={styles.elementTitle}>🌟 Element ve Kalite</Text>
+                    <View style={styles.elementRow}>
+                      <Text style={styles.elementItem}>Element: {astrologyDetails.element}</Text>
+                      <Text style={styles.elementItem}>Kalite: {astrologyDetails.quality}</Text>
+                    </View>
+                    <Text style={styles.elementItem}>Yönetici Gezegen: {astrologyDetails.rulingPlanet}</Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Uyumluluk Mesajı */}
+              <View style={styles.compatibilitySection}>
+                <Text style={styles.sectionTitle}>💫 Uyumluluk Analizi</Text>
+                <Text style={styles.compatibilityMessage}>
                   {currentUser.compatibilityMessage}
                 </Text>
-
-                {currentUser.bio && (
-                  <Text style={styles.bio} numberOfLines={2}>
-                    {currentUser.bio}
-                  </Text>
-                )}
-
-                <Text style={styles.activityStatus}>
-                  🟢 {currentUser.activityStatus}
-                </Text>
               </View>
-            </LinearGradient>
 
-            {/* Fotoğraf sayısı göstergesi */}
-            {currentUser.photoCount > 1 && (
-              <View style={styles.photoIndicator}>
-                {Array.from({ length: currentUser.photoCount }).map((_, index) => (
-                  <View
-                    key={index}
-                    style={[
-                      styles.photoDot,
-                      index === currentPhotoIndex && styles.photoDotActive
-                    ]}
-                  />
-                ))}
-              </View>
-            )}
+              {/* Alt Boşluk */}
+              <View style={styles.bottomSpacing} />
+            </ScrollView>
           </Animated.View>
         </PanGestureHandler>
       </View>
 
-      {/* Action Buttons */}
-      <View style={styles.actionButtons}>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.dislikeButton]}
-          onPress={() => performSwipe(currentUser.id, 'DISLIKE')}
-          disabled={isSwipeInProgress}
-        >
-          <Ionicons name="close" size={30} color="#FF4757" />
-        </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.actionButton, styles.superLikeButton]}
-          onPress={() => performSwipe(currentUser.id, 'SUPER_LIKE')}
-          disabled={isSwipeInProgress}
-        >
-          <Ionicons name="star" size={25} color="#FFD700" />
-        </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.actionButton, styles.likeButton]}
-          onPress={() => performSwipe(currentUser.id, 'LIKE')}
-          disabled={isSwipeInProgress}
-        >
-          <Ionicons name="heart" size={30} color="#00FF7F" />
-        </TouchableOpacity>
-      </View>
+      {/* New User Overlay */}
+      {showNewUserOverlay && (
+        <View style={styles.newUserOverlay}>
+          <View style={styles.overlayContent}>
+            <Text style={styles.overlayTitle}>🌟 Hoş Geldiniz!</Text>
+            <Text style={styles.overlayText}>
+              Aşağı kaydırarak burç detaylarını keşfedin
+            </Text>
+            <Text style={styles.overlaySubtext}>
+              Sağa kaydırın: Beğen • Sola kaydırın: Geç
+            </Text>
+            <TouchableOpacity
+              style={styles.overlayButton}
+              onPress={() => setShowNewUserOverlay(false)}
+            >
+              <Text style={styles.overlayButtonText}>Anladım</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* Swipe Progress */}
       {isSwipeInProgress && (
@@ -869,7 +1020,7 @@ const styles = StyleSheet.create({
   },
   swipeProgress: {
     position: 'absolute',
-    bottom: 120,
+    bottom: 50,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
@@ -882,5 +1033,218 @@ const styles = StyleSheet.create({
   swipeProgressText: {
     color: 'white',
     fontSize: 14,
+  },
+  // Yeni SwipeCard Style'ları
+  cardScrollView: {
+    flex: 1,
+  },
+  cardScrollContent: {
+    flexGrow: 1,
+  },
+  cardHeader: {
+    position: 'relative',
+  },
+  mainPhoto: {
+    width: '100%',
+    height: 300,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  headerOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+  },
+  headerInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  nameSection: {
+    flex: 1,
+  },
+  photoGallery: {
+    padding: 20,
+    gap: 15,
+  },
+  sectionTitle: {
+    color: '#8000FF',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  galleryPhoto: {
+    width: '100%',
+    height: 200,
+    borderRadius: 15,
+    marginBottom: 10,
+  },
+  bioSection: {
+    padding: 20,
+    paddingTop: 0,
+  },
+  bioText: {
+    color: '#333',
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  astrologySection: {
+    padding: 20,
+    paddingTop: 0,
+    gap: 15,
+  },
+  zodiacCard: {
+    backgroundColor: 'rgba(128,0,255,0.1)',
+    borderRadius: 15,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(128,0,255,0.2)',
+  },
+  zodiacHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+  },
+  zodiacIcon: {
+    fontSize: 24,
+  },
+  zodiacTitle: {
+    color: '#8000FF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  zodiacSubtitle: {
+    color: '#5B00B5',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  zodiacDescription: {
+    color: '#666',
+    fontSize: 14,
+    fontStyle: 'italic',
+  },
+  traitsList: {
+    gap: 8,
+  },
+  traitsTitle: {
+    color: '#8000FF',
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginTop: 5,
+  },
+  traitItem: {
+    color: '#666',
+    fontSize: 14,
+    paddingLeft: 10,
+  },
+  elementCard: {
+    backgroundColor: 'rgba(255,215,0,0.1)',
+    borderRadius: 15,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255,215,0,0.3)',
+  },
+  elementTitle: {
+    color: '#FFD700',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  elementRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 5,
+  },
+  elementItem: {
+    color: '#B8860B',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  compatibilitySection: {
+    padding: 20,
+    paddingTop: 0,
+  },
+  compatibilityMessage: {
+    color: '#8000FF',
+    fontSize: 16,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    backgroundColor: 'rgba(128,0,255,0.1)',
+    padding: 15,
+    borderRadius: 15,
+  },
+  bottomSpacing: {
+    height: 30,
+  },
+  // New User Overlay Styles
+  newUserOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  overlayContent: {
+    backgroundColor: 'white',
+    margin: 40,
+    padding: 30,
+    borderRadius: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 15,
+  },
+  overlayTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#8000FF',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  overlayText: {
+    fontSize: 18,
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 10,
+    fontWeight: '600',
+  },
+  overlaySubtext: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 25,
+    lineHeight: 22,
+  },
+  overlayButton: {
+    backgroundColor: '#8000FF',
+    paddingHorizontal: 30,
+    paddingVertical: 12,
+    borderRadius: 25,
+    shadowColor: '#8000FF',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  overlayButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 }); 
