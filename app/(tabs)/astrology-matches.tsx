@@ -1,6 +1,7 @@
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -167,6 +168,7 @@ export default function AstrologyMatchesScreen() {
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [showDetailView, setShowDetailView] = useState(false);
   const [showNewUserOverlay, setShowNewUserOverlay] = useState(false);
+  const [errorToast, setErrorToast] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
 
   // Animation values
   const translateX = useSharedValue(0);
@@ -188,6 +190,14 @@ export default function AstrologyMatchesScreen() {
     matchColor: '#FFD700',
   };
 
+  // Toast notification göster
+  const showErrorToast = (message: string) => {
+    setErrorToast({ show: true, message });
+    setTimeout(() => {
+      setErrorToast({ show: false, message: '' });
+    }, 3000); // 3 saniye sonra gizle
+  };
+
   // Kullanıcıları getir
   const fetchUsers = async () => {
     try {
@@ -196,7 +206,31 @@ export default function AstrologyMatchesScreen() {
       
       if (response.success) {
         // DiscoverUser'ları SwipeUser formatına dönüştür
-        const convertedUsers: SwipeUser[] = response.users.map(user => ({
+        console.log('📷 API\'den gelen kullanıcı sayısı:', response.users.length);
+        
+        const convertedUsers: SwipeUser[] = response.users.map(user => {
+          // Fotoğraf debug
+          console.log(`👤 Kullanıcı: ${user.firstName}, Fotoğraf sayısı: ${user.photos?.length || 0}`);
+          if (user.photos) {
+            user.photos.forEach((photo, index) => {
+              console.log(`📸 Fotoğraf ${index + 1}: ${photo.imageUrl ? 'VALID' : 'EMPTY'} - ${photo.imageUrl}`);
+            });
+          }
+          
+          // Fotoğrafları filtrele (sadece valid olanlar)
+          const validPhotos = user.photos?.filter(p => p.imageUrl && p.imageUrl.trim() !== '') || [];
+          
+          // Profil fotoğrafını belirle
+          const profileImage = user.profileImageUrl && user.profileImageUrl.trim() !== '' 
+            ? user.profileImageUrl 
+            : validPhotos.length > 0 
+              ? validPhotos[0].imageUrl 
+              : `https://picsum.photos/400/600?random=${user.id}`;
+          
+          console.log(`🖼️ ${user.firstName} profil fotoğrafı: ${profileImage}`);
+          console.log(`📂 ${user.firstName} toplam valid fotoğraf: ${validPhotos.length}`);
+          
+          return {
           id: user.id,
           username: user.firstName.toLowerCase() + user.id,
           firstName: user.firstName,
@@ -209,19 +243,14 @@ export default function AstrologyMatchesScreen() {
           zodiacSignDisplay: user.zodiacSign,
           compatibilityScore: user.compatibilityScore,
           compatibilityMessage: user.compatibilityDescription || 'Yıldızlar sizin için mükemmel bir uyum öngörüyor! 🌟',
-          profileImageUrl: user.profileImageUrl || `https://picsum.photos/400/600?random=${user.id}`,
-          photos: user.photos?.map(p => ({
+          profileImageUrl: profileImage,
+          photos: validPhotos.map((p, index) => ({
             id: Math.random(),
-            photoUrl: p.imageUrl || `https://picsum.photos/400/600?random=${user.id}`,
-            isProfilePhoto: true,
-            displayOrder: 1
-          })) || [{
-            id: Math.random(),
-            photoUrl: `https://picsum.photos/400/600?random=${user.id}`,
-            isProfilePhoto: true,
-            displayOrder: 1
-          }],
-          photoCount: Math.max(user.photos?.length || 1, 1),
+            photoUrl: p.imageUrl,
+            isProfilePhoto: index === 0, // Sadece ilk fotoğraf profil fotoğrafı
+            displayOrder: index + 1
+          })),
+          photoCount: validPhotos.length,
           isPremium: user.isPremium || false,
           lastActiveTime: new Date().toISOString(),
           activityStatus: user.isOnline ? 'Şimdi aktif' : '2 saat önce',
@@ -232,7 +261,8 @@ export default function AstrologyMatchesScreen() {
           hasSpotify: Math.random() > 0.6,
           isNewUser: user.isNewUser || false,
           profileCompleteness: '85%'
-        }));
+          };
+        });
         
         setUsers(convertedUsers);
         setSwipeLimitInfo(response.swipeLimitInfo);
@@ -282,15 +312,32 @@ export default function AstrologyMatchesScreen() {
         // Sonraki kullanıcıya geç
         nextUser();
       } else {
-        // Limit doldu veya hata
-        Alert.alert('Uyarı', response.message);
+        // API başarısız yanıt döndü ama hata değil (limit doldu, vs.)
+        console.log('❌ [API] Swipe başarısız:', response.message);
+        
         if (response.message.includes('limit')) {
+          // Limit doldu - büyük alert göster
+          Alert.alert('Günlük Limit', response.message);
           await fetchSwipeLimitInfo();
+        } else {
+          // Diğer durumlar (duplicate swipe, vs.) - küçük toast göster ve geç
+          showErrorToast('Bir hata oluştu, sonraki profil gösteriliyor');
+          setTimeout(() => {
+            nextUser(); // Kullanıcıyı geç
+          }, 1000);
         }
       }
-    } catch (error) {
-      console.error('Swipe hatası:', error);
-      Alert.alert('Hata', 'Swipe işlemi başarısız oldu');
+    } catch (error: any) {
+      console.error('❌ [API] swipe hatası:', error?.response?.data || error?.message || error);
+      
+      // Ağ hatası, sunucu hatası vs. - küçük toast göster ve geç
+      const errorMessage = error?.response?.data?.message || 'Bağlantı sorunu, sonraki profil gösteriliyor';
+      showErrorToast(errorMessage);
+      
+      // 1 saniye sonra sonraki kullanıcıya geç
+      setTimeout(() => {
+        nextUser();
+      }, 1000);
     } finally {
       setIsSwipeInProgress(false);
     }
@@ -489,11 +536,14 @@ export default function AstrologyMatchesScreen() {
     opacity: dislikeOpacity.value,
   }));
 
-  // Component mount
-  useEffect(() => {
-    fetchUsers();
-    fetchSwipeLimitInfo();
-  }, []);
+  // Sayfa her fokuslandığında fresh data çek
+  useFocusEffect(
+    useCallback(() => {
+      console.log('AstrologyMatches screen focused - refreshing data');
+      fetchUsers();
+      fetchSwipeLimitInfo();
+    }, [])
+  );
 
   // Mevcut kullanıcı
   const currentUser = users[currentUserIndex];
@@ -637,21 +687,6 @@ export default function AstrologyMatchesScreen() {
                 </LinearGradient>
               </View>
 
-              {/* Diğer Fotoğraflar */}
-              {currentUser.photos && currentUser.photos.length > 1 && (
-                <View style={styles.photoGallery}>
-                  <Text style={styles.sectionTitle}>📸 Diğer Fotoğraflar</Text>
-                  {currentUser.photos.slice(1).map((photo, index) => (
-                    <Image
-                      key={photo.id}
-                      source={{ uri: photo.photoUrl }}
-                      style={styles.galleryPhoto}
-                      resizeMode="cover"
-                    />
-                  ))}
-                </View>
-              )}
-
               {/* Bio */}
               {currentUser.bio && (
                 <View style={styles.bioSection}>
@@ -660,7 +695,7 @@ export default function AstrologyMatchesScreen() {
                 </View>
               )}
 
-              {/* Astroloji Detayları */}
+              {/* Astroloji Detayları - Güneş Burcu */}
               {astrologyDetails && (
                 <View style={styles.astrologySection}>
                   <Text style={styles.sectionTitle}>🌟 Astroloji Haritası</Text>
@@ -685,13 +720,29 @@ export default function AstrologyMatchesScreen() {
                       ))}
                     </View>
                   </View>
+                </View>
+              )}
 
+              {/* 1. Ek Fotoğraf */}
+              {currentUser.photos && currentUser.photos.length > 1 && currentUser.photos[1] && (
+                <View style={styles.singlePhotoContainer}>
+                  <Image
+                    source={{ uri: currentUser.photos[1].photoUrl }}
+                    style={styles.singlePhoto}
+                    resizeMode="cover"
+                  />
+                </View>
+              )}
+
+              {/* Astroloji Detayları - Ay ve Yükselen */}
+              {astrologyDetails && (
+                <View style={styles.astrologySection}>
                   {/* Ay Burcu */}
                   <View style={styles.zodiacCard}>
                     <View style={styles.zodiacHeader}>
                       <Text style={styles.zodiacIcon}>🌙</Text>
                       <Text style={styles.zodiacTitle}>Ay Burcu</Text>
-                                             <Text style={styles.zodiacSubtitle}>{getZodiacInfo(astrologyDetails.moon)?.turkishName}</Text>
+                      <Text style={styles.zodiacSubtitle}>{getZodiacInfo(astrologyDetails.moon)?.turkishName}</Text>
                     </View>
                     <Text style={styles.zodiacDescription}>
                       Duygusal dünyasını ve iç dünyasını etkileyen burç
@@ -703,19 +754,35 @@ export default function AstrologyMatchesScreen() {
                     <View style={styles.zodiacHeader}>
                       <Text style={styles.zodiacIcon}>⬆️</Text>
                       <Text style={styles.zodiacTitle}>Yükselen Burcu</Text>
-                                             <Text style={styles.zodiacSubtitle}>{getZodiacInfo(astrologyDetails.rising)?.turkishName}</Text>
+                      <Text style={styles.zodiacSubtitle}>{getZodiacInfo(astrologyDetails.rising)?.turkishName}</Text>
                     </View>
                     <Text style={styles.zodiacDescription}>
                       Dış dünyaya karşı sergilediği kişilik ve davranış tarzı
                     </Text>
                   </View>
+                </View>
+              )}
 
+              {/* 2. Ek Fotoğraf */}
+              {currentUser.photos && currentUser.photos.length > 2 && currentUser.photos[2] && (
+                <View style={styles.singlePhotoContainer}>
+                  <Image
+                    source={{ uri: currentUser.photos[2].photoUrl }}
+                    style={styles.singlePhoto}
+                    resizeMode="cover"
+                  />
+                </View>
+              )}
+
+              {/* Astroloji Detayları - Venüs, Mars, Element */}
+              {astrologyDetails && (
+                <View style={styles.astrologySection}>
                   {/* Venüs */}
                   <View style={styles.zodiacCard}>
                     <View style={styles.zodiacHeader}>
                       <Text style={styles.zodiacIcon}>💖</Text>
                       <Text style={styles.zodiacTitle}>Venüs</Text>
-                                             <Text style={styles.zodiacSubtitle}>{getZodiacInfo(astrologyDetails.venus)?.turkishName}</Text>
+                      <Text style={styles.zodiacSubtitle}>{getZodiacInfo(astrologyDetails.venus)?.turkishName}</Text>
                     </View>
                     <Text style={styles.zodiacDescription}>
                       Aşk hayatı, estetik anlayışı ve ilişki tarzı
@@ -727,7 +794,7 @@ export default function AstrologyMatchesScreen() {
                     <View style={styles.zodiacHeader}>
                       <Text style={styles.zodiacIcon}>🔥</Text>
                       <Text style={styles.zodiacTitle}>Mars</Text>
-                                             <Text style={styles.zodiacSubtitle}>{getZodiacInfo(astrologyDetails.mars)?.turkishName}</Text>
+                      <Text style={styles.zodiacSubtitle}>{getZodiacInfo(astrologyDetails.mars)?.turkishName}</Text>
                     </View>
                     <Text style={styles.zodiacDescription}>
                       Enerji kaynağı, motivasyon ve tutkulu yanları
@@ -761,8 +828,6 @@ export default function AstrologyMatchesScreen() {
         </PanGestureHandler>
       </View>
 
-
-
       {/* New User Overlay */}
       {showNewUserOverlay && (
         <View style={styles.newUserOverlay}>
@@ -789,6 +854,13 @@ export default function AstrologyMatchesScreen() {
         <View style={styles.swipeProgress}>
           <ActivityIndicator size="small" color={astrologyTheme.accent} />
           <Text style={styles.swipeProgressText}>İşleniyor...</Text>
+        </View>
+      )}
+
+      {/* Error Toast */}
+      {errorToast.show && (
+        <View style={styles.errorToast}>
+          <Text style={styles.errorToastText}>⚠️ {errorToast.message}</Text>
         </View>
       )}
     </View>
@@ -1136,20 +1208,19 @@ const styles = StyleSheet.create({
   nameSection: {
     flex: 1,
   },
-  photoGallery: {
-    padding: 20,
-    gap: 15,
+  singlePhotoContainer: {
+    marginVertical: 20,
+    paddingHorizontal: 20,
+  },
+  singlePhoto: {
+    width: '100%',
+    height: 300,
+    borderRadius: 20,
   },
   sectionTitle: {
     color: '#8000FF',
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  galleryPhoto: {
-    width: '100%',
-    height: 200,
-    borderRadius: 15,
     marginBottom: 10,
   },
   bioSection: {
@@ -1316,5 +1387,30 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  errorToast: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 120 : 100,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(255, 71, 87, 0.95)',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 25,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 1001,
+  },
+  errorToastText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 }); 

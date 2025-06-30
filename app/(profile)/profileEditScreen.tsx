@@ -216,6 +216,7 @@ export default function ProfileEditScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const router = useRouter();
+  const { refreshProfile } = useProfile();
   const { userProfile, fetchUserProfile } = useProfile();
   
   const [activeTab, setActiveTab] = useState('edit'); // 'edit' veya 'preview'
@@ -468,6 +469,9 @@ export default function ProfileEditScreen() {
             try {
               await userApi.setAsProfilePhoto(uploadResponse.id);
               console.log('İlk fotoğraf profil fotoğrafı olarak ayarlandı');
+              
+              // Global ProfileContext'i refresh et
+              await refreshProfile();
             } catch (profilePhotoError) {
               console.error('Profil fotoğrafı ayarlanırken hata:', profilePhotoError);
             }
@@ -493,9 +497,57 @@ export default function ProfileEditScreen() {
   // Fotoğrafı sil
   const handleDeletePhoto = async (photoId: string) => {
     try {
+      // Silinecek fotoğrafın profil fotoğrafı olup olmadığını kontrol et
+      const photoToDelete = photos.find(photo => photo.publicId === photoId);
+      const isProfilePhoto = photoToDelete?.isProfilePhoto || false;
+      
+      console.log('Silinecek fotoğraf:', photoToDelete);
+      console.log('Profil fotoğrafı mı:', isProfilePhoto);
+      
+      // Fotoğrafı sil
       await userApi.deletePhoto(photoId);
+      
+      // Fotoğrafları yeniden çek
       await fetchPhotos();
+      
+      // Eğer silinen fotoğraf profil fotoğrafıysa ve başka fotoğraflar varsa
+      if (isProfilePhoto) {
+        // Güncel fotoğraf listesini al (silme işleminden sonra)
+        const updatedPhotos = await userApi.getPhotos();
+        
+        if (updatedPhotos && updatedPhotos.length > 0) {
+          // İlk kalan fotoğrafı profil fotoğrafı yap
+          const firstPhoto = updatedPhotos[0];
+          console.log('İlk kalan fotoğraf profil fotoğrafı yapılıyor:', firstPhoto);
+          
+          try {
+            await photoService.setAsProfilePhoto(firstPhoto.id);
+            console.log('Otomatik profil fotoğrafı ayarlandı');
+            
+            // Profil bilgilerini ve fotoğrafları yenile
+            await fetchUserProfile();
+            await fetchPhotos();
+            
+            // Global ProfileContext'i refresh et
+            await refreshProfile();
+            
+            Alert.alert('Başarılı', 'Fotoğraf silindi ve kalan fotoğraf profil fotoğrafı olarak ayarlandı');
+          } catch (profileError) {
+            console.error('Otomatik profil fotoğrafı ayarlama hatası:', profileError);
+            Alert.alert('Uyarı', 'Fotoğraf silindi ancak yeni profil fotoğrafı ayarlanırken hata oluştu');
+          }
+        } else {
+          // Hiç fotoğraf kalmadı
+          await fetchUserProfile();
+          await refreshProfile();
+          Alert.alert('Başarılı', 'Fotoğraf silindi');
+        }
+      } else {
+        // Normal fotoğraf silme (profil fotoğrafı değildi)
+        Alert.alert('Başarılı', 'Fotoğraf silindi');
+      }
     } catch (error: any) {
+      console.error('Fotoğraf silme hatası:', error);
       Alert.alert('Hata', error.message || 'Fotoğraf silinirken bir hata oluştu');
     }
   };
@@ -520,6 +572,9 @@ export default function ProfileEditScreen() {
       
       // Profil bilgilerini yenile
       await fetchUserProfile();
+      
+      // Global ProfileContext'i refresh et (diğer ekranlar için)
+      await refreshProfile();
       
       // Kullanıcı profilindeki profil fotoğrafını güncelle (geçici olarak)
       if (userProfile) {
