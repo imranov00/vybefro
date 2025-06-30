@@ -2,22 +2,22 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
 import {
-    Dimensions,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Dimensions,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import Animated, {
-    Easing,
-    useAnimatedStyle,
-    useSharedValue,
-    withRepeat,
-    withSpring,
-    withTiming
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSpring,
+  withTiming
 } from 'react-native-reanimated';
 import { useProfile } from '../context/ProfileContext';
 import { ZodiacSign, getZodiacInfo } from '../types/zodiac';
@@ -407,7 +407,7 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   title: {
-    fontSize: 32,
+    fontSize: 22,
     fontWeight: 'bold',
     color: 'white',
     textAlign: 'center',

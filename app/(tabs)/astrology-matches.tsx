@@ -2,27 +2,27 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    Image,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Image,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import Animated, {
-    interpolate,
-    runOnJS,
-    useAnimatedGestureHandler,
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
-    withTiming
+  interpolate,
+  runOnJS,
+  useAnimatedGestureHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming
 } from 'react-native-reanimated';
 import { useAuth } from '../context/AuthContext';
 import { swipeApi } from '../services/api';
@@ -30,7 +30,7 @@ import { ZodiacSign, getZodiacInfo } from '../types/zodiac';
 
 const { width, height } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.9;
-const CARD_HEIGHT = height * 0.9;
+const CARD_HEIGHT = height * 0.7;
 
 // Swipe API Types
 interface SwipeUser {
@@ -170,7 +170,7 @@ export default function AstrologyMatchesScreen() {
 
   // Animation values
   const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
+  // translateY kaldırıldı - sadece yatay hareket
   const rotate = useSharedValue(0);
   const scale = useSharedValue(1);
   const likeOpacity = useSharedValue(0);
@@ -311,7 +311,7 @@ export default function AstrologyMatchesScreen() {
   // Animasyonları sıfırla
   const resetAnimations = () => {
     translateX.value = withSpring(0);
-    translateY.value = withSpring(0);
+    // translateY kaldırıldı - artık kullanılmıyor
     rotate.value = withSpring(0);
     scale.value = withSpring(1);
     likeOpacity.value = withSpring(0);
@@ -332,7 +332,7 @@ export default function AstrologyMatchesScreen() {
     },
     onActive: (event) => {
       translateX.value = event.translationX;
-      translateY.value = event.translationY;
+      // translateY.value = event.translationY; // Yukarı aşağı hareket kaldırıldı
       
       // Rotasyon hesapla
       rotate.value = interpolate(
@@ -359,7 +359,7 @@ export default function AstrologyMatchesScreen() {
       }
     },
     onEnd: (event) => {
-      const threshold = width * 0.25;
+      const threshold = width * 0.4; // Threshold artırıldı %25'ten %40'a
       
       if (event.translationX > threshold) {
         // LIKE
@@ -372,7 +372,7 @@ export default function AstrologyMatchesScreen() {
         rotate.value = withTiming(-30, { duration: 300 });
         runOnJS(performSwipe)(users[currentUserIndex]?.id, 'DISLIKE');
       } else {
-        // Geri dön
+        // Geri dön - card eski pozisyonuna döner
         resetAnimations();
       }
       
@@ -384,7 +384,7 @@ export default function AstrologyMatchesScreen() {
   const cardStyle = useAnimatedStyle(() => ({
     transform: [
       { translateX: translateX.value },
-      { translateY: translateY.value },
+      // translateY kaldırıldı - sadece yatay hareket
       { rotate: `${rotate.value}deg` },
       { scale: scale.value },
     ],
@@ -473,17 +473,6 @@ export default function AstrologyMatchesScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>✨ Astroloji Eşleşme</Text>
-        {swipeLimitInfo && (
-          <View style={styles.limitInfo}>
-            {swipeLimitInfo.isPremium ? (
-              <Text style={styles.limitText}>∞ Sınırsız</Text>
-            ) : (
-              <Text style={styles.limitText}>
-                {swipeLimitInfo.remainingSwipes}/{swipeLimitInfo.totalSwipes}
-              </Text>
-            )}
-          </View>
-        )}
       </View>
 
       {/* Kart Stack */}
@@ -792,29 +781,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingBottom: 20,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
     color: 'white',
+    textAlign: 'center',
   },
-  limitInfo: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 15,
-  },
-  limitText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-  },
+
   cardStack: {
     flex: 1,
     justifyContent: 'center',
@@ -825,6 +803,7 @@ const styles = StyleSheet.create({
     height: CARD_HEIGHT,
     borderRadius: 20,
     backgroundColor: 'white',
+    marginTop: -100, // Card'ı yukarı taşır
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
