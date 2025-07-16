@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { ZodiacSign } from '../types/zodiac';
-import { getToken, saveToken } from '../utils/tokenStorage';
+import { getRefreshToken, getToken, removeAllTokens, saveRefreshToken, saveToken } from '../utils/tokenStorage';
 
 // NGROK URL'i - değişebilir
 const NGROK_URL = 'https://2221848dc98d.ngrok-free.app';
@@ -89,12 +89,97 @@ api.interceptors.request.use(
   }
 );
 
+// Token yenileme işlemi için global flag (döngüyü engellemek için)
+let isRefreshing = false;
+let failedQueue: Array<{ resolve: (value: any) => void; reject: (reason?: any) => void }> = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach(({ resolve, reject }) => {
+    if (error) {
+      reject(error);
+    } else {
+      resolve(token);
+    }
+  });
+  
+  failedQueue = [];
+};
+
 api.interceptors.response.use(
   (response) => {
     console.log(`[API RESPONSE] ${response.status} ${response.config.url}`);
     return response;
   },
   async (error) => {
+    const originalRequest = error.config;
+    
+    // 401 hatası ve henüz retry yapılmamışsa
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        // Zaten yenileme yapılıyorsa, kuyruğa ekle
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then(token => {
+          if (token) {
+            originalRequest.headers['Authorization'] = `Bearer ${token}`;
+            return api(originalRequest);
+          }
+          return Promise.reject(error);
+        }).catch(err => {
+          return Promise.reject(err);
+        });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        console.log('🔄 [API] 401 hatası - Token yenileniyor...');
+        const refreshToken = await getRefreshToken();
+        
+        if (!refreshToken) {
+          throw new Error('Refresh token bulunamadı');
+        }
+        
+        // Refresh token endpoint'ini çağır
+        const response = await api.post('/api/auth/refresh', { refreshToken });
+        
+        // Yeni token'ları kaydet
+        if (response.data?.token) {
+          await saveToken(response.data.token);
+          
+          if (response.data?.refreshToken) {
+            await saveRefreshToken(response.data.refreshToken);
+          }
+          
+          // Başarılı kuyruğu işle
+          processQueue(null, response.data.token);
+          
+          // Orijinal isteği yeni token ile tekrar yap
+          originalRequest.headers['Authorization'] = `Bearer ${response.data.token}`;
+          console.log('✅ [API] Token yenilendi, istek tekrarlanıyor');
+          return api(originalRequest);
+        }
+        
+        throw new Error('Token yenileme başarısız');
+        
+      } catch (refreshError) {
+        console.error('❌ [API] Token yenileme hatası:', refreshError);
+        
+        // Refresh token geçersizse tüm token'ları temizle
+        await removeAllTokens();
+        
+        // Başarısız kuyruğu işle
+        processQueue(refreshError, null);
+        
+        // Login ekranına yönlendir (bu AuthContext tarafından handle edilecek)
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+    
+    // Diğer hatalar için mevcut logic
     if (error.response) {
       console.error(`[API RESPONSE ERROR] ${error.response.status}`, error.response.data);
     } else if (error.request) {
@@ -158,6 +243,21 @@ export interface ConfirmZodiacRequest {
 export interface LoginRequest {
   usernameOrEmail: string;
   password: string;
+}
+
+export interface RefreshTokenRequest {
+  refreshToken: string;
+}
+
+export interface RefreshTokenResponse {
+  token: string;
+  refreshToken: string;
+}
+
+export interface LoginResponse {
+  token: string;
+  refreshToken: string;
+  user: UserProfileResponse;
 }
 
 export interface UserProfileResponse {
@@ -428,23 +528,63 @@ export const authApi = {
   },
   
   // Giriş yapma
-  async login(data: LoginRequest): Promise<any> {
+  async login(data: LoginRequest): Promise<LoginResponse> {
     const response = await api.post('/api/auth/login', data);
     
-    // JWT token varsa saklama işlemi 
+    // JWT token ve refresh token varsa saklama işlemi 
     if (response.data?.token) {
       await saveToken(response.data.token);
     }
     
+    if (response.data?.refreshToken) {
+      await saveRefreshToken(response.data.refreshToken);
+    }
+    
     return response.data;
+  },
+  
+  // Token yenileme
+  async refreshToken(): Promise<RefreshTokenResponse> {
+    try {
+      const refreshToken = await getRefreshToken();
+      
+      if (!refreshToken) {
+        throw new Error('Refresh token bulunamadı');
+      }
+      
+      const response = await api.post('/api/auth/refresh', { refreshToken });
+      
+      // Yeni token'ları kaydet
+      if (response.data?.token) {
+        await saveToken(response.data.token);
+      }
+      
+      if (response.data?.refreshToken) {
+        await saveRefreshToken(response.data.refreshToken);
+      }
+      
+      console.log('🔄 [API] Token başarıyla yenilendi');
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] Token yenileme hatası:', error);
+      // Refresh token geçersizse tüm token'ları temizle
+      await removeAllTokens();
+      throw error;
+    }
   },
   
   // Çıkış yapma
   logout: async (): Promise<LogoutResponse> => {
     try {
       const response = await api.post('/api/auth/logout');
+      
+      // Çıkış sonrası tüm token'ları temizle
+      await removeAllTokens();
+      
       return response.data;
     } catch (error) {
+      // Hata olsa bile token'ları temizle
+      await removeAllTokens();
       throw error;
     }
   }

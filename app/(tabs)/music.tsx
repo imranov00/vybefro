@@ -4,12 +4,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect } from 'react';
 import { Dimensions, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withSpring,
-  withTiming
+    Easing,
+    useAnimatedStyle,
+    useSharedValue,
+    withRepeat,
+    withSpring,
+    withTiming
 } from 'react-native-reanimated';
 import { useAuth } from '../context/AuthContext';
 
@@ -190,10 +190,10 @@ export default function MusicScreen() {
             stiffness: 150
           });
         }
-      });
-      
+    });
+    
       // Güvenli kart değiştirme animasyonu
-      setTimeout(() => {
+    setTimeout(() => {
         try {
           fadeAnim.value = withTiming(0, { 
             duration: 200 
@@ -207,7 +207,7 @@ export default function MusicScreen() {
                 duration: 200 
               });
             }
-          });
+      });
         } catch (error) {
           console.error('Card fade animation error:', error);
           // Fallback: Animasyon olmadan değiştir

@@ -1,8 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useSegments } from 'expo-router';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
-import { premiumApi } from '../services/api';
-import { hasToken, removeToken } from '../utils/tokenStorage';
+import { authApi, premiumApi } from '../services/api';
+import { hasRefreshToken, hasToken, removeAllTokens } from '../utils/tokenStorage';
 
 // Context değer tipi
 type AuthContextType = {
@@ -69,12 +69,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Çıkış yapma fonksiyonu
   const logout = async () => {
-    await removeToken();
+    try {
+      // Backend'e logout isteği gönder
+      await authApi.logout();
+      console.log('🔓 [AUTH] Backend logout başarılı');
+    } catch (error) {
+      console.error('❌ [AUTH] Backend logout hatası:', error);
+      // Hata olsa bile devam et
+    }
+    
+    // Local storage'ı temizle
+    await removeAllTokens();
     await AsyncStorage.removeItem('user_mode');
     await AsyncStorage.removeItem('user_premium');
+    
+    // State'i güncelle
     setIsLoggedIn(false);
     setCurrentMode('astrology');
     setIsPremium(false);
+    
+    // Login ekranına yönlendir
     router.replace('/(auth)/login');
   };
 
@@ -84,7 +98,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(true);
       try {
         const hasStoredToken = await hasToken();
-        setIsLoggedIn(hasStoredToken);
+        const hasStoredRefreshToken = await hasRefreshToken();
+        
+        // Access token veya refresh token varsa oturum açık sayılır
+        const isUserLoggedIn = hasStoredToken || hasStoredRefreshToken;
+        setIsLoggedIn(isUserLoggedIn);
+        
+        console.log('🔐 [AUTH] Token kontrol:', {
+          hasAccessToken: hasStoredToken,
+          hasRefreshToken: hasStoredRefreshToken,
+          isLoggedIn: isUserLoggedIn
+        });
         
         // Kaydedilmiş mod'u kontrol et
         const savedMode = await AsyncStorage.getItem('user_mode');
@@ -99,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         // Eğer kullanıcı giriş yapmışsa, sunucudan premium durumunu da kontrol et
-        if (hasStoredToken) {
+        if (isUserLoggedIn) {
           try {
             const premiumStatus = await premiumApi.getFeatures();
             setIsPremium(premiumStatus.isPremium);

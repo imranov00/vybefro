@@ -3,29 +3,31 @@ import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  Image,
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    Image,
+    Platform,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import Animated, {
-  interpolate,
-  runOnJS,
-  useAnimatedGestureHandler,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming
+    interpolate,
+    runOnJS,
+    useAnimatedGestureHandler,
+    useAnimatedStyle,
+    useSharedValue,
+    withSpring,
+    withTiming
 } from 'react-native-reanimated';
+import AstrologyMatchScreen from '../components/match/AstrologyMatchScreen';
 import { useAuth } from '../context/AuthContext';
+import { useProfile } from '../context/ProfileContext';
 import { swipeApi } from '../services/api';
 import { ZodiacSign, getZodiacInfo } from '../types/zodiac';
 
@@ -158,6 +160,7 @@ const ASTROLOGY_DETAILS: Record<ZodiacSign, {
 export default function AstrologyMatchesScreen() {
   const colorScheme = useColorScheme();
   const { isPremium } = useAuth();
+  const { userProfile } = useProfile();
   
   // State
   const [users, setUsers] = useState<SwipeUser[]>([]);
@@ -169,6 +172,11 @@ export default function AstrologyMatchesScreen() {
   const [showDetailView, setShowDetailView] = useState(false);
   const [showNewUserOverlay, setShowNewUserOverlay] = useState(false);
   const [errorToast, setErrorToast] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
+  
+  // Match Screen State
+  const [showMatchScreen, setShowMatchScreen] = useState(false);
+  const [matchedUserData, setMatchedUserData] = useState<SwipeUser | null>(null);
+  const [matchResponse, setMatchResponse] = useState<any>(null);
 
   // Animation values
   const translateX = useSharedValue(0);
@@ -307,6 +315,9 @@ export default function AstrologyMatchesScreen() {
             response.message,
             [{ text: 'Harika!', style: 'default' }]
           );
+          setShowMatchScreen(true);
+          setMatchedUserData(users[currentUserIndex]);
+          setMatchResponse(response);
         }
         
         // Sonraki kullanıcıya geç
@@ -863,6 +874,36 @@ export default function AstrologyMatchesScreen() {
           <Text style={styles.errorToastText}>⚠️ {errorToast.message}</Text>
         </View>
       )}
+
+      {/* Match Screen */}
+      {showMatchScreen && matchedUserData && userProfile && (
+        <AstrologyMatchScreen
+          currentUser={{
+            id: userProfile.id || 0,
+            firstName: userProfile.firstName || 'Kullanıcı',
+            lastName: userProfile.lastName || '',
+            profileImageUrl: userProfile.profileImage || null,
+            zodiacSign: userProfile.zodiacSign || 'ARIES'
+          }}
+          matchedUser={{
+            id: matchedUserData.id,
+            firstName: matchedUserData.firstName,
+            lastName: matchedUserData.lastName,
+            profileImageUrl: matchedUserData.profileImageUrl,
+            zodiacSign: matchedUserData.zodiacSign
+          }}
+          onClose={() => {
+            setShowMatchScreen(false);
+            setMatchedUserData(null);
+            setMatchResponse(null);
+          }}
+          onStartChat={() => {
+            setShowMatchScreen(false);
+            // TODO: Sohbet ekranına yönlendirme
+            Alert.alert('Sohbet', 'Sohbet özelliği yakında gelecek!');
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -1410,7 +1451,6 @@ const styles = StyleSheet.create({
   errorToastText: {
     color: 'white',
     fontSize: 14,
-    fontWeight: '600',
     textAlign: 'center',
   },
 }); 
