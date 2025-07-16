@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { ZodiacSign } from '../types/zodiac';
 import { getRefreshToken, getToken, removeAllTokens, saveRefreshToken, saveToken } from '../utils/tokenStorage';
@@ -172,7 +173,13 @@ api.interceptors.response.use(
         // Başarısız kuyruğu işle
         processQueue(refreshError, null);
         
-        // Login ekranına yönlendir (bu AuthContext tarafından handle edilecek)
+        // Logout alert flag'i set et
+        try {
+          await AsyncStorage.setItem('logout_alert_needed', 'true');
+        } catch (error) {
+          console.error('❌ [API] Logout alert flag set hatası:', error);
+        }
+        
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
