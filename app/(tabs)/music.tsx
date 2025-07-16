@@ -1,7 +1,7 @@
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { Dimensions, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
   Easing,
@@ -46,13 +46,62 @@ const MUSIC_WHEEL_SYMBOLS = [
 export default function MusicScreen() {
   const colorScheme = useColorScheme();
   const { switchMode } = useAuth();
-  const [currentMatch, setCurrentMatch] = useState(0);
+  
+  // State'i güvenli bir şekilde tanımla
+  const [currentMatchIndex, setCurrentMatchIndex] = React.useState(0);
   
   // Animasyon değerleri
   const rotation = useSharedValue(0);
   const cardScale = useSharedValue(1);
   const fadeAnim = useSharedValue(1);
   const waveAnim = useSharedValue(0);
+
+  // Animasyon reset fonksiyonu
+  const resetAnimations = useCallback(() => {
+    try {
+      'worklet';
+      cardScale.value = 1;
+      fadeAnim.value = 1;
+    } catch (error) {
+      console.error('Animation reset error:', error);
+    }
+  }, []);
+
+  // Güvenli match değiştirme fonksiyonu
+  const switchToNextMatch = useCallback(() => {
+    try {
+      setCurrentMatchIndex((prevIndex) => {
+        const safeIndex = typeof prevIndex === 'number' && !isNaN(prevIndex) ? prevIndex : 0;
+        const nextIndex = (safeIndex + 1) % MUSIC_MATCHES.length;
+        console.log('Switching to music match:', nextIndex);
+        return nextIndex;
+      });
+    } catch (error) {
+      console.error('Match switch error:', error);
+      // Fallback: Manuel index hesapla
+      const currentIndex = currentMatchIndex || 0;
+      const nextIndex = (currentIndex + 1) % MUSIC_MATCHES.length;
+      setCurrentMatchIndex(nextIndex);
+    }
+  }, [currentMatchIndex]);
+
+  // Güvenli current match getter
+  const getCurrentMatch = useCallback(() => {
+    try {
+      const safeIndex = typeof currentMatchIndex === 'number' && 
+                        !isNaN(currentMatchIndex) && 
+                        currentMatchIndex >= 0 && 
+                        currentMatchIndex < MUSIC_MATCHES.length 
+                        ? currentMatchIndex : 0;
+      return MUSIC_MATCHES[safeIndex];
+    } catch (error) {
+      console.error('Get current match error:', error);
+      return MUSIC_MATCHES[0]; // Fallback to first item
+    }
+  }, [currentMatchIndex]);
+
+  // Memoized current match
+  const currentMatch = getCurrentMatch();
 
   // Dönen müzik çarkı animasyonu
   useEffect(() => {
@@ -71,6 +120,36 @@ export default function MusicScreen() {
       -1,
       true
     );
+
+    // Cleanup function - component unmount olurken
+    return () => {
+      try {
+        // Animasyonları durdur
+        rotation.value = withTiming(rotation.value);
+        waveAnim.value = withTiming(waveAnim.value);
+        resetAnimations();
+      } catch (error) {
+        console.error('Animation cleanup error:', error);
+      }
+    };
+  }, []);
+
+  // Animasyon sağlık kontrolü - her 15 saniyede bir kontrol et
+  useEffect(() => {
+    const healthCheck = setInterval(() => {
+      try {
+        // Eğer animasyon değerleri NaN veya undefined ise reset et
+        if (isNaN(cardScale.value) || isNaN(fadeAnim.value)) {
+          console.warn('Animation values corrupted, resetting...');
+          resetAnimations();
+        }
+      } catch (error) {
+        console.error('Animation health check error:', error);
+        resetAnimations();
+      }
+    }, 15000);
+
+    return () => clearInterval(healthCheck);
   }, []);
 
   // Kart animasyonu
@@ -95,17 +174,53 @@ export default function MusicScreen() {
   });
 
   const handleCardTap = () => {
-    cardScale.value = withSpring(0.95, { damping: 10 }, () => {
-      cardScale.value = withSpring(1);
-    });
-    
-    // Sonraki eşleşmeye geç
-    setTimeout(() => {
-      fadeAnim.value = withTiming(0, { duration: 200 }, () => {
-        setCurrentMatch((prev) => (prev + 1) % MUSIC_MATCHES.length);
-        fadeAnim.value = withTiming(1, { duration: 200 });
+    try {
+      // Önce animasyonları durdur
+      cardScale.value = withTiming(cardScale.value);
+      fadeAnim.value = withTiming(fadeAnim.value);
+      
+      // Güvenli kart scale animasyonu
+      cardScale.value = withSpring(0.95, { 
+        damping: 15,
+        stiffness: 150
+      }, (finished) => {
+        if (finished) {
+          cardScale.value = withSpring(1, {
+            damping: 15,
+            stiffness: 150
+          });
+        }
       });
-    }, 100);
+      
+      // Güvenli kart değiştirme animasyonu
+      setTimeout(() => {
+        try {
+          fadeAnim.value = withTiming(0, { 
+            duration: 200 
+          }, (finished) => {
+            if (finished) {
+              // State güncelleme - UI thread'de yap
+              switchToNextMatch();
+              
+              // Fade in animasyonu
+              fadeAnim.value = withTiming(1, { 
+                duration: 200 
+              });
+            }
+          });
+        } catch (error) {
+          console.error('Card fade animation error:', error);
+          // Fallback: Animasyon olmadan değiştir
+          switchToNextMatch();
+          fadeAnim.value = 1;
+        }
+      }, 150);
+      
+    } catch (error) {
+      console.error('Card tap animation error:', error);
+      // Güvenli fallback: Sadece kart değiştir
+      switchToNextMatch();
+    }
   };
 
   return (
@@ -172,30 +287,47 @@ export default function MusicScreen() {
           <TouchableOpacity 
             style={styles.cardContent}
             onPress={handleCardTap}
+            onPressIn={() => {
+              try {
+                cardScale.value = withSpring(0.98, { damping: 20 });
+              } catch (error) {
+                console.error('Press in animation error:', error);
+              }
+            }}
+            onPressOut={() => {
+              try {
+                if (cardScale.value !== 1) {
+                  cardScale.value = withSpring(1, { damping: 20 });
+                }
+              } catch (error) {
+                console.error('Press out animation error:', error);
+              }
+            }}
             activeOpacity={0.9}
+            disabled={fadeAnim.value < 0.5} // Animasyon sırasında tıklamayı engelle
           >
             <View style={styles.cardHeader}>
               <Text style={styles.matchIcon}>
-                {MUSIC_MATCHES[currentMatch].icon}
+                {currentMatch.icon}
               </Text>
               <View style={styles.matchInfo}>
                 <Text style={styles.matchGenre}>
-                  {MUSIC_MATCHES[currentMatch].genre}
+                  {currentMatch.genre}
                 </Text>
                 <Text style={styles.matchArtist}>
-                  {MUSIC_MATCHES[currentMatch].artist}
+                  {currentMatch.artist}
                 </Text>
                 <View style={styles.compatibilityContainer}>
                   <Text style={styles.compatibilityText}>
-                    %{MUSIC_MATCHES[currentMatch].compatibility} Uyumlu
+                    %{currentMatch.compatibility} Uyumlu
                   </Text>
                   <View style={styles.compatibilityBar}>
                     <View 
                       style={[
                         styles.compatibilityFill, 
                         { 
-                          width: `${MUSIC_MATCHES[currentMatch].compatibility}%`,
-                          backgroundColor: MUSIC_MATCHES[currentMatch].color
+                          width: `${currentMatch.compatibility}%`,
+                          backgroundColor: currentMatch.color
                         }
                       ]} 
                     />
