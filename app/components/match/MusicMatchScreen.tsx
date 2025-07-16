@@ -19,31 +19,31 @@ import Animated, {
     withSpring,
     withTiming
 } from 'react-native-reanimated';
-import { calculateCompatibility, getCompatibilityDescription } from '../../types/compatibility';
-import { getZodiacInfo } from '../../types/zodiac';
 
 const { width, height } = Dimensions.get('window');
 
-interface AstrologyMatchScreenProps {
+interface MusicMatchScreenProps {
   currentUser: {
     id: number;
     firstName: string;
     lastName: string;
     profileImageUrl: string | null;
-    zodiacSign: string;
+    favoriteGenre?: string;
+    favoriteArtist?: string;
   };
   matchedUser: {
     id: number;
     firstName: string;
     lastName: string;
     profileImageUrl: string | null;
-    zodiacSign: string;
+    favoriteGenre?: string;
+    favoriteArtist?: string;
   };
   onClose: () => void;
   onStartChat: () => void;
 }
 
-const AstrologyMatchScreen: React.FC<AstrologyMatchScreenProps> = ({ 
+const MusicMatchScreen: React.FC<MusicMatchScreenProps> = ({ 
   currentUser, 
   matchedUser, 
   onClose, 
@@ -54,44 +54,26 @@ const AstrologyMatchScreen: React.FC<AstrologyMatchScreenProps> = ({
   
   // Animation values
   const backgroundOpacity = useSharedValue(0);
-  const starsScale = useSharedValue(0);
+  const musicNotesScale = useSharedValue(0);
   const heartsScale = useSharedValue(0);
   const profileCardsY = useSharedValue(height);
-  const compatibilityScale = useSharedValue(0);
+  const musicCompatibilityScale = useSharedValue(0);
   const textOpacity = useSharedValue(0);
   const buttonY = useSharedValue(100);
 
-  // Burç bilgilerini al
-  const currentUserZodiac = getZodiacInfo(currentUser.zodiacSign);
-  const matchedUserZodiac = getZodiacInfo(matchedUser.zodiacSign);
-  
-  // Uyumluluk hesapla
-  const compatibilityScore = calculateCompatibility(
-    currentUser.zodiacSign as any, 
-    matchedUser.zodiacSign as any
-  );
-  
-  const compatibilityDesc = getCompatibilityDescription(
-    currentUser.zodiacSign as any,
-    matchedUser.zodiacSign as any,
-    compatibilityScore
-  );
+  // Müzik uyumluluğu için rastgele skor (gerçek uygulamada API'den gelecek)
+  const musicCompatibilityScore = Math.floor(Math.random() * 30) + 70; // 70-100 arası
 
-  // Uyumluluk rengini belirle
-  const getCompatibilityColor = () => {
-    if (compatibilityScore >= 85) return '#4CAF50'; // Yeşil
-    if (compatibilityScore >= 70) return '#FF9800'; // Turuncu
-    if (compatibilityScore >= 50) return '#FFC107'; // Sarı
-    return '#F44336'; // Kırmızı
-  };
+  // Ortak müzik türü
+  const commonGenre = currentUser.favoriteGenre || matchedUser.favoriteGenre || 'Müzik';
 
   useEffect(() => {
     // Animasyon sırası
     backgroundOpacity.value = withTiming(1, { duration: 500 });
     
-    // Yıldızlar ve kalpler
+    // Müzik notaları ve kalpler
     setTimeout(() => {
-      starsScale.value = withSpring(1, { damping: 15 });
+      musicNotesScale.value = withSpring(1, { damping: 15 });
       heartsScale.value = withSequence(
         withSpring(1.3, { damping: 8 }),
         withSpring(1, { damping: 12 })
@@ -103,9 +85,9 @@ const AstrologyMatchScreen: React.FC<AstrologyMatchScreenProps> = ({
       profileCardsY.value = withSpring(0, { damping: 15 });
     }, 600);
 
-    // Uyumluluk ve text
+    // Müzik uyumluluğu ve text
     setTimeout(() => {
-      compatibilityScale.value = withSpring(1, { damping: 12 });
+      musicCompatibilityScale.value = withSpring(1, { damping: 12 });
       textOpacity.value = withTiming(1, { duration: 800 });
     }, 1000);
 
@@ -115,39 +97,11 @@ const AstrologyMatchScreen: React.FC<AstrologyMatchScreenProps> = ({
     }, 1400);
   }, []);
 
-  const backgroundStyle = useAnimatedStyle(() => ({
-    opacity: backgroundOpacity.value,
-  }));
-
-  const starsStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: starsScale.value }],
-  }));
-
-  const heartsStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: heartsScale.value }],
-  }));
-
-  const profileCardsStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: profileCardsY.value }],
-  }));
-
-  const compatibilityStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: compatibilityScale.value }],
-  }));
-
-  const textStyle = useAnimatedStyle(() => ({
-    opacity: textOpacity.value,
-  }));
-
-  const buttonStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: buttonY.value }],
-  }));
-
   const handleClose = () => {
     if (isClosing) return; // Çift tıklama koruması
     
     setIsClosing(true);
-    console.log('🔴 [ASTRO_MATCH] Kapanma işlemi başlatılıyor');
+    console.log('🔴 [MUSIC_MATCH] Kapanma işlemi başlatılıyor');
     
     // Kapanma animasyonu
     backgroundOpacity.value = withTiming(0, { duration: 300 });
@@ -158,9 +112,9 @@ const AstrologyMatchScreen: React.FC<AstrologyMatchScreenProps> = ({
     setTimeout(() => {
       try {
         onClose();
-        console.log('✅ [ASTRO_MATCH] Kapanma tamamlandı');
+        console.log('✅ [MUSIC_MATCH] Kapanma tamamlandı');
       } catch (error) {
-        console.error('❌ [ASTRO_MATCH] Kapanma hatası:', error);
+        console.error('❌ [MUSIC_MATCH] Kapanma hatası:', error);
       }
     }, 300);
   };
@@ -169,7 +123,7 @@ const AstrologyMatchScreen: React.FC<AstrologyMatchScreenProps> = ({
     if (isClosing) return; // Çift tıklama koruması
     
     setIsClosing(true);
-    console.log('💬 [ASTRO_MATCH] Sohbet başlatılıyor');
+    console.log('💬 [MUSIC_MATCH] Sohbet başlatılıyor');
     
     // Kapanma animasyonu
     backgroundOpacity.value = withTiming(0, { duration: 300 });
@@ -179,12 +133,40 @@ const AstrologyMatchScreen: React.FC<AstrologyMatchScreenProps> = ({
     setTimeout(() => {
       try {
         onStartChat();
-        console.log('✅ [ASTRO_MATCH] Sohbet başlatıldı');
+        console.log('✅ [MUSIC_MATCH] Sohbet başlatıldı');
       } catch (error) {
-        console.error('❌ [ASTRO_MATCH] Sohbet başlatma hatası:', error);
+        console.error('❌ [MUSIC_MATCH] Sohbet başlatma hatası:', error);
       }
     }, 300);
   };
+
+  const backgroundStyle = useAnimatedStyle(() => ({
+    opacity: backgroundOpacity.value,
+  }));
+
+  const musicNotesStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: musicNotesScale.value }],
+  }));
+
+  const heartsStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: heartsScale.value }],
+  }));
+
+  const profileCardsStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: profileCardsY.value }],
+  }));
+
+  const musicCompatibilityStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: musicCompatibilityScale.value }],
+  }));
+
+  const textStyle = useAnimatedStyle(() => ({
+    opacity: textOpacity.value,
+  }));
+
+  const buttonStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: buttonY.value }],
+  }));
 
   return (
     <View style={styles.container}>
@@ -193,25 +175,31 @@ const AstrologyMatchScreen: React.FC<AstrologyMatchScreenProps> = ({
       {/* Background */}
       <Animated.View style={[styles.background, backgroundStyle]}>
         <LinearGradient
-          colors={['#0F0C29', '#302B63', '#24243e']}
+          colors={['#FF6B6B', '#4ECDC4', '#45B7D1']}
           style={StyleSheet.absoluteFillObject}
         />
       </Animated.View>
 
-      {/* Yıldız efektleri */}
-      <Animated.View style={[styles.starsContainer, starsStyle]}>
-        {Array.from({ length: 30 }).map((_, i) => (
+      {/* Müzik notası efektleri */}
+      <Animated.View style={[styles.musicNotesContainer, musicNotesStyle]}>
+        {Array.from({ length: 20 }).map((_, i) => (
           <View
             key={i}
             style={[
-              styles.star,
+              styles.musicNote,
               {
                 left: `${Math.random() * 100}%`,
                 top: `${Math.random() * 100}%`,
-                opacity: Math.random() * 0.8 + 0.2,
+                opacity: Math.random() * 0.7 + 0.3,
               },
             ]}
-          />
+          >
+            <Ionicons 
+              name={i % 2 === 0 ? 'musical-note' : 'musical-notes'} 
+              size={16 + Math.random() * 10} 
+              color="#FFFFFF" 
+            />
+          </View>
         ))}
       </Animated.View>
 
@@ -230,12 +218,12 @@ const AstrologyMatchScreen: React.FC<AstrologyMatchScreenProps> = ({
 
       {/* Başlık */}
       <Animated.View style={[styles.titleContainer, textStyle]}>
-        <Text style={styles.matchTitle}>🌟 YILDIZLAR BULUŞTU! 🌟</Text>
+        <Text style={styles.matchTitle}>🎵 MÜZİK RUHLARINIZ BULUŞTU! 🎵</Text>
         <Text style={styles.matchSubtitle}>
           {currentUser.firstName} ve {matchedUser.firstName}
         </Text>
         <Text style={styles.matchDescription}>
-          Yıldızlarınız birbirinizi beğendiğinizi söylüyor...
+          Aynı ritimde kalp atışlarınız var...
         </Text>
       </Animated.View>
 
@@ -252,36 +240,30 @@ const AstrologyMatchScreen: React.FC<AstrologyMatchScreenProps> = ({
               />
             ) : (
               <View style={styles.placeholderImage}>
-                <Text style={styles.placeholderEmoji}>
-                  {currentUserZodiac?.emoji || '👤'}
-                </Text>
+                <Ionicons name="person" size={35} color="#FFFFFF" />
               </View>
             )}
           </View>
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>{currentUser.firstName}</Text>
-            <Text style={styles.profileZodiac}>
-              {currentUserZodiac?.display || currentUser.zodiacSign}
+            <Text style={styles.profileMusic}>
+              {currentUser.favoriteGenre || '🎵 Müzik'}
             </Text>
           </View>
         </View>
 
-        {/* Ortadaki burç uyumluluğu */}
-        <Animated.View style={[styles.compatibilityCenter, compatibilityStyle]}>
+        {/* Ortadaki müzik uyumluluğu */}
+        <Animated.View style={[styles.compatibilityCenter, musicCompatibilityStyle]}>
           <View style={styles.compatibilityCircle}>
             <Text style={styles.compatibilityPercentage}>
-              %{compatibilityScore}
+              %{musicCompatibilityScore}
             </Text>
             <Text style={styles.compatibilityLabel}>Uyumlu</Text>
           </View>
-          <View style={styles.zodiacConnection}>
-            <Text style={styles.zodiacEmoji}>
-              {currentUserZodiac?.emoji}
-            </Text>
+          <View style={styles.musicConnection}>
+            <Ionicons name="musical-note" size={24} color="#FFD700" />
             <View style={styles.connectionLine} />
-            <Text style={styles.zodiacEmoji}>
-              {matchedUserZodiac?.emoji}
-            </Text>
+            <Ionicons name="musical-note" size={24} color="#FFD700" />
           </View>
         </Animated.View>
 
@@ -296,26 +278,25 @@ const AstrologyMatchScreen: React.FC<AstrologyMatchScreenProps> = ({
               />
             ) : (
               <View style={styles.placeholderImage}>
-                <Text style={styles.placeholderEmoji}>
-                  {matchedUserZodiac?.emoji || '👤'}
-                </Text>
+                <Ionicons name="person" size={35} color="#FFFFFF" />
               </View>
             )}
           </View>
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>{matchedUser.firstName}</Text>
-            <Text style={styles.profileZodiac}>
-              {matchedUserZodiac?.display || matchedUser.zodiacSign}
+            <Text style={styles.profileMusic}>
+              {matchedUser.favoriteGenre || '🎵 Müzik'}
             </Text>
           </View>
         </View>
       </Animated.View>
 
-      {/* Uyumluluk Açıklaması */}
+      {/* Müzik Uyumluluğu Açıklaması */}
       <Animated.View style={[styles.compatibilityDescription, textStyle]}>
-        <Text style={styles.descriptionTitle}>✨ Yıldızlar Ne Diyor?</Text>
+        <Text style={styles.descriptionTitle}>🎶 Müzik Uyumunuz</Text>
         <Text style={styles.descriptionText}>
-          {compatibilityDesc}
+          İkinizin de {commonGenre} müzik zevki var! Bu harika bir başlangıç. 
+          Aynı ritimde kalp atışlarınız, birlikte güzel anlar yaşayabileceğinizin işareti.
         </Text>
       </Animated.View>
 
@@ -327,7 +308,7 @@ const AstrologyMatchScreen: React.FC<AstrologyMatchScreenProps> = ({
           activeOpacity={0.8}
         >
           <LinearGradient
-            colors={['#667eea', '#764ba2']}
+            colors={['#FF6B6B', '#4ECDC4']}
             style={styles.buttonGradient}
           >
             <Ionicons name="chatbubble-ellipses" size={24} color="white" />
@@ -371,17 +352,13 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  starsContainer: {
+  musicNotesContainer: {
     position: 'absolute',
     width: '100%',
     height: '100%',
   },
-  star: {
+  musicNote: {
     position: 'absolute',
-    width: 2,
-    height: 2,
-    backgroundColor: '#FFF',
-    borderRadius: 1,
   },
   heartsContainer: {
     position: 'absolute',
@@ -413,7 +390,7 @@ const styles = StyleSheet.create({
   matchTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#FFD700',
+    color: '#FFFFFF',
     textAlign: 'center',
     marginBottom: 10,
   },
@@ -451,7 +428,7 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 40,
     borderWidth: 3,
-    borderColor: '#FFD700',
+    borderColor: '#FFFFFF',
     overflow: 'hidden',
     marginBottom: 10,
   },
@@ -462,12 +439,9 @@ const styles = StyleSheet.create({
   placeholderImage: {
     width: '100%',
     height: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  placeholderEmoji: {
-    fontSize: 35,
   },
   profileInfo: {
     alignItems: 'center',
@@ -478,7 +452,7 @@ const styles = StyleSheet.create({
     color: 'white',
     marginBottom: 2,
   },
-  profileZodiac: {
+  profileMusic: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.8)',
   },
@@ -490,9 +464,9 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderWidth: 2,
-    borderColor: '#FFD700',
+    borderColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 15,
@@ -500,23 +474,20 @@ const styles = StyleSheet.create({
   compatibilityPercentage: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#FFD700',
+    color: '#FFFFFF',
   },
   compatibilityLabel: {
     fontSize: 10,
     color: 'rgba(255, 255, 255, 0.8)',
   },
-  zodiacConnection: {
+  musicConnection: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  zodiacEmoji: {
-    fontSize: 20,
   },
   connectionLine: {
     width: 30,
     height: 2,
-    backgroundColor: '#FFD700',
+    backgroundColor: '#FFFFFF',
     marginHorizontal: 5,
   },
   compatibilityDescription: {
@@ -529,7 +500,7 @@ const styles = StyleSheet.create({
   descriptionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#FFD700',
+    color: '#FFFFFF',
     textAlign: 'center',
     marginBottom: 10,
   },
@@ -586,4 +557,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default AstrologyMatchScreen; 
+export default MusicMatchScreen; 

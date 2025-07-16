@@ -309,15 +309,17 @@ export default function AstrologyMatchesScreen() {
       if (response.success) {
         if (response.isMatch) {
           // Eşleşme var!
-          showMatchAnimation();
-          Alert.alert(
-            '🎉 Eşleşme!',
-            response.message,
-            [{ text: 'Harika!', style: 'default' }]
-          );
+          console.log('🎉 [MATCH] Eşleşme bulundu!', response);
+          
+          // Match screen'i göster
           setShowMatchScreen(true);
           setMatchedUserData(users[currentUserIndex]);
           setMatchResponse(response);
+          
+          // Match animasyonu (opsiyonel)
+          showMatchAnimation();
+          
+          // NOT: Alert kaldırıldı, sadece match screen gösteriliyor
         }
         
         // Sonraki kullanıcıya geç
@@ -893,14 +895,31 @@ export default function AstrologyMatchesScreen() {
             zodiacSign: matchedUserData.zodiacSign
           }}
           onClose={() => {
-            setShowMatchScreen(false);
-            setMatchedUserData(null);
-            setMatchResponse(null);
+            console.log('🔴 [MATCH] Match screen kapatılıyor');
+            try {
+              setShowMatchScreen(false);
+              setMatchedUserData(null);
+              setMatchResponse(null);
+              console.log('✅ [MATCH] Match screen başarıyla kapatıldı');
+            } catch (error) {
+              console.error('❌ [MATCH] Match screen kapatma hatası:', error);
+              // Fallback: Force close
+              setShowMatchScreen(false);
+            }
           }}
           onStartChat={() => {
-            setShowMatchScreen(false);
-            // TODO: Sohbet ekranına yönlendirme
-            Alert.alert('Sohbet', 'Sohbet özelliği yakında gelecek!');
+            console.log('💬 [MATCH] Sohbet başlatılıyor');
+            try {
+              setShowMatchScreen(false);
+              setMatchedUserData(null);
+              setMatchResponse(null);
+              // TODO: Sohbet ekranına yönlendirme
+              Alert.alert('Sohbet', 'Sohbet özelliği yakında gelecek!');
+            } catch (error) {
+              console.error('❌ [MATCH] Sohbet başlatma hatası:', error);
+              // Fallback: Force close
+              setShowMatchScreen(false);
+            }
           }}
         />
       )}
