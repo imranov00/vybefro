@@ -1,6 +1,7 @@
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -161,6 +162,7 @@ export default function AstrologyMatchesScreen() {
   const colorScheme = useColorScheme();
   const { isPremium } = useAuth();
   const { userProfile } = useProfile();
+  const router = useRouter();
   
   // State
   const [users, setUsers] = useState<SwipeUser[]>([]);
@@ -168,6 +170,7 @@ export default function AstrologyMatchesScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [swipeLimitInfo, setSwipeLimitInfo] = useState<SwipeLimitInfo | null>(null);
   const [isSwipeInProgress, setIsSwipeInProgress] = useState(false);
+  const [countdown, setCountdown] = useState<string>('');
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [showDetailView, setShowDetailView] = useState(false);
   const [showNewUserOverlay, setShowNewUserOverlay] = useState(false);
@@ -204,6 +207,60 @@ export default function AstrologyMatchesScreen() {
     setTimeout(() => {
       setErrorToast({ show: false, message: '' });
     }, 3000); // 3 saniye sonra gizle
+  };
+
+  // 24 saatlik geri sayım hesaplama
+  const calculateCountdown = useCallback(() => {
+    if (!swipeLimitInfo?.nextResetTime) {
+      setCountdown('');
+      return;
+    }
+    
+    const resetTime = new Date(swipeLimitInfo.nextResetTime);
+    const now = new Date();
+    const timeDiff = resetTime.getTime() - now.getTime();
+    
+    if (timeDiff <= 0) {
+      setCountdown('Yenileniyor...');
+      // Limit yenilendi, fresh data çek
+      fetchSwipeLimitInfo();
+      return;
+    }
+    
+    const hours = Math.floor(timeDiff / (1000 * 60 * 60));
+    const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000);
+    
+    setCountdown(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+  }, [swipeLimitInfo?.nextResetTime]);
+
+  // Geri sayım timer'ı
+  useEffect(() => {
+    const interval = setInterval(calculateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [calculateCountdown]);
+
+  // Premium modal göster
+  const showPremiumModal = () => {
+    Alert.alert(
+      '🎉 Günlük Limit Doldu!',
+      `Günlük ${swipeLimitInfo?.totalSwipes || 20} swipe hakkınız tükendi.\n\nYeniden swipe yapabilmek için:\n\n⏰ ${countdown} sonra bekleyin\n\nVEYA\n\n✨ Premium üye olun ve sınırsız swipe yapın!`,
+      [
+        {
+          text: 'Bekleyeceğim',
+          style: 'cancel'
+        },
+        {
+          text: '⭐ Premium Ol',
+          style: 'default',
+          onPress: () => {
+            console.log('🎯 [PREMIUM] Premium sayfasına yönlendiriliyor...');
+            router.push('/(profile)/premiumScreen');
+          }
+        }
+      ],
+      { cancelable: false }
+    );
   };
 
   // Kullanıcıları getir
@@ -288,11 +345,19 @@ export default function AstrologyMatchesScreen() {
   // Swipe limit bilgisi getir
   const fetchSwipeLimitInfo = async () => {
     try {
-      // Bu fonksiyon için ayrı bir API endpoint'i gerekiyor
-      // Şimdilik discover'dan alınan bilgiyi kullanacağız
-      console.log('Swipe limit bilgisi discover ile alınıyor');
+      console.log('🔄 [LIMIT] Swipe limit bilgisi getiriliyor...');
+      
+      // SwipeApi'den limit bilgisini al
+      const limitInfo = await swipeApi.getSwipeLimitInfo();
+      
+      if (limitInfo) {
+        console.log('✅ [LIMIT] Swipe limit bilgisi alındı:', limitInfo);
+        setSwipeLimitInfo(limitInfo);
+      }
     } catch (error) {
-      console.error('Swipe limit bilgisi hatası:', error);
+      console.warn('⚠️ [LIMIT] Swipe limit bilgisi alınamadı:', error);
+      // Hata durumunda discover'dan alınan bilgiyi kullan
+      console.log('📋 [LIMIT] Discover\'dan alınan bilgi kullanılacak');
     }
   };
 
@@ -300,6 +365,25 @@ export default function AstrologyMatchesScreen() {
   const performSwipe = async (toUserId: number, action: 'LIKE' | 'DISLIKE' | 'SUPER_LIKE') => {
     try {
       setIsSwipeInProgress(true);
+      
+      // Önce güncel limit bilgisini al
+      console.log('🔍 [LIMIT] Swipe öncesi limit kontrolü yapılıyor...');
+      const currentLimitInfo = await swipeApi.getSwipeLimitInfo();
+      
+      if (currentLimitInfo) {
+        console.log('📊 [LIMIT] Güncel limit bilgisi:', currentLimitInfo);
+        setSwipeLimitInfo(currentLimitInfo);
+        
+        // Premium değilse ve limit dolmuşsa engelle
+        if (!isPremium && currentLimitInfo.remainingSwipes <= 0) {
+          console.log('🚫 [LIMIT] Swipe limit dolmuş, premium modal gösteriliyor');
+          showPremiumModal();
+          return;
+        }
+        
+        // Kalan swipe sayısını logla
+        console.log(`✅ [LIMIT] Swipe yapılabilir, kalan: ${currentLimitInfo.remainingSwipes}/${currentLimitInfo.totalSwipes}`);
+      }
       
       console.log('🔄 [SWIPE] İstek gönderiliyor:', { toUserId, action });
       
@@ -311,6 +395,19 @@ export default function AstrologyMatchesScreen() {
       console.log('📨 [SWIPE] Backend yanıtı:', response);
 
       if (response.success) {
+        // Swipe limit bilgisini güncelle (UI için)
+        if (typeof response.remainingSwipes === 'number' && swipeLimitInfo) {
+          console.log('📊 [SWIPE] UI limit güncelleniyor:', {
+            önceki: swipeLimitInfo.remainingSwipes,
+            yeni: response.remainingSwipes
+          });
+          
+          setSwipeLimitInfo(prev => prev ? {
+            ...prev,
+            remainingSwipes: response.remainingSwipes as number
+          } : null);
+        }
+        
         if (response.isMatch) {
           // Eşleşme var!
           console.log('🎉 [MATCH] Eşleşme bulundu!', {
@@ -603,7 +700,17 @@ export default function AstrologyMatchesScreen() {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>🌟 Astroloji Eşleşme</Text>
           <View style={styles.swipeCounter}>
-            <Text style={styles.swipeCountText}>--/--</Text>
+            <Text style={styles.swipeCountText}>
+              {swipeLimitInfo ? 
+                `${swipeLimitInfo.remainingSwipes}/${swipeLimitInfo.totalSwipes}` : 
+                '--/--'
+              }
+            </Text>
+            {swipeLimitInfo && swipeLimitInfo.remainingSwipes === 0 && countdown && !isPremium && (
+              <Text style={styles.countdownText}>
+                ⏰ {countdown}
+              </Text>
+            )}
           </View>
         </View>
 
@@ -1001,6 +1108,12 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 14,
     fontWeight: '600',
+  },
+  countdownText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 5,
   },
   emptyContainer: {
     flex: 1,
