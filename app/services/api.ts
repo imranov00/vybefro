@@ -816,7 +816,7 @@ export const userApi = {
     });
     
     try {
-      const response = await api.post('/api/swipes', data, authHeader);
+      const response = await api.post('/api/swipes/sync', data, authHeader);
       console.log('✅ [API] userApi.swipe yanıtı:', response.data);
       return response.data;
     } catch (error: any) {
@@ -988,7 +988,7 @@ export const swipeApi = {
     }
     
     try {
-      const response = await api.post('/api/swipes', swipeData, authHeader);
+      const response = await api.post('/api/swipes/sync', swipeData, authHeader);
       console.log('✅ [API] swipe yanıtı:', response.data);
       
       // Swipe limiti bilgisini log'la
