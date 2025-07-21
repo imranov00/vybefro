@@ -301,15 +301,23 @@ export default function AstrologyMatchesScreen() {
     try {
       setIsSwipeInProgress(true);
       
+      console.log('🔄 [SWIPE] İstek gönderiliyor:', { toUserId, action });
+      
       const response = await swipeApi.swipe({
         toUserId,
         action: action === 'SUPER_LIKE' ? 'LIKE' : action
       });
 
+      console.log('📨 [SWIPE] Backend yanıtı:', response);
+
       if (response.success) {
         if (response.isMatch) {
           // Eşleşme var!
-          console.log('🎉 [MATCH] Eşleşme bulundu!', response);
+          console.log('🎉 [MATCH] Eşleşme bulundu!', {
+            response,
+            userProfile: userProfile ? 'mevcut' : 'null',
+            currentUser: users[currentUserIndex] ? 'mevcut' : 'null'
+          });
           
           // Match screen'i göster
           setShowMatchScreen(true);
@@ -319,11 +327,19 @@ export default function AstrologyMatchesScreen() {
           // Match animasyonu (opsiyonel)
           showMatchAnimation();
           
-          // NOT: Alert kaldırıldı, sadece match screen gösteriliyor
+          console.log('✅ [MATCH] Match screen state güncellendi:', {
+            showMatchScreen: true,
+            matchedUserExists: !!users[currentUserIndex]
+          });
+          
+          // MATCH DURUMUNDA KULLANICIYI DEĞİŞTİRME! 
+          // Match ekranı kapatıldığında nextUser çağrılacak
+          return;
+        } else {
+          console.log('👥 [SWIPE] Eşleşme yok, sonraki kullanıcıya geçiliyor');
+          // Sonraki kullanıcıya geç (sadece eşleşme yoksa)
+          nextUser();
         }
-        
-        // Sonraki kullanıcıya geç
-        nextUser();
       } else {
         // API başarısız yanıt döndü ama hata değil (limit doldu, vs.)
         console.log('❌ [API] Swipe başarısız:', response.message);
@@ -901,10 +917,16 @@ export default function AstrologyMatchesScreen() {
               setMatchedUserData(null);
               setMatchResponse(null);
               console.log('✅ [MATCH] Match screen başarıyla kapatıldı');
+              
+              // Match ekranı kapatıldığında sonraki kullanıcıya geç
+              console.log('➡️ [MATCH] Sonraki kullanıcıya geçiliyor...');
+              nextUser();
             } catch (error) {
               console.error('❌ [MATCH] Match screen kapatma hatası:', error);
               // Fallback: Force close
               setShowMatchScreen(false);
+              // Hata durumunda da sonraki kullanıcıya geç
+              nextUser();
             }
           }}
           onStartChat={() => {
@@ -913,12 +935,19 @@ export default function AstrologyMatchesScreen() {
               setShowMatchScreen(false);
               setMatchedUserData(null);
               setMatchResponse(null);
+              
+              // Sonraki kullanıcıya geç
+              console.log('➡️ [MATCH] Sohbet başlatıldı, sonraki kullanıcıya geçiliyor...');
+              nextUser();
+              
               // TODO: Sohbet ekranına yönlendirme
               Alert.alert('Sohbet', 'Sohbet özelliği yakında gelecek!');
             } catch (error) {
               console.error('❌ [MATCH] Sohbet başlatma hatası:', error);
               // Fallback: Force close
               setShowMatchScreen(false);
+              // Hata durumunda da sonraki kullanıcıya geç
+              nextUser();
             }
           }}
         />
