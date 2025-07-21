@@ -3,7 +3,7 @@ import { useRouter, useSegments } from 'expo-router';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 import { authApi, premiumApi } from '../services/api';
-import { hasRefreshToken, hasToken, removeAllTokens } from '../utils/tokenStorage';
+import { hasRefreshToken, removeAllTokens } from '../utils/tokenStorage';
 
 // Context değer tipi
 type AuthContextType = {
@@ -126,14 +126,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.replace('/(auth)/login');
   };
 
-  // Uygulama başlangıcında token ve mode kontrolü
+  // Uygulama başlangıcında otomatik giriş denemesi
   useEffect(() => {
-    const checkToken = async () => {
+    const attemptAutoLogin = async () => {
       setIsLoading(true);
       try {
-        const hasStoredToken = await hasToken();
-        const hasStoredRefreshToken = await hasRefreshToken();
-        
         // Logout alert flag'ini kontrol et
         const logoutAlertNeeded = await AsyncStorage.getItem('logout_alert_needed');
         if (logoutAlertNeeded === 'true') {
@@ -141,50 +138,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await AsyncStorage.removeItem('logout_alert_needed'); // Flag'i temizle
         }
         
-        // Access token veya refresh token varsa oturum açık sayılır
-        const isUserLoggedIn = hasStoredToken || hasStoredRefreshToken;
-        setIsLoggedIn(isUserLoggedIn);
+        const hasStoredRefreshToken = await hasRefreshToken();
         
-        console.log('🔐 [AUTH] Token kontrol:', {
-          hasAccessToken: hasStoredToken,
-          hasRefreshToken: hasStoredRefreshToken,
-          isLoggedIn: isUserLoggedIn,
-          logoutAlertNeeded: logoutAlertNeeded === 'true'
-        });
+        if (!hasStoredRefreshToken) {
+          console.log('❌ [AUTH] Refresh token yok, manuel login gerekli');
+          setIsLoggedIn(false);
+          return;
+        }
         
-        // Kaydedilmiş mod'u kontrol et
-        const savedMode = await AsyncStorage.getItem('user_mode');
-        if (savedMode === 'music' || savedMode === 'astrology') {
-          setCurrentMode(savedMode);
-        }
+        try {
+          // Persistent login dene
+          console.log('🔄 [AUTH] Otomatik giriş deneniyor...');
+          const loginResponse = await authApi.persistentLogin();
+          
+          if (loginResponse.success) {
+            console.log('✅ [AUTH] Otomatik giriş başarılı!');
+            setIsLoggedIn(true);
+            
+            // Kaydedilmiş mod'u kontrol et
+            const savedMode = await AsyncStorage.getItem('user_mode');
+            if (savedMode === 'music' || savedMode === 'astrology') {
+              setCurrentMode(savedMode);
+            }
 
-        // Premium durumunu kontrol et
-        const savedPremium = await AsyncStorage.getItem('user_premium');
-        if (savedPremium === 'true') {
-          setIsPremium(true);
-        }
+            // Premium durumunu kontrol et
+            const savedPremium = await AsyncStorage.getItem('user_premium');
+            if (savedPremium === 'true') {
+              setIsPremium(true);
+            }
 
-        // Eğer kullanıcı giriş yapmışsa, sunucudan premium durumunu da kontrol et
-        if (isUserLoggedIn) {
-          try {
-            const premiumStatus = await premiumApi.getFeatures();
-            setIsPremium(premiumStatus.isPremium);
-            // Güncel durumu storage'a kaydet
-            await AsyncStorage.setItem('user_premium', premiumStatus.isPremium.toString());
-          } catch (error) {
-            console.error('Premium durum kontrolü sırasında hata:', error);
-            // API hatası varsa, local storage'daki değeri kullan
+            // Sunucudan premium durumunu da kontrol et
+            try {
+              const premiumStatus = await premiumApi.getFeatures();
+              setIsPremium(premiumStatus.isPremium);
+              // Güncel durumu storage'a kaydet
+              await AsyncStorage.setItem('user_premium', premiumStatus.isPremium.toString());
+            } catch (error) {
+              console.error('Premium durum kontrolü sırasında hata:', error);
+              // API hatası varsa, local storage'daki değeri kullan
+            }
+          } else {
+            throw new Error('Persistent login response başarısız');
           }
+        } catch (error) {
+          console.log('❌ [AUTH] Otomatik giriş başarısız:', error);
+          
+          // Geçersiz refresh token'ı temizle
+          await removeAllTokens();
+          await AsyncStorage.removeItem('user_mode');
+          await AsyncStorage.removeItem('user_premium');
+          
+          setIsLoggedIn(false);
+          setCurrentMode('astrology');
+          setIsPremium(false);
         }
       } catch (error) {
-        console.error('Token kontrolü sırasında hata:', error);
+        console.error('❌ [AUTH] Otomatik giriş kontrolü sırasında hata:', error);
         setIsLoggedIn(false);
       } finally {
         setIsLoading(false);
       }
     };
 
-    checkToken();
+    attemptAutoLogin();
   }, []);
 
   // Çıkış uyarısını göstermek için ayrı useEffect

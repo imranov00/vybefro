@@ -107,8 +107,23 @@ const processQueue = (error: any, token: string | null = null) => {
 };
 
 api.interceptors.response.use(
-  (response) => {
+  async (response) => {
     console.log(`[API RESPONSE] ${response.status} ${response.config.url}`);
+    
+    // Response header'larında yeni token kontrolü
+    const newToken = response.headers['x-new-token'];
+    const tokenRefreshed = response.headers['x-token-refreshed'];
+    
+    if (newToken && tokenRefreshed === 'true') {
+      console.log('🔄 [API] Token otomatik yenilendi (response header)');
+      
+      // Yeni token'ı kaydet
+      await saveToken(newToken);
+      
+      // Opsiyonel: Kullanıcıya bildirim (kaldırabilirsiniz)
+      // console.log('✅ [API] Token yenilendi');
+    }
+    
     return response;
   },
   async (error) => {
@@ -265,6 +280,7 @@ export interface LoginResponse {
   token: string;
   refreshToken: string;
   user: UserProfileResponse;
+  success?: boolean; // Persistent login için
 }
 
 export interface UserProfileResponse {
@@ -410,7 +426,9 @@ export interface SwipeRequest {
 export interface SwipeResponse {
   success: boolean;
   isMatch: boolean;
+  status: 'LIKED' | 'DISLIKED' | 'MATCHED';
   matchId?: string;
+  remainingSwipes?: number;
   message: string;
 }
 
@@ -462,6 +480,8 @@ export interface SwipeLimitInfo {
   remainingSwipes: number;
   totalSwipes: number;
   nextResetTime: string;
+  dailyLimit: number;
+  usedSwipes: number;
 }
 
 export interface DiscoverUser {
@@ -493,22 +513,32 @@ export interface DiscoverResponse {
   message?: string;
 }
 
-// API'yi kullanırken gerekli token header'ını oluşturur
+// API'yi kullanırken gerekli token header'larını oluşturur
 const createAuthHeader = async () => {
   try {
     const token = await getToken();
-    console.log('🔑 [API] Token kontrolü:', token ? 'Token mevcut' : 'Token bulunamadı');
+    const refreshToken = await getRefreshToken();
+    
+    console.log('🔑 [API] Token kontrolü:', {
+      hasAccessToken: !!token,
+      hasRefreshToken: !!refreshToken
+    });
     
     if (!token) {
       throw new Error('Token bulunamadı');
     }
     
-    return {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
     };
+    
+    // Refresh token varsa X-Refresh-Token header'ını ekle
+    if (refreshToken) {
+      headers['X-Refresh-Token'] = refreshToken;
+    }
+    
+    return { headers };
   } catch (error) {
     console.error('❌ [API] Token oluşturma hatası:', error);
     throw error;
@@ -580,6 +610,45 @@ export const authApi = {
     }
   },
   
+  // Otomatik giriş yapma (persistent login)
+  async persistentLogin(): Promise<LoginResponse> {
+    try {
+      const refreshToken = await getRefreshToken();
+      
+      if (!refreshToken) {
+        throw new Error('Refresh token bulunamadı');
+      }
+      
+      console.log('🔄 [API] Persistent login deneniyor...');
+      
+      const response = await api.post('/api/auth/persistent-login', {
+        refreshToken: refreshToken
+      });
+      
+      if (response.data?.success && response.data?.token) {
+        // Yeni token'ı kaydet
+        await saveToken(response.data.token);
+        
+        // Refresh token da varsa güncelle
+        if (response.data?.refreshToken) {
+          await saveRefreshToken(response.data.refreshToken);
+        }
+        
+        console.log('✅ [API] Persistent login başarılı');
+        return response.data;
+      }
+      
+      throw new Error('Persistent login başarısız');
+    } catch (error: any) {
+      console.log('❌ [API] Persistent login hatası:', error.message);
+      
+      // Geçersiz refresh token'ı temizle
+      await removeAllTokens();
+      
+      throw error;
+    }
+  },
+
   // Çıkış yapma
   logout: async (): Promise<LogoutResponse> => {
     try {
@@ -739,8 +808,33 @@ export const userApi = {
 
   swipe: async (data: SwipeRequest): Promise<SwipeResponse> => {
     const authHeader = await createAuthHeader();
-    const response = await api.post('/api/swipes', data, authHeader);
-    return response.data;
+    
+    console.log('🔄 [API] userApi.swipe çağrısı:', data);
+    console.log('🔧 [API] userApi.swipe headers:', {
+      hasAuth: !!authHeader.headers['Authorization'],
+      hasRefreshToken: !!authHeader.headers['X-Refresh-Token']
+    });
+    
+    try {
+      const response = await api.post('/api/swipes', data, authHeader);
+      console.log('✅ [API] userApi.swipe yanıtı:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] userApi.swipe hatası:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
+      
+      if (error.response?.status === 403) {
+        console.error('🔒 [API] userApi.swipe 403 Forbidden:', {
+          headers: error.response.headers,
+          data: error.response.data
+        });
+      }
+      
+      throw error;
+    }
   },
 };
 
@@ -875,12 +969,84 @@ export const swipeApi = {
   swipe: async (swipeData: SwipeRequest): Promise<SwipeResponse> => {
     console.log('🔄 [API] swipe çağrısı:', swipeData);
     const authHeader = await createAuthHeader();
+    
+    console.log('🔧 [API] Swipe headers:', {
+      hasAuth: !!authHeader.headers['Authorization'],
+      hasRefreshToken: !!authHeader.headers['X-Refresh-Token'],
+      authPreview: authHeader.headers['Authorization']?.substring(0, 20) + '...',
+      refreshPreview: authHeader.headers['X-Refresh-Token']?.substring(0, 20) + '...'
+    });
+    
+    // Token kontrolü
+    if (!authHeader.headers['Authorization']) {
+      console.error('❌ [API] Authorization token eksik');
+      throw new Error('Oturum süresi dolmuş. Lütfen tekrar giriş yapın.');
+    }
+    
+    if (!authHeader.headers['X-Refresh-Token']) {
+      console.error('⚠️ [API] Refresh token eksik');
+    }
+    
     try {
       const response = await api.post('/api/swipes', swipeData, authHeader);
       console.log('✅ [API] swipe yanıtı:', response.data);
+      
+      // Swipe limiti bilgisini log'la
+      if (response.data.remainingSwipes !== undefined) {
+        console.log('📊 [API] Kalan swipe hakkı:', response.data.remainingSwipes);
+      }
+      
       return response.data;
     } catch (error: any) {
-      console.error('❌ [API] swipe hatası:', error.response?.data || error.message);
+      console.error('❌ [API] swipe hatası:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message,
+        swipeData: swipeData
+      });
+      
+      // Özel hata durumları
+      if (error.response?.status === 403) {
+        console.error('🔒 [API] 403 Forbidden - Yetki hatası:', {
+          headers: error.response.headers,
+          data: error.response.data,
+          url: error.response.config?.url
+        });
+        
+        // 403 hatası için özel mesaj
+        const errorMessage = error.response?.data?.message || 'Yetki hatası: Bu işlemi gerçekleştirme yetkiniz yok';
+        throw new Error(errorMessage);
+      }
+      
+      // 400 hatası - Geçersiz request
+      if (error.response?.status === 400) {
+        console.error('❌ [API] 400 Bad Request:', error.response.data);
+        const errorMessage = error.response?.data?.message || 'Geçersiz istek';
+        throw new Error(errorMessage);
+      }
+      
+      // 429 hatası - Rate limit
+      if (error.response?.status === 429) {
+        console.error('⏰ [API] 429 Too Many Requests:', error.response.data);
+        const errorMessage = 'Çok fazla istek gönderdiniz. Lütfen bir süre bekleyip tekrar deneyin.';
+        throw new Error(errorMessage);
+      }
+      
+      // 409 hatası - Duplicate swipe
+      if (error.response?.status === 409) {
+        console.error('🔄 [API] 409 Conflict - Duplicate swipe:', error.response.data);
+        const errorMessage = error.response?.data?.message || 'Bu kullanıcıya zaten swipe yaptınız';
+        throw new Error(errorMessage);
+      }
+      
+      // 412 hatası - Swipe limit aşımı
+      if (error.response?.status === 412) {
+        console.error('⚠️ [API] 412 Precondition Failed - Swipe limit:', error.response.data);
+        const errorMessage = error.response?.data?.message || 'Günlük swipe limitiniz dolmuş. Premium üyelik ile sınırsız swipe yapabilirsiniz.';
+        throw new Error(errorMessage);
+      }
+      
       throw error;
     }
   },
@@ -909,6 +1075,20 @@ export const swipeApi = {
       return response.data;
     } catch (error: any) {
       console.error('❌ [API] getUsersWhoLikedMe hatası:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Swipe limit durumunu kontrol et
+  getSwipeLimitInfo: async (): Promise<SwipeLimitInfo> => {
+    console.log('🔄 [API] getSwipeLimitInfo çağrısı');
+    const authHeader = await createAuthHeader();
+    try {
+      const response = await api.get('/api/swipes/limit-info', authHeader);
+      console.log('✅ [API] getSwipeLimitInfo yanıtı:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] getSwipeLimitInfo hatası:', error.response?.data || error.message);
       throw error;
     }
   }
