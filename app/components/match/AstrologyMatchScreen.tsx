@@ -49,6 +49,16 @@ const AstrologyMatchScreen: React.FC<AstrologyMatchScreenProps> = ({
   onClose, 
   onStartChat 
 }) => {
+  // Debug: Component'in render edildiğini log'la
+  console.log('🎭 [ASTROLOGY_MATCH_SCREEN] Component render edildi', {
+    currentUserId: currentUser?.id,
+    currentUserName: currentUser?.firstName,
+    matchedUserId: matchedUser?.id,
+    matchedUserName: matchedUser?.firstName,
+    currentUserZodiac: currentUser?.zodiacSign,
+    matchedUserZodiac: matchedUser?.zodiacSign,
+    timestamp: new Date().toLocaleTimeString()
+  });
   const router = useRouter();
   const [isClosing, setIsClosing] = React.useState(false);
   
@@ -187,7 +197,7 @@ const AstrologyMatchScreen: React.FC<AstrologyMatchScreenProps> = ({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: 'rgba(255, 0, 0, 0.8)' }]}>
       <StatusBar barStyle="light-content" />
       
       {/* Background */}

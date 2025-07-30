@@ -1,35 +1,38 @@
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    Image,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Image,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import Animated, {
-    interpolate,
-    runOnJS,
-    useAnimatedGestureHandler,
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
-    withTiming
+  interpolate,
+  runOnJS,
+  useAnimatedGestureHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming
 } from 'react-native-reanimated';
 import AstrologyMatchScreen from '../components/match/AstrologyMatchScreen';
 import { useAuth } from '../context/AuthContext';
 import { useProfile } from '../context/ProfileContext';
-import { swipeApi } from '../services/api';
-import { ZodiacSign, getZodiacInfo } from '../types/zodiac';
+import { swipeApi, SwipeLimitInfo } from '../services/api';
+import { getZodiacInfo, ZodiacSign } from '../types/zodiac';
 
 const { width, height } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.9;
@@ -70,19 +73,7 @@ interface SwipeUser {
   profileCompleteness: string;
 }
 
-interface SwipeLimitInfo {
-  isPremium: boolean;
-  remainingSwipes: number;
-  totalSwipes: number;
-  nextResetTime: string | null;
-}
 
-interface SwipeResponse {
-  success: boolean;
-  isMatch: boolean;
-  matchId?: number;
-  message: string;
-}
 
 // Detaylı astrolojik veriler
 const ASTROLOGY_DETAILS: Record<ZodiacSign, {
@@ -161,6 +152,7 @@ export default function AstrologyMatchesScreen() {
   const colorScheme = useColorScheme();
   const { isPremium } = useAuth();
   const { userProfile } = useProfile();
+  const router = useRouter();
   
   // State
   const [users, setUsers] = useState<SwipeUser[]>([]);
@@ -177,6 +169,31 @@ export default function AstrologyMatchesScreen() {
   const [showMatchScreen, setShowMatchScreen] = useState(false);
   const [matchedUserData, setMatchedUserData] = useState<SwipeUser | null>(null);
   const [matchResponse, setMatchResponse] = useState<any>(null);
+
+  // Debug: Match screen state'lerini takip et
+  useEffect(() => {
+    console.log('🎬 [RENDER] Match screen state değişimi:', {
+      showMatchScreen,
+      hasMatchedUserData: !!matchedUserData,
+      hasUserProfile: !!userProfile,
+      shouldRender: showMatchScreen && matchedUserData && userProfile,
+      userProfileId: userProfile?.id,
+      matchedUserId: matchedUserData?.id,
+      currentTime: new Date().toLocaleTimeString()
+    });
+    
+    if (showMatchScreen && matchedUserData && userProfile) {
+      console.log('✅ [RENDER] Tüm koşullar sağlandı - AstrologyMatchScreen render edilmeli!');
+    } else if (showMatchScreen) {
+      console.log('❌ [RENDER] Match screen true ama veriler eksik:', {
+        showMatchScreen,
+        hasMatchedUserData: !!matchedUserData,
+        hasUserProfile: !!userProfile,
+        matchedUserData: matchedUserData,
+        userProfile: userProfile
+      });
+    }
+  }, [showMatchScreen, matchedUserData, userProfile]);
 
   // Animation values
   const translateX = useSharedValue(0);
@@ -206,11 +223,11 @@ export default function AstrologyMatchesScreen() {
     }, 3000); // 3 saniye sonra gizle
   };
 
-  // Kullanıcıları getir
+  // Kullanıcıları getir (Normal keşif - hiç swipe yapmadığı + cooldown dolmuş)
   const fetchUsers = async () => {
     try {
       setIsLoading(true);
-      const response = await swipeApi.getDiscoverUsers(1, 10);
+              const response = await swipeApi.getDiscoverUsers(1, 10, false);
       
       if (response.success) {
         // DiscoverUser'ları SwipeUser formatına dönüştür
@@ -274,12 +291,135 @@ export default function AstrologyMatchesScreen() {
         
         setUsers(convertedUsers);
         setSwipeLimitInfo(response.swipeLimitInfo);
+        
+        // İlk yükleme - yeni kullanıcı overlay ID listesini temizle
+        if (convertedUsers.length > 0) {
+          // setShownNewUserIds(new Set()); // Bu satır kaldırıldı
+          console.log('🆕 [FETCH] Yeni kullanıcı overlay ID listesi temizlendi');
+        }
       } else {
         Alert.alert('Hata', response.message || 'Kullanıcılar yüklenemedi');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Kullanıcılar getirme hatası:', error);
+      
+      // 403 hatası - Swipe limit doldu
+      if (error?.response?.status === 403) {
+        console.log('🚫 [FETCH] 403 - Swipe limiti dolmuş:', error?.response?.data?.message);
+        
+        // Limit bilgisini güncelle
+        try {
+          await fetchSwipeLimitInfo();
+        } catch (limitError) {
+          console.error('❌ [FETCH] Limit info güncellenemedi:', limitError);
+        }
+        
+        // Kullanıcı listesini boşalt - limit ekranı gösterilsin
+        setUsers([]);
+        
+        // Error alert gösterme, limit ekranı zaten gösterilecek
+        return;
+      }
+      
+      // Diğer hatalar için generic alert
       Alert.alert('Hata', 'Kullanıcılar yüklenirken bir hata oluştu');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Kullanıcıları yenile (Yenile butonu - tam random sıralama)
+  const refreshUsers = async () => {
+    console.log('🔄 [REFRESH] Kullanıcıları yeniliyor (random sıralama)');
+    try {
+      setIsLoading(true);
+      const response = await swipeApi.getDiscoverUsers(1, 10, true); // refresh=true
+      
+      if (response.success) {
+        console.log('🎲 [REFRESH] Random sıralanmış kullanıcı sayısı:', response.users.length);
+        
+        // Tutorial'ı test etmek için reset et (isteğe bağlı)
+        // await AsyncStorage.removeItem('astrology_tutorial_shown');
+        // console.log('🔄 [REFRESH] Tutorial reset edildi (test için)');
+        
+        // DiscoverUser'ları SwipeUser formatına dönüştür (aynı mantık)
+        const convertedUsers: SwipeUser[] = response.users.map(user => {
+          const validPhotos = user.photos?.filter(p => p.imageUrl && p.imageUrl.trim() !== '') || [];
+          const profileImage = user.profileImageUrl && user.profileImageUrl.trim() !== '' 
+            ? user.profileImageUrl 
+            : validPhotos.length > 0 
+              ? validPhotos[0].imageUrl 
+              : `https://picsum.photos/400/600?random=${user.id}`;
+          
+          return {
+            id: user.id,
+            username: user.firstName.toLowerCase() + user.id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            fullName: `${user.firstName} ${user.lastName}`,
+            age: user.age,
+            gender: 'UNKNOWN',
+            bio: user.bio || 'Yıldızların rehberliğinde hayatımı yaşıyorum ✨',
+            zodiacSign: user.zodiacSign as ZodiacSign,
+            zodiacSignDisplay: user.zodiacSign,
+            compatibilityScore: user.compatibilityScore,
+            compatibilityMessage: user.compatibilityDescription || 'Yıldızlar sizin için mükemmel bir uyum öngörüyor! 🌟',
+            profileImageUrl: profileImage,
+            photos: validPhotos.map((p, index) => ({
+              id: Math.random(),
+              photoUrl: p.imageUrl,
+              isProfilePhoto: index === 0,
+              displayOrder: index + 1
+            })),
+            photoCount: validPhotos.length,
+            isPremium: user.isPremium || false,
+            lastActiveTime: new Date().toISOString(),
+            activityStatus: user.isOnline ? 'Şimdi aktif' : '2 saat önce',
+            location: 'İstanbul, Türkiye',
+            distanceKm: user.distance || Math.floor(Math.random() * 20) + 1,
+            isVerified: user.isVerified || Math.random() > 0.7,
+            hasInstagram: Math.random() > 0.5,
+            hasSpotify: Math.random() > 0.6,
+            isNewUser: user.isNewUser || false,
+            profileCompleteness: '85%'
+          };
+        });
+        
+        setUsers(convertedUsers);
+        setCurrentUserIndex(0); // Index'i sıfırla
+        setSwipeLimitInfo(response.swipeLimitInfo);
+        
+        // Yeni kullanıcı overlay'ini gösterilen ID listesini temizle
+        // setShownNewUserIds(new Set()); // Bu satır kaldırıldı
+        console.log('🔄 [REFRESH] Yeni kullanıcı overlay ID listesi temizlendi');
+        
+        console.log('✅ [REFRESH] Kullanıcılar yenilendi ve index sıfırlandı');
+      } else {
+        Alert.alert('Hata', response.message || 'Kullanıcılar yenilenemedi');
+      }
+    } catch (error: any) {
+      console.error('❌ [REFRESH] Kullanıcıları yenileme hatası:', error);
+      
+      // 403 hatası - Swipe limit doldu
+      if (error?.response?.status === 403) {
+        console.log('🚫 [REFRESH] 403 - Swipe limiti dolmuş:', error?.response?.data?.message);
+        
+        // Limit bilgisini güncelle
+        try {
+          await fetchSwipeLimitInfo();
+        } catch (limitError) {
+          console.error('❌ [REFRESH] Limit info güncellenemedi:', limitError);
+        }
+        
+        // Kullanıcı listesini boşalt - limit ekranı gösterilsin
+        setUsers([]);
+        
+        // Error alert gösterme, limit ekranı zaten gösterilecek
+        return;
+      }
+      
+      // Diğer hatalar için generic alert
+      Alert.alert('Hata', 'Kullanıcılar yenilenirken bir hata oluştu');
     } finally {
       setIsLoading(false);
     }
@@ -288,17 +428,51 @@ export default function AstrologyMatchesScreen() {
   // Swipe limit bilgisi getir
   const fetchSwipeLimitInfo = async () => {
     try {
-      // Bu fonksiyon için ayrı bir API endpoint'i gerekiyor
-      // Şimdilik discover'dan alınan bilgiyi kullanacağız
-      console.log('Swipe limit bilgisi discover ile alınıyor');
+      console.log('🔄 [LIMIT] Swipe limit bilgisi getiriliyor...');
+      const limitInfo = await swipeApi.getSwipeLimitInfo();
+      console.log('✅ [LIMIT] Swipe limit bilgisi:', {
+        isPremium: limitInfo.isPremium,
+        remainingSwipes: limitInfo.remainingSwipes,
+        dailySwipeCount: limitInfo.dailySwipeCount,
+        canSwipe: limitInfo.canSwipe,
+        hasResetInfo: !!limitInfo.resetInfo
+      });
+      
+      setSwipeLimitInfo(limitInfo);
+      
+      // Limit dolmuşsa kullanıcıyı bilgilendir
+      if (!limitInfo.canSwipe && limitInfo.resetInfo) {
+        console.log('⚠️ [LIMIT] Swipe limiti dolmuş:', limitInfo.resetInfo.resetMessage);
+      }
+      
     } catch (error) {
-      console.error('Swipe limit bilgisi hatası:', error);
+      console.error('❌ [LIMIT] Swipe limit bilgisi hatası:', error);
     }
+  };
+
+  // Premium sayfasına yönlendir
+  const navigateToPremium = () => {
+    console.log('🎖️ [PREMIUM] Premium sayfasına yönlendiriliyor');
+    router.push('/(profile)/premiumScreen');
   };
 
   // Swipe işlemi
   const performSwipe = async (toUserId: number, action: 'LIKE' | 'DISLIKE' | 'SUPER_LIKE') => {
     try {
+      // Swipe limit kontrolü
+      if (swipeLimitInfo && !swipeLimitInfo.canSwipe && !swipeLimitInfo.isPremium) {
+        console.log('🚫 [SWIPE] Swipe limiti dolmuş, işlem iptal ediliyor');
+        Alert.alert(
+          '⏰ Günlük Limit Doldu',
+          swipeLimitInfo.resetInfo?.resetMessage || 'Günlük swipe limitiniz dolmuş',
+          [
+            { text: 'Tamam', style: 'default' },
+            { text: 'Premium Ol', style: 'default', onPress: navigateToPremium }
+          ]
+        );
+        return; // Swipe işlemini iptal et
+      }
+      
       setIsSwipeInProgress(true);
       
       const response = await swipeApi.swipe({
@@ -307,43 +481,102 @@ export default function AstrologyMatchesScreen() {
       });
 
       if (response.success) {
-        if (response.isMatch) {
+        console.log('✅ [SWIPE] Swipe response:', {
+          action: action,
+          success: response.success,
+          isMatch: response.isMatch,
+          status: response.status,
+          matchId: response.matchId,
+          remainingSwipes: response.remainingSwipes,
+          message: response.message
+        });
+        
+        // Match kontrolü: hem isMatch hem de status MATCHED olmalı
+        const isMatched = response.isMatch && response.status === 'MATCHED';
+        
+        console.log('🔍 [MATCH] Match kontrol sonucu:', {
+          isMatched: isMatched,
+          responseIsMatch: response.isMatch,
+          responseStatus: response.status,
+          willShowMatchScreen: isMatched
+        });
+        
+        if (isMatched) {
           // Eşleşme var!
-          console.log('🎉 [MATCH] Eşleşme bulundu!', response);
+          console.log('🎉 [MATCH] Eşleşme bulundu!', {
+            matchId: response.matchId,
+            message: response.message,
+            remainingSwipes: response.remainingSwipes
+          });
           
           // Match screen'i göster
+          console.log('🎯 [MATCH] Match screen açılıyor...', {
+            currentUserIndex: currentUserIndex,
+            hasMatchedUser: !!users[currentUserIndex],
+            hasUserProfile: !!userProfile,
+            userProfileId: userProfile?.id,
+            matchedUserId: users[currentUserIndex]?.id
+          });
+          
           setShowMatchScreen(true);
           setMatchedUserData(users[currentUserIndex]);
           setMatchResponse(response);
           
+          console.log('✅ [MATCH] Match screen state güncellendi');
+          
           // Match animasyonu (opsiyonel)
           showMatchAnimation();
           
-          // NOT: Alert kaldırıldı, sadece match screen gösteriliyor
+          // Match mesajını göster
+          console.log('💌 [MATCH] Mesaj:', response.message);
+          
+        } else if (response.status === 'LIKED') {
+          // Beğenildi ama henüz karşılık yok
+          console.log('💖 [LIKE] Kullanıcı beğenildi, karşılık bekleniyor');
+          
+        } else if (response.status === 'DISLIKED') {
+          // Beğenilmedi
+          console.log('❌ [DISLIKE] Kullanıcı beğenilmedi');
         }
+        
+        // Kalan swipe hakkını göster ve resetInfo kontrol et
+        if (response.remainingSwipes !== undefined) {
+          console.log(`📊 [SWIPE] Kalan swipe hakkı: ${response.remainingSwipes}`);
+          
+          // Limit dolmuşsa özel mesaj göster
+          if (response.remainingSwipes === 0 && response.resetInfo) {
+            console.log('⏰ [SWIPE] Limit doldu, reset bilgisi:', response.resetInfo.resetMessage);
+            // Büyük alert göster
+            Alert.alert(
+              '⏰ Günlük Limit Doldu', 
+              response.resetInfo.resetMessage + '\n\nPremium üyelik ile sınırsız swipe yapabilirsiniz!',
+              [
+                { text: 'Tamam', style: 'default' },
+                { text: 'Premium Ol', style: 'default', onPress: navigateToPremium }
+              ]
+            );
+          }
+        }
+        
+        // Swipe limit bilgisini güncelle
+        await fetchSwipeLimitInfo();
         
         // Sonraki kullanıcıya geç
         nextUser();
       } else {
-        // API başarısız yanıt döndü ama hata değil (limit doldu, vs.)
+        // API başarısız yanıt döndü - sadece error toast göster
         console.log('❌ [API] Swipe başarısız:', response.message);
         
-        if (response.message.includes('limit')) {
-          // Limit doldu - büyük alert göster
-          Alert.alert('Günlük Limit', response.message);
-          await fetchSwipeLimitInfo();
-        } else {
-          // Diğer durumlar (duplicate swipe, vs.) - küçük toast göster ve geç
-          showErrorToast('Bir hata oluştu, sonraki profil gösteriliyor');
-          setTimeout(() => {
-            nextUser(); // Kullanıcıyı geç
-          }, 1000);
-        }
+        // Tüm başarısız durumlar için toast göster ve geç
+        showErrorToast(response.message || 'İşlem başarısız, sonraki profil gösteriliyor');
+        setTimeout(() => {
+          nextUser(); // Kullanıcıyı geç
+        }, 1000);
       }
     } catch (error: any) {
       console.error('❌ [API] swipe hatası:', error?.response?.data || error?.message || error);
       
-      // Ağ hatası, sunucu hatası vs. - küçük toast göster ve geç
+      // Ağ hatası, sunucu hatası vs. - sadece küçük toast göster ve geç
       const errorMessage = error?.response?.data?.message || 'Bağlantı sorunu, sonraki profil gösteriliyor';
       showErrorToast(errorMessage);
       
@@ -361,6 +594,12 @@ export default function AstrologyMatchesScreen() {
     setCurrentUserIndex(prev => prev + 1);
     setCurrentPhotoIndex(0);
     resetAnimations();
+    
+    // Yeni kullanıcı overlay'ini kapat
+    if (showNewUserOverlay) {
+      setShowNewUserOverlay(false);
+      console.log('🆕 [NEW_USER] Overlay otomatik kapatıldı - swipe yapıldı');
+    }
     
     // Son 2 kullanıcı kaldığında yeni kullanıcılar getir
     if (currentUserIndex >= users.length - 2) {
@@ -558,17 +797,34 @@ export default function AstrologyMatchesScreen() {
     }, [])
   );
 
+  // Tutorial overlay kontrolü - sadece uygulama kullanıcısı için tek seferlik
+  useEffect(() => {
+    const checkTutorialStatus = async () => {
+      try {
+        const tutorialShown = await AsyncStorage.getItem('astrology_tutorial_shown');
+        if (!tutorialShown) {
+          console.log('🎓 [TUTORIAL] İlk kez astrology-matches sayfası açılıyor, tutorial gösteriliyor');
+          setShowNewUserOverlay(true);
+          // Tutorial gösterildi olarak işaretle
+          await AsyncStorage.setItem('astrology_tutorial_shown', 'true');
+        } else {
+          console.log('🎓 [TUTORIAL] Tutorial daha önce gösterilmiş, atlanıyor');
+        }
+      } catch (error) {
+        console.error('❌ [TUTORIAL] Tutorial status kontrolü hatası:', error);
+      }
+    };
+
+    // Sadece kullanıcılar yüklendikten sonra tutorial'ı kontrol et
+    if (users.length > 0 && !isLoading) {
+      checkTutorialStatus();
+    }
+  }, [users, isLoading]);
+
   // Mevcut kullanıcı
   const currentUser = users[currentUserIndex];
   const zodiacInfo = currentUser ? getZodiacInfo(currentUser.zodiacSign) : null;
   const astrologyDetails = currentUser ? ASTROLOGY_DETAILS[currentUser.zodiacSign] : null;
-
-  // New user overlay kontrolü
-  useEffect(() => {
-    if (currentUser && currentUser.isNewUser && !showNewUserOverlay) {
-      setShowNewUserOverlay(true);
-    }
-  }, [currentUser]);
 
   // Burç uyumluluk rengi
   const getCompatibilityColor = (score: number) => {
@@ -586,9 +842,6 @@ export default function AstrologyMatchesScreen() {
         
         <View style={styles.header}>
           <Text style={styles.headerTitle}>🌟 Astroloji Eşleşme</Text>
-          <View style={styles.swipeCounter}>
-            <Text style={styles.swipeCountText}>--/--</Text>
-          </View>
         </View>
 
         <View style={styles.loadingContainer}>
@@ -601,6 +854,34 @@ export default function AstrologyMatchesScreen() {
     );
   }
 
+  // Swipe limit doldu
+  if (swipeLimitInfo && !swipeLimitInfo.canSwipe && !swipeLimitInfo.isPremium) {
+    return (
+      <View style={styles.emptyContainer}>
+        <LinearGradient colors={astrologyTheme.gradient as any} style={styles.background} />
+        <Text style={styles.emptyTitle}>⏰ Günlük Limit Doldu</Text>
+        <Text style={styles.emptySubtitle}>
+          {swipeLimitInfo.resetInfo?.resetMessage || 'Günlük swipe limitiniz dolmuş'}
+        </Text>
+        <Text style={styles.limitStatsText}>
+          Bugün {swipeLimitInfo.dailySwipeCount} swipe yaptınız
+        </Text>
+        <TouchableOpacity style={styles.premiumButton} onPress={navigateToPremium}>
+          <Text style={styles.premiumButtonText}>⭐ Premium Ol - Sınırsız Swipe</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.refreshButtonOld} onPress={fetchSwipeLimitInfo}>
+          <Ionicons 
+            name="refresh" 
+            size={16} 
+            color="white"
+            style={{ marginRight: 6 }}
+          />
+          <Text style={styles.refreshButtonText}>Durumu Kontrol Et</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   // Kullanıcı kalmadı
   if (!currentUser) {
     return (
@@ -610,7 +891,13 @@ export default function AstrologyMatchesScreen() {
         <Text style={styles.emptySubtitle}>
           Şu an için gösterilecek yeni profil yok. Biraz sonra tekrar deneyin!
         </Text>
-        <TouchableOpacity style={styles.refreshButton} onPress={fetchUsers}>
+        <TouchableOpacity style={styles.refreshButtonOld} onPress={fetchUsers}>
+          <Ionicons 
+            name="refresh" 
+            size={16} 
+            color="white"
+            style={{ marginRight: 6 }}
+          />
           <Text style={styles.refreshButtonText}>Yenile</Text>
         </TouchableOpacity>
       </View>
@@ -845,18 +1132,22 @@ export default function AstrologyMatchesScreen() {
       {showNewUserOverlay && (
         <View style={styles.newUserOverlay}>
           <View style={styles.overlayContent}>
-            <Text style={styles.overlayTitle}>🌟 Hoş Geldiniz!</Text>
+            <Text style={styles.overlayTitle}>🌟 Astroloji Eşleşme'ye Hoş Geldiniz!</Text>
             <Text style={styles.overlayText}>
-              Aşağı kaydırarak burç detaylarını keşfedin
+              Burç uyumluluğuna göre size en uygun eşleşmeleri buluyoruz
             </Text>
             <Text style={styles.overlaySubtext}>
-              Sağa kaydırın: Beğen • Sola kaydırın: Geç
+              • Aşağı kaydırarak burç detaylarını keşfedin{'\n'}
+              • Sağa: Beğen ❤️ • Sola: Geç ❌
             </Text>
             <TouchableOpacity
               style={styles.overlayButton}
-              onPress={() => setShowNewUserOverlay(false)}
+              onPress={() => {
+          console.log('🎓 [TUTORIAL] Tutorial kapatıldı');
+          setShowNewUserOverlay(false);
+        }}
             >
-              <Text style={styles.overlayButtonText}>Anladım</Text>
+              <Text style={styles.overlayButtonText}>Başlayalım!</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -992,19 +1283,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 30,
   },
-  refreshButton: {
+  refreshButtonOld: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#8000FF',
     paddingHorizontal: 30,
     paddingVertical: 15,
     borderRadius: 25,
   },
-  refreshButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+
   header: {
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 20,
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingBottom: 20,
@@ -1014,6 +1305,31 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: 'white',
     textAlign: 'center',
+  },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  refreshButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 4,
   },
 
   cardStack: {
@@ -1470,6 +1786,34 @@ const styles = StyleSheet.create({
   errorToastText: {
     color: 'white',
     fontSize: 14,
+    textAlign: 'center',
+  },
+  limitStatsText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.7)',
+    textAlign: 'center',
+    marginBottom: 20,
+    fontStyle: 'italic',
+  },
+  premiumButton: {
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 30,
+    paddingVertical: 15,
+    borderRadius: 25,
+    marginBottom: 15,
+    shadowColor: '#FFD700',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  premiumButtonText: {
+    color: '#8000FF',
+    fontSize: 16,
+    fontWeight: 'bold',
     textAlign: 'center',
   },
 }); 

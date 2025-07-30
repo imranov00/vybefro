@@ -4,7 +4,7 @@ import { ZodiacSign } from '../types/zodiac';
 import { getRefreshToken, getToken, removeAllTokens, saveRefreshToken, saveToken } from '../utils/tokenStorage';
 
 // NGROK URL'i - değişebilir
-const NGROK_URL = 'https://2221848dc98d.ngrok-free.app';
+const NGROK_URL = 'https://d26bb732480c.ngrok-free.app';
 
 // Alternative endpoints (gerektiğinde eklenebilir)
 const FALLBACK_URLS: string[] = [
@@ -427,9 +427,17 @@ export interface SwipeResponse {
   success: boolean;
   isMatch: boolean;
   status: 'LIKED' | 'DISLIKED' | 'MATCHED';
-  matchId?: string;
+  matchId?: number;
   remainingSwipes?: number;
   message: string;
+  resetInfo?: {
+    nextResetTime: string;
+    hoursUntilReset: number;
+    minutesUntilReset: number;
+    secondsUntilReset: number;
+    totalSecondsUntilReset: number;
+    resetMessage: string;
+  };
 }
 
 export interface Match {
@@ -478,10 +486,16 @@ export interface UserActivity {
 export interface SwipeLimitInfo {
   isPremium: boolean;
   remainingSwipes: number;
-  totalSwipes: number;
-  nextResetTime: string;
-  dailyLimit: number;
-  usedSwipes: number;
+  dailySwipeCount: number;
+  canSwipe: boolean;
+  resetInfo?: {
+    nextResetTime: string;
+    hoursUntilReset: number;
+    minutesUntilReset: number;
+    secondsUntilReset: number;
+    totalSecondsUntilReset: number;
+    resetMessage: string;
+  };
 }
 
 export interface DiscoverUser {
@@ -788,9 +802,9 @@ export const userApi = {
     return response.data;
   },
 
-  getDiscoverUsers: async (page: number, limit: number): Promise<DiscoverResponse> => {
+  getDiscoverUsers: async (page: number = 1, limit: number = 10, refresh: boolean = false): Promise<DiscoverResponse> => {
     const authHeader = await createAuthHeader();
-    const response = await api.get(`/api/swipes/discover?page=${page}&limit=${limit}`, authHeader);
+    const response = await api.get(`/api/swipes/discover?page=${page}&limit=${limit}&refresh=${refresh}`, authHeader);
     return response.data;
   },
 
@@ -864,26 +878,31 @@ export const premiumApi = {
 
 // Swipe API'leri
 export const swipeApi = {
-  // Yeni discover endpoint - Ana swipe endpoint
-  getDiscoverUsers: async (page: number = 1, limit: number = 10): Promise<DiscoverResponse> => {
-    console.log('🔄 [API] getDiscoverUsers çağrısı:', { page, limit });
+  // Yeni discover endpoint - Pagination ve Refresh desteği
+  getDiscoverUsers: async (page: number = 1, limit: number = 10, refresh: boolean = false): Promise<DiscoverResponse> => {
+    console.log('🔄 [API] getDiscoverUsers çağrısı:', { page, limit, refresh });
     const authHeader = await createAuthHeader();
     try {
       console.log('🔍 [API] Discover isteği gönderiliyor...');
-      const response = await api.get(`/api/swipes/discover?page=${page}&limit=${limit}`, authHeader);
+      const response = await api.get(`/api/swipes/discover?page=${page}&limit=${limit}&refresh=${refresh}`, authHeader);
       console.log('✅ [API] getDiscoverUsers yanıtı:', {
         success: response.data.success,
         userCount: response.data.users?.length || 0,
         totalCount: response.data.totalCount,
         hasMore: response.data.hasMore,
-        message: response.data.message
+        message: response.data.message,
+        page: page,
+        limit: limit,
+        refresh: refresh,
+        endpoint: `GET /api/swipes/discover?page=${page}&limit=${limit}&refresh=${refresh}`
       });
       return response.data;
     } catch (error: any) {
       console.error('❌ [API] getDiscoverUsers hatası:', {
         message: error.message,
         status: error.response?.status,
-        data: error.response?.data
+        data: error.response?.data,
+        requestParams: { page, limit, refresh }
       });
       throw error;
     }
