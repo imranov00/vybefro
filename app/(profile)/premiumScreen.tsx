@@ -142,10 +142,8 @@ export default function PremiumScreen() {
           {
             text: 'Harika!',
             onPress: () => {
-              // Mode'a göre doğru tab'a yönlendir
-              const targetRoute = currentMode === 'music' ? '/(tabs)/music' : '/(tabs)/astrology';
-              console.log('🚀 [PREMIUM] Satın alma sonrası yönlendirme:', { currentMode, targetRoute });
-              router.replace(targetRoute as any);
+              // Kullanıcıyı ana sayfaya yönlendir, mode değişmeyecek
+              router.replace('/(tabs)/' as any);
             }
           }
         ]);
@@ -185,10 +183,8 @@ export default function PremiumScreen() {
                   {
                     text: 'Tamam',
                     onPress: () => {
-                      // Mode'a göre doğru tab'a yönlendir
-                      const targetRoute = currentMode === 'music' ? '/(tabs)/music' : '/(tabs)/astrology';
-                      console.log('🚀 [PREMIUM] İptal sonrası yönlendirme:', { currentMode, targetRoute });
-                      router.replace(targetRoute as any);
+                      // Kullanıcıyı ana sayfaya yönlendir, mode değişmeyecek
+                      router.replace('/(tabs)/' as any);
                     }
                   }
                 ]);
