@@ -20,7 +20,7 @@ export default function SettingsScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const [loading, setLoading] = useState(false);
-  const { logout } = useAuth();
+  const { logout, currentMode } = useAuth();
   
   const handleLogout = async () => {
     Alert.alert(
@@ -67,7 +67,12 @@ export default function SettingsScreen() {
   
   // Geri düğmesi işlevi
   const handleGoBack = () => {
-    router.back();
+    // Mevcut moda göre doğru sayfaya yönlendir
+    if (currentMode === 'music') {
+      router.push('/(tabs)/music');
+    } else {
+      router.push('/(tabs)/astrology');
+    }
   };
   
   // Ana sayfaya dönüş işlevi

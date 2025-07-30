@@ -204,7 +204,12 @@ export default function PremiumScreen() {
   };
 
   const handleGoBack = () => {
-    router.back();
+    // Mevcut moda göre doğru sayfaya yönlendir
+    if (currentMode === 'music') {
+      router.push('/(tabs)/music');
+    } else {
+      router.push('/(tabs)/astrology');
+    }
   };
 
   const renderFeature = (feature: any) => (
