@@ -1,0 +1,333 @@
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import React from 'react';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useAuth } from '../../context/AuthContext';
+import { ChatMessage } from '../../services/api';
+
+interface MessageBubbleProps {
+  message: ChatMessage;
+  isCurrentUser: boolean;
+  showAvatar?: boolean;
+  onPress?: () => void;
+}
+
+export default function MessageBubble({ 
+  message, 
+  isCurrentUser, 
+  showAvatar = true, 
+  onPress 
+}: MessageBubbleProps) {
+  const { currentMode } = useAuth();
+
+  // Tema renklerini belirle
+  const theme = {
+    astrology: {
+      primary: '#8000FF',
+      secondary: '#5B00B5',
+      accent: '#FFD700',
+      gradient: ['#8000FF', '#5B00B5']
+    },
+    music: {
+      primary: '#1DB954',
+      secondary: '#1ED760', 
+      accent: '#FFD700',
+      gradient: ['#1DB954', '#1ED760']
+    }
+  };
+
+  const currentTheme = theme[currentMode];
+
+  // Sistem mesajı kontrolü
+  if (message.type === 'SYSTEM') {
+    return (
+      <View style={styles.systemMessageContainer}>
+        <Text style={styles.systemMessageText}>
+          {message.content}
+        </Text>
+      </View>
+    );
+  }
+
+  // Premium badge gösterimi
+  const renderPremiumBadge = () => {
+    if (!message.sender.isPremium) return null;
+    
+    return (
+      <View style={styles.premiumBadge}>
+        <Text style={styles.premiumBadgeText}>👑</Text>
+      </View>
+    );
+  };
+
+  // Mesaj durumu ikonu
+  const renderMessageStatus = () => {
+    if (!isCurrentUser) return null;
+
+    let icon = 'checkmark';
+    let color = '#666';
+
+    switch (message.status) {
+      case 'SENT':
+        icon = 'checkmark';
+        color = '#999';
+        break;
+      case 'DELIVERED':
+        icon = 'checkmark-done';
+        color = '#666';
+        break;
+      case 'READ':
+        icon = 'checkmark-done';
+        color = currentTheme.primary;
+        break;
+    }
+
+    return (
+      <Ionicons 
+        name={icon as any} 
+        size={12} 
+        color={color} 
+        style={styles.statusIcon} 
+      />
+    );
+  };
+
+  // Zaman formatı
+  const formatTime = (timeAgo: string) => {
+    if (timeAgo === 'Şimdi') return timeAgo;
+    return timeAgo;
+  };
+
+  return (
+    <TouchableOpacity 
+      style={[
+        styles.messageContainer,
+        isCurrentUser ? styles.currentUserContainer : styles.otherUserContainer
+      ]}
+      onPress={onPress}
+      disabled={!onPress}
+    >
+      {/* Avatar (sadece diğer kullanıcılar için) */}
+      {!isCurrentUser && showAvatar && (
+        <View style={styles.avatarContainer}>
+          {message.sender.profileImageUrl ? (
+            <Image 
+              source={{ uri: message.sender.profileImageUrl }} 
+              style={styles.avatar}
+            />
+          ) : (
+            <View style={[styles.avatarPlaceholder, { backgroundColor: currentTheme.secondary }]}>
+              <Text style={styles.avatarText}>
+                {message.sender.displayName.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
+          
+          {/* Online indicator */}
+          {message.sender.isOnline && (
+            <View style={styles.onlineIndicator} />
+          )}
+        </View>
+      )}
+
+      {/* Mesaj içeriği */}
+      <View style={styles.messageContent}>
+        {/* Kullanıcı adı (diğer kullanıcılar için) */}
+        {!isCurrentUser && (
+          <View style={styles.senderInfo}>
+            <Text style={styles.senderName}>
+              {message.sender.displayName}
+            </Text>
+            {renderPremiumBadge()}
+          </View>
+        )}
+
+        {/* Mesaj balonu */}
+        <View style={[
+          styles.messageBubble,
+          isCurrentUser ? styles.currentUserBubble : styles.otherUserBubble
+        ]}>
+          {isCurrentUser && (
+            <LinearGradient
+              colors={currentTheme.gradient}
+              style={styles.currentUserGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Text style={styles.currentUserText}>
+                {message.content}
+              </Text>
+            </LinearGradient>
+          )}
+          
+          {!isCurrentUser && (
+            <Text style={styles.otherUserText}>
+              {message.content}
+            </Text>
+          )}
+        </View>
+
+        {/* Zaman ve durum */}
+        <View style={[
+          styles.messageFooter,
+          isCurrentUser ? styles.currentUserFooter : styles.otherUserFooter
+        ]}>
+          <Text style={styles.timeText}>
+            {formatTime(message.timeAgo)}
+          </Text>
+          {renderMessageStatus()}
+          {message.isEdited && (
+            <Text style={styles.editedText}> • düzenlendi</Text>
+          )}
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+const styles = StyleSheet.create({
+  messageContainer: {
+    flexDirection: 'row',
+    marginVertical: 4,
+    paddingHorizontal: 16,
+    alignItems: 'flex-end',
+  },
+  currentUserContainer: {
+    justifyContent: 'flex-end',
+  },
+  otherUserContainer: {
+    justifyContent: 'flex-start',
+  },
+  
+  // Avatar
+  avatarContainer: {
+    position: 'relative',
+    marginRight: 8,
+    marginBottom: 20,
+  },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  avatarPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  onlineIndicator: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#00FF7F',
+    borderWidth: 2,
+    borderColor: 'white',
+  },
+
+  // Mesaj içeriği
+  messageContent: {
+    flex: 1,
+    maxWidth: '80%',
+  },
+  senderInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  senderName: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+  },
+  premiumBadge: {
+    marginLeft: 4,
+  },
+  premiumBadgeText: {
+    fontSize: 12,
+  },
+
+  // Mesaj balonu
+  messageBubble: {
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginBottom: 4,
+  },
+  currentUserBubble: {
+    alignSelf: 'flex-end',
+    borderBottomRightRadius: 4,
+  },
+  otherUserBubble: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#F0F0F0',
+    borderBottomLeftRadius: 4,
+  },
+  currentUserGradient: {
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginHorizontal: -16,
+    marginVertical: -10,
+  },
+  currentUserText: {
+    color: 'white',
+    fontSize: 16,
+    lineHeight: 20,
+  },
+  otherUserText: {
+    color: '#333',
+    fontSize: 16,
+    lineHeight: 20,
+  },
+
+  // Mesaj footer
+  messageFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  currentUserFooter: {
+    justifyContent: 'flex-end',
+  },
+  otherUserFooter: {
+    justifyContent: 'flex-start',
+  },
+  timeText: {
+    fontSize: 11,
+    color: '#999',
+  },
+  statusIcon: {
+    marginLeft: 4,
+  },
+  editedText: {
+    fontSize: 11,
+    color: '#999',
+    fontStyle: 'italic',
+  },
+
+  // Sistem mesajı
+  systemMessageContainer: {
+    alignItems: 'center',
+    marginVertical: 8,
+    paddingHorizontal: 16,
+  },
+  systemMessageText: {
+    fontSize: 13,
+    color: '#666',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+});

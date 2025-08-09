@@ -4,7 +4,7 @@ import { ZodiacSign } from '../types/zodiac';
 import { getRefreshToken, getToken, removeAllTokens, saveRefreshToken, saveToken } from '../utils/tokenStorage';
 
 // NGROK URL'i - değişebilir
-const NGROK_URL = 'https://d26bb732480c.ngrok-free.app';
+const NGROK_URL = 'https://2ae3d6361ef5.ngrok-free.app';
 
 // Alternative endpoints (gerektiğinde eklenebilir)
 const FALLBACK_URLS: string[] = [
@@ -1113,6 +1113,109 @@ export const swipeApi = {
   }
 };
 
+// Chat API'leri için interface'ler
+export interface ChatUser {
+  id: number;
+  username: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  profileImageUrl: string | null;
+  zodiacSign: string | null;
+  zodiacSignDisplay: string | null;
+  isPremium: boolean;
+  gender: string | null;
+  lastActiveTime: string | null;
+  activityStatus: string;
+  isOnline: boolean;
+  displayName: string;
+}
+
+export interface ChatMessage {
+  id: number;
+  chatRoomId: number;
+  content: string;
+  type: 'TEXT' | 'SYSTEM' | 'IMAGE';
+  sentAt: string;
+  editedAt: string | null;
+  isEdited: boolean;
+  status: 'SENT' | 'DELIVERED' | 'READ';
+  sender: ChatUser;
+  timeAgo: string;
+  canEdit: boolean;
+  canDelete: boolean;
+}
+
+export interface MessageLimitInfo {
+  canSendMessage: boolean;
+  nextAllowedTime: string | null;
+  remainingSeconds: number;
+  isPremium: boolean;
+  isBanned: boolean;
+  message: string;
+}
+
+export interface GlobalChatResponse {
+  chatRoomId: number;
+  chatType: 'GLOBAL';
+  chatName: string;
+  activeUserCount: number;
+  messages: ChatMessage[];
+  currentPage: number;
+  totalPages: number;
+  totalMessages: number;
+  hasMore: boolean;
+  userMessageLimit: MessageLimitInfo;
+  isActive: boolean;
+  welcomeMessage: string;
+}
+
+export interface PrivateChatResponse {
+  chatRoomId: number;
+  chatName: string;
+  createdAt: string;
+  otherUser: ChatUser;
+  matchId: number;
+  compatibilityScore: number;
+  messages: ChatMessage[];
+  currentPage: number;
+  totalPages: number;
+  totalMessages: number;
+  hasMore: boolean;
+  isActive: boolean;
+  unreadCount: number;
+  lastActivity: string;
+  matchDate: string;
+  compatibilityMessage: string;
+}
+
+export interface SendGlobalMessageRequest {
+  content: string;
+}
+
+export interface SendPrivateMessageRequest {
+  content: string;
+  receiverId: number;
+}
+
+export interface SendMessageResponse {
+  success: boolean;
+  message: ChatMessage;
+  info: string;
+}
+
+export interface ChatListItem {
+  chatRoomId: number;
+  chatType: 'GLOBAL' | 'PRIVATE';
+  chatName: string;
+  lastMessage: ChatMessage | null;
+  unreadCount: number;
+  lastActivity: string;
+  otherUser?: ChatUser;
+  matchType?: 'ASTROLOGY' | 'MUSIC';
+  activeUserCount?: number;
+}
+
 // Match API'leri
 export const matchApi = {
   // Tüm eşleşmeleri getir
@@ -1153,6 +1256,175 @@ export const matchApi = {
       return response.data;
     } catch (error: any) {
       console.error('❌ [API] deleteMatch hatası:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+};
+
+// Chat API'leri
+export const chatApi = {
+  // Genel chat mesajlarını getir
+  getGlobalMessages: async (page: number = 0, size: number = 20): Promise<GlobalChatResponse> => {
+    console.log('🔄 [API] getGlobalMessages çağrısı:', { page, size });
+    const authHeader = await createAuthHeader();
+    try {
+      const response = await api.get(`/api/chat/global/messages?page=${page}&size=${size}`, authHeader);
+      console.log('✅ [API] getGlobalMessages yanıtı:', {
+        messageCount: response.data.messages?.length || 0,
+        activeUsers: response.data.activeUserCount,
+        canSendMessage: response.data.userMessageLimit?.canSendMessage
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] getGlobalMessages hatası:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Genel chat'e mesaj gönder
+  sendGlobalMessage: async (data: SendGlobalMessageRequest): Promise<SendMessageResponse> => {
+    console.log('🔄 [API] sendGlobalMessage çağrısı:', { contentLength: data.content.length });
+    const authHeader = await createAuthHeader();
+    try {
+      const response = await api.post('/api/chat/global/send', data, authHeader);
+      console.log('✅ [API] sendGlobalMessage yanıtı: Mesaj gönderildi');
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] sendGlobalMessage hatası:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
+      
+      // Özel hata durumları
+      if (error.response?.status === 429) {
+        const errorMessage = error.response?.data?.error || 'Mesaj gönderme limiti doldu';
+        throw new Error(errorMessage);
+      }
+      
+      if (error.response?.status === 400) {
+        const errorMessage = error.response?.data?.error || 'Mesaj içeriği uygunsuz';
+        throw new Error(errorMessage);
+      }
+      
+      throw error;
+    }
+  },
+
+  // Mesaj limiti bilgisini getir
+  getMessageLimitInfo: async (): Promise<MessageLimitInfo> => {
+    console.log('🔄 [API] getMessageLimitInfo çağrısı');
+    const authHeader = await createAuthHeader();
+    try {
+      const response = await api.get('/api/chat/limit-info', authHeader);
+      console.log('✅ [API] getMessageLimitInfo yanıtı:', {
+        canSendMessage: response.data.canSendMessage,
+        isPremium: response.data.isPremium,
+        remainingSeconds: response.data.remainingSeconds
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] getMessageLimitInfo hatası:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Özel chat mesajlarını getir
+  getPrivateMessages: async (chatRoomId: number, page: number = 0, size: number = 20): Promise<PrivateChatResponse> => {
+    console.log('🔄 [API] getPrivateMessages çağrısı:', { chatRoomId, page, size });
+    const authHeader = await createAuthHeader();
+    try {
+      const response = await api.get(`/api/chat/private/${chatRoomId}/messages?page=${page}&size=${size}`, authHeader);
+      console.log('✅ [API] getPrivateMessages yanıtı:', {
+        messageCount: response.data.messages?.length || 0,
+        otherUser: response.data.otherUser?.displayName,
+        unreadCount: response.data.unreadCount
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] getPrivateMessages hatası:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        chatRoomId
+      });
+      
+      if (error.response?.status === 403) {
+        throw new Error('Bu sohbete erişim yetkiniz yok');
+      }
+      
+      throw error;
+    }
+  },
+
+  // Özel mesaj gönder
+  sendPrivateMessage: async (data: SendPrivateMessageRequest): Promise<SendMessageResponse> => {
+    console.log('🔄 [API] sendPrivateMessage çağrısı:', { 
+      receiverId: data.receiverId, 
+      contentLength: data.content.length 
+    });
+    const authHeader = await createAuthHeader();
+    try {
+      const response = await api.post('/api/chat/private/send', data, authHeader);
+      console.log('✅ [API] sendPrivateMessage yanıtı: Özel mesaj gönderildi');
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] sendPrivateMessage hatası:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        receiverId: data.receiverId
+      });
+      
+      if (error.response?.status === 400) {
+        const errorMessage = error.response?.data?.error || 'Geçersiz mesaj verisi';
+        throw new Error(errorMessage);
+      }
+      
+      throw error;
+    }
+  },
+
+  // Chat listesini getir (hem genel hem özel chatler için)
+  getChatList: async (): Promise<ChatListItem[]> => {
+    console.log('🔄 [API] getChatList çağrısı');
+    const authHeader = await createAuthHeader();
+    try {
+      // Önce genel chat bilgisini al
+      const globalResponse = await api.get('/api/chat/global/messages?page=0&size=1', authHeader);
+      
+      // Sonra özel chatları al (bu endpoint backend'de oluşturulmalı)
+      let privateChats: ChatListItem[] = [];
+      try {
+        const privateResponse = await api.get('/api/chat/private/list', authHeader);
+        privateChats = privateResponse.data.chats || [];
+      } catch (error) {
+        console.warn('Private chat list alınamadı:', error);
+      }
+
+      // Chat listesini birleştir
+      const chatList: ChatListItem[] = [
+        // Genel chat
+        {
+          chatRoomId: globalResponse.data.chatRoomId,
+          chatType: 'GLOBAL' as const,
+          chatName: '🌍 Genel Chat',
+          lastMessage: globalResponse.data.messages?.[0] || null,
+          unreadCount: 0,
+          lastActivity: globalResponse.data.messages?.[0]?.sentAt || new Date().toISOString(),
+          activeUserCount: globalResponse.data.activeUserCount
+        },
+        // Özel chatlar
+        ...privateChats
+      ];
+
+      console.log('✅ [API] getChatList yanıtı:', {
+        totalChats: chatList.length,
+        globalActiveUsers: globalResponse.data.activeUserCount,
+        privateChats: privateChats.length
+      });
+      
+      return chatList;
+    } catch (error: any) {
+      console.error('❌ [API] getChatList hatası:', error.response?.data || error.message);
       throw error;
     }
   }

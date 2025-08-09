@@ -223,6 +223,22 @@ export default function TabLayout() {
           }}
         />
 
+        {/* Chat Tab - Her iki mode'da da görünür */}
+        <Tabs.Screen
+          name="chat"
+          options={{
+            title: 'Mesajlar',
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons 
+                name={focused ? 'chatbubbles' : 'chatbubbles-outline'} 
+                size={28} 
+                color={color} 
+              />
+            ),
+            href: '/(tabs)/chat' as any,
+          }}
+        />
+
         {/* Index sayfasını gizle */}
         <Tabs.Screen
           name="index"

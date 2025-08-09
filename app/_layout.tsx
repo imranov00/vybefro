@@ -10,6 +10,7 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { AuthProvider } from './context/AuthContext';
+import { ChatProvider } from './context/ChatContext';
 import { ProfileProvider } from './context/ProfileContext';
 
 export {
@@ -60,7 +61,9 @@ function RootLayoutNav() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <ProfileProvider>
-          <Slot />
+          <ChatProvider>
+            <Slot />
+          </ChatProvider>
         </ProfileProvider>
         <StatusBar style="light" />
       </ThemeProvider>

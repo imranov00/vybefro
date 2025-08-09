@@ -1204,12 +1204,16 @@ export default function AstrologyMatchesScreen() {
               setShowMatchScreen(false);
               setMatchedUserData(null);
               setMatchResponse(null);
-              // TODO: Sohbet ekranına yönlendirme
-              Alert.alert('Sohbet', 'Sohbet özelliği yakında gelecek!');
+              
+              // Chat ekranına yönlendir
+              router.push('/chat' as any);
+              
+              console.log('✅ [MATCH] Chat ekranına yönlendirildi');
             } catch (error) {
               console.error('❌ [MATCH] Sohbet başlatma hatası:', error);
               // Fallback: Force close
               setShowMatchScreen(false);
+              Alert.alert('Hata', 'Chat ekranına yönlendirilemedi');
             }
           }}
         />
