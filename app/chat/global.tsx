@@ -29,7 +29,8 @@ export default function GlobalChatScreen() {
     loadMoreMessages,
     sendGlobalMessage,
     messageLimitInfo,
-    refreshMessageLimit
+    refreshMessageLimit,
+    setFastPolling
   } = useChat();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
@@ -58,6 +59,16 @@ export default function GlobalChatScreen() {
       console.log('🌍 [GLOBAL CHAT] Screen focused - loading global messages');
       loadMessages(1, 'GLOBAL'); // Global chat room ID genellikle 1
       refreshMessageLimit();
+      
+      // Focus olduğunda polling'i hızlandır (1 saniye)
+      setFastPolling(true);
+      console.log('🚀 [GLOBAL CHAT] Hızlı polling başlatıldı (1 saniye)');
+      
+      return () => {
+        // Sayfa kapatıldığında normal polling'e dön
+        setFastPolling(false);
+        console.log('⏸️ [GLOBAL CHAT] Screen blurred - normal polling (3 saniye)');
+      };
     }, [])
   );
 
