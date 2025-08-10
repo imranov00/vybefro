@@ -1,15 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import {
-  Animated,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    Animated,
+    KeyboardAvoidingView,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { MessageLimitInfo } from '../../services/api';
@@ -28,6 +29,7 @@ export default function MessageInput({
   disabled = false
 }: MessageInputProps) {
   const { currentMode } = useAuth();
+  const router = useRouter();
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const inputRef = useRef<TextInput>(null);
@@ -50,6 +52,12 @@ export default function MessageInput({
   };
 
   const currentTheme = theme[currentMode];
+
+  // Premium sayfasına yönlendirme
+  const handlePremiumPress = () => {
+    console.log('👑 [MESSAGE INPUT] Premium butonuna tıklandı');
+    router.push('/(profile)/premiumScreen');
+  };
 
   // Mesaj gönderme
   const handleSendMessage = async () => {
@@ -148,7 +156,11 @@ export default function MessageInput({
               {formatLimitMessage()}
             </Text>
             {!limitInfo.isPremium && (
-              <TouchableOpacity style={styles.premiumButton}>
+              <TouchableOpacity 
+                style={styles.premiumButton}
+                onPress={handlePremiumPress}
+                activeOpacity={0.7}
+              >
                 <Text style={[styles.premiumButtonText, { color: currentTheme.primary }]}>
                   Premium Ol
                 </Text>
@@ -245,13 +257,22 @@ const styles = StyleSheet.create({
   },
   premiumButton: {
     paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1.5,
     borderColor: '#8000FF',
+    backgroundColor: 'rgba(128, 0, 255, 0.05)',
+    shadowColor: '#8000FF',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   premiumButtonText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: 'bold',
   },
 

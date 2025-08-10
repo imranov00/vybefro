@@ -113,7 +113,14 @@ export default function GlobalChatScreen() {
           error.message,
           [
             { text: 'Tamam', style: 'default' },
-            { text: 'Premium Ol', style: 'default', onPress: () => router.push('/(profile)/premiumScreen') }
+            { 
+              text: 'Premium Ol', 
+              style: 'default', 
+              onPress: () => {
+                console.log('👑 [GLOBAL CHAT] Premium butonuna tıklandı');
+                router.push('/(profile)/premiumScreen');
+              }
+            }
           ]
         );
       } else if (error.message.includes('uygunsuz')) {
@@ -136,7 +143,8 @@ export default function GlobalChatScreen() {
 
   // Geri gitme
   const handleGoBack = () => {
-    router.back();
+    // Chat listesine dön
+    router.navigate('/(tabs)/chat' as any);
   };
 
   // Aktif kullanıcı sayısını al
@@ -161,7 +169,7 @@ export default function GlobalChatScreen() {
         </TouchableOpacity>
         
         <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>🌍 Genel Chat</Text>
+          <Text style={styles.headerTitle}>🌍 Genel Sohbet</Text>
           <View style={styles.activeUsersContainer}>
             <View style={styles.activeIndicator} />
             <Text style={styles.activeUsersText}>

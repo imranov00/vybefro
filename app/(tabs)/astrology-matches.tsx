@@ -165,10 +165,14 @@ export default function AstrologyMatchesScreen() {
   const [showNewUserOverlay, setShowNewUserOverlay] = useState(false);
   const [errorToast, setErrorToast] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
   
+  // Swipe edilmiş kullanıcıları takip et
+  const [swipedUserIds, setSwipedUserIds] = useState<Set<number>>(new Set());
+  
   // Match Screen State
   const [showMatchScreen, setShowMatchScreen] = useState(false);
   const [matchedUserData, setMatchedUserData] = useState<SwipeUser | null>(null);
   const [matchResponse, setMatchResponse] = useState<any>(null);
+  const [isClosing, setIsClosing] = useState(false);
 
   // Debug: Match screen state'lerini takip et
   useEffect(() => {
@@ -215,41 +219,41 @@ export default function AstrologyMatchesScreen() {
     matchColor: '#FFD700',
   };
 
-  // Toast notification göster
+  // Toast notification göster - Kaldırıldı
   const showErrorToast = (message: string) => {
-    setErrorToast({ show: true, message });
-    setTimeout(() => {
-      setErrorToast({ show: false, message: '' });
-    }, 3000); // 3 saniye sonra gizle
+    // Hiçbir şey yapma - sessizce geç
+    console.log('🔇 [TOAST] Toast gösterilmedi:', message);
   };
 
   // Kullanıcıları getir (Normal keşif - hiç swipe yapmadığı + cooldown dolmuş)
   const fetchUsers = async () => {
     try {
       setIsLoading(true);
-              const response = await swipeApi.getDiscoverUsers(1, 10, false);
+      console.log('🔍 [FETCH] Yeni kullanıcılar getiriliyor (refresh=false - sadece yeni kullanıcılar)');
+      const response = await swipeApi.getDiscoverUsers(1, 10, false);
       
       if (response.success) {
         // DiscoverUser'ları SwipeUser formatına dönüştür
-        console.log('📷 API\'den gelen kullanıcı sayısı:', response.users.length);
+        console.log(`✅ [FETCH] ${response.users.length} yeni kullanıcı bulundu (mode: ${response.mode || 'filtered'})`);
+        console.log(`📊 [FETCH] Toplam: ${response.totalCount}, HasMore: ${response.hasMore}`);
         
         const convertedUsers: SwipeUser[] = response.users.map(user => {
           // Fotoğraf debug
           console.log(`👤 Kullanıcı: ${user.firstName}, Fotoğraf sayısı: ${user.photos?.length || 0}`);
           if (user.photos) {
             user.photos.forEach((photo, index) => {
-              console.log(`📸 Fotoğraf ${index + 1}: ${photo.imageUrl ? 'VALID' : 'EMPTY'} - ${photo.imageUrl}`);
+              console.log(`📸 Fotoğraf ${index + 1}: ${photo.photoUrl ? 'VALID' : 'EMPTY'} - ${photo.photoUrl}`);
             });
           }
           
           // Fotoğrafları filtrele (sadece valid olanlar)
-          const validPhotos = user.photos?.filter(p => p.imageUrl && p.imageUrl.trim() !== '') || [];
+          const validPhotos = user.photos?.filter(p => p.photoUrl && p.photoUrl.trim() !== '') || [];
           
           // Profil fotoğrafını belirle
           const profileImage = user.profileImageUrl && user.profileImageUrl.trim() !== '' 
             ? user.profileImageUrl 
             : validPhotos.length > 0 
-              ? validPhotos[0].imageUrl 
+              ? validPhotos[0].photoUrl 
               : `https://picsum.photos/400/600?random=${user.id}`;
           
           console.log(`🖼️ ${user.firstName} profil fotoğrafı: ${profileImage}`);
@@ -267,20 +271,20 @@ export default function AstrologyMatchesScreen() {
           zodiacSign: user.zodiacSign as ZodiacSign,
           zodiacSignDisplay: user.zodiacSign,
           compatibilityScore: user.compatibilityScore,
-          compatibilityMessage: user.compatibilityDescription || 'Yıldızlar sizin için mükemmel bir uyum öngörüyor! 🌟',
+          compatibilityMessage: user.compatibilityMessage || 'Yıldızlar sizin için mükemmel bir uyum öngörüyor! 🌟',
           profileImageUrl: profileImage,
           photos: validPhotos.map((p, index) => ({
             id: Math.random(),
-            photoUrl: p.imageUrl,
+            photoUrl: p.photoUrl,
             isProfilePhoto: index === 0, // Sadece ilk fotoğraf profil fotoğrafı
             displayOrder: index + 1
           })),
           photoCount: validPhotos.length,
           isPremium: user.isPremium || false,
           lastActiveTime: new Date().toISOString(),
-          activityStatus: user.isOnline ? 'Şimdi aktif' : '2 saat önce',
+          activityStatus: user.activityStatus || '2 saat önce',
           location: 'İstanbul, Türkiye',
-          distanceKm: user.distance || Math.floor(Math.random() * 20) + 1,
+          distanceKm: user.distanceKm || Math.floor(Math.random() * 20) + 1,
           isVerified: user.isVerified || Math.random() > 0.7,
           hasInstagram: Math.random() > 0.5,
           hasSpotify: Math.random() > 0.6,
@@ -330,13 +334,14 @@ export default function AstrologyMatchesScreen() {
 
   // Kullanıcıları yenile (Yenile butonu - tam random sıralama)
   const refreshUsers = async () => {
-    console.log('🔄 [REFRESH] Kullanıcıları yeniliyor (random sıralama)');
+    console.log('🔄 [REFRESH] Kullanıcıları yeniliyor (refresh=true - cooldown geçmiş kullanıcılar dahil)');
     try {
       setIsLoading(true);
       const response = await swipeApi.getDiscoverUsers(1, 10, true); // refresh=true
       
       if (response.success) {
-        console.log('🎲 [REFRESH] Random sıralanmış kullanıcı sayısı:', response.users.length);
+        console.log(`🎲 [REFRESH] ${response.users.length} kullanıcı (mode: ${response.mode || 'random'})`);
+        console.log(`📊 [REFRESH] Toplam: ${response.totalCount}, HasMore: ${response.hasMore}`);
         
         // Tutorial'ı test etmek için reset et (isteğe bağlı)
         // await AsyncStorage.removeItem('astrology_tutorial_shown');
@@ -344,11 +349,11 @@ export default function AstrologyMatchesScreen() {
         
         // DiscoverUser'ları SwipeUser formatına dönüştür (aynı mantık)
         const convertedUsers: SwipeUser[] = response.users.map(user => {
-          const validPhotos = user.photos?.filter(p => p.imageUrl && p.imageUrl.trim() !== '') || [];
+          const validPhotos = user.photos?.filter(p => p.photoUrl && p.photoUrl.trim() !== '') || [];
           const profileImage = user.profileImageUrl && user.profileImageUrl.trim() !== '' 
             ? user.profileImageUrl 
             : validPhotos.length > 0 
-              ? validPhotos[0].imageUrl 
+              ? validPhotos[0].photoUrl 
               : `https://picsum.photos/400/600?random=${user.id}`;
           
           return {
@@ -363,20 +368,20 @@ export default function AstrologyMatchesScreen() {
             zodiacSign: user.zodiacSign as ZodiacSign,
             zodiacSignDisplay: user.zodiacSign,
             compatibilityScore: user.compatibilityScore,
-            compatibilityMessage: user.compatibilityDescription || 'Yıldızlar sizin için mükemmel bir uyum öngörüyor! 🌟',
+            compatibilityMessage: user.compatibilityMessage || 'Yıldızlar sizin için mükemmel bir uyum öngörüyor! 🌟',
             profileImageUrl: profileImage,
             photos: validPhotos.map((p, index) => ({
               id: Math.random(),
-              photoUrl: p.imageUrl,
+              photoUrl: p.photoUrl,
               isProfilePhoto: index === 0,
               displayOrder: index + 1
             })),
             photoCount: validPhotos.length,
             isPremium: user.isPremium || false,
             lastActiveTime: new Date().toISOString(),
-            activityStatus: user.isOnline ? 'Şimdi aktif' : '2 saat önce',
+            activityStatus: user.activityStatus || '2 saat önce',
             location: 'İstanbul, Türkiye',
-            distanceKm: user.distance || Math.floor(Math.random() * 20) + 1,
+            distanceKm: user.distanceKm || Math.floor(Math.random() * 20) + 1,
             isVerified: user.isVerified || Math.random() > 0.7,
             hasInstagram: Math.random() > 0.5,
             hasSpotify: Math.random() > 0.6,
@@ -388,6 +393,10 @@ export default function AstrologyMatchesScreen() {
         setUsers(convertedUsers);
         setCurrentUserIndex(0); // Index'i sıfırla
         setSwipeLimitInfo(response.swipeLimitInfo);
+        
+        // Swipe edilmiş kullanıcıları temizle (yenile sırasında)
+        setSwipedUserIds(new Set());
+        console.log('🔄 [REFRESH] Swipe edilmiş kullanıcılar temizlendi');
         
         // Yeni kullanıcı overlay'ini gösterilen ID listesini temizle
         // setShownNewUserIds(new Set()); // Bu satır kaldırıldı
@@ -423,6 +432,22 @@ export default function AstrologyMatchesScreen() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Swipe edilmiş kullanıcı ID'sini kaydet
+  const markUserAsSwiped = (userId: number) => {
+    setSwipedUserIds(prev => new Set([...prev, userId]));
+    console.log(`✅ [SWIPE_TRACK] Kullanıcı ${userId} swipe edildi olarak işaretlendi`);
+  };
+
+  // Kullanıcının swipe edilip edilmediğini kontrol et
+  const isUserSwiped = (userId: number): boolean => {
+    return swipedUserIds.has(userId);
+  };
+
+  // Swipe edilmemiş kullanıcıları filtrele
+  const getUnswipedUsers = (): SwipeUser[] => {
+    return users.filter(user => !isUserSwiped(user.id));
   };
 
   // Swipe limit bilgisi getir
@@ -490,6 +515,9 @@ export default function AstrologyMatchesScreen() {
           remainingSwipes: response.remainingSwipes,
           message: response.message
         });
+        
+        // Kullanıcıyı swipe edildi olarak işaretle
+        markUserAsSwiped(toUserId);
         
         // Match kontrolü: hem isMatch hem de status MATCHED olmalı
         const isMatched = response.isMatch && response.status === 'MATCHED';
@@ -564,26 +592,32 @@ export default function AstrologyMatchesScreen() {
         // Sonraki kullanıcıya geç
         nextUser();
       } else {
-        // API başarısız yanıt döndü - sadece error toast göster
+        // API başarısız yanıt döndü - sessizce handle et
         console.log('❌ [API] Swipe başarısız:', response.message);
         
-        // Tüm başarısız durumlar için toast göster ve geç
-        showErrorToast(response.message || 'İşlem başarısız, sonraki profil gösteriliyor');
+        // Kullanıcıya uyarı gösterme, sessizce geç
         setTimeout(() => {
           nextUser(); // Kullanıcıyı geç
-        }, 1000);
+        }, 500); // Daha hızlı geç
       }
     } catch (error: any) {
       console.error('❌ [API] swipe hatası:', error?.response?.data || error?.message || error);
       
-      // Ağ hatası, sunucu hatası vs. - sadece küçük toast göster ve geç
-      const errorMessage = error?.response?.data?.message || 'Bağlantı sorunu, sonraki profil gösteriliyor';
-      showErrorToast(errorMessage);
+      // 400 hatası - kullanıcı zaten swipe edilmiş (sessizce handle et)
+      if (error?.response?.status === 400 && error?.response?.data?.message?.includes('zaten bir swipe kaydınız var')) {
+        console.log('🔄 [SWIPE] Kullanıcı zaten swipe edilmiş, sessizce işaretleniyor...');
+        markUserAsSwiped(toUserId);
+        // Kullanıcıya hiçbir uyarı gösterme, sessizce geç
+      } else {
+        // Diğer hatalar için de sessizce geç
+        console.log('❌ [SWIPE] Diğer hata türü:', error?.response?.data?.message || 'Bilinmeyen hata');
+        // Kullanıcıya hiçbir uyarı gösterme
+      }
       
-      // 1 saniye sonra sonraki kullanıcıya geç
+      // Hızlıca sonraki kullanıcıya geç
       setTimeout(() => {
         nextUser();
-      }, 1000);
+      }, 300);
     } finally {
       setIsSwipeInProgress(false);
     }
@@ -591,9 +625,28 @@ export default function AstrologyMatchesScreen() {
 
   // Sonraki kullanıcıya geç
   const nextUser = () => {
-    setCurrentUserIndex(prev => prev + 1);
+    const unswipedUsers = getUnswipedUsers();
+    const currentUnswipedIndex = unswipedUsers.findIndex(user => user.id === users[currentUserIndex]?.id);
+    
+    // Swipe edilmemiş kullanıcılar arasında bir sonraki kullanıcıyı bul
+    let nextUnswipedIndex = currentUnswipedIndex + 1;
+    
+    // Eğer swipe edilmemiş kullanıcı kalmadıysa, yeni kullanıcılar getir
+    if (nextUnswipedIndex >= unswipedUsers.length) {
+      console.log('🔄 [NEXT] Swipe edilmemiş kullanıcı kalmadı, yeni kullanıcılar getiriliyor');
+      fetchUsers();
+      return;
+    }
+    
+    // Bir sonraki swipe edilmemiş kullanıcının orijinal listedeki index'ini bul
+    const nextUser = unswipedUsers[nextUnswipedIndex];
+    const nextIndex = users.findIndex(user => user.id === nextUser.id);
+    
+    setCurrentUserIndex(nextIndex);
     setCurrentPhotoIndex(0);
     resetAnimations();
+    
+    console.log(`🔄 [NEXT] Sonraki kullanıcıya geçildi: ${nextUser.firstName} (ID: ${nextUser.id})`);
     
     // Yeni kullanıcı overlay'ini kapat
     if (showNewUserOverlay) {
@@ -602,7 +655,7 @@ export default function AstrologyMatchesScreen() {
     }
     
     // Son 2 kullanıcı kaldığında yeni kullanıcılar getir
-    if (currentUserIndex >= users.length - 2) {
+    if (nextIndex >= users.length - 2) {
       fetchUsers();
     }
   };
@@ -882,6 +935,16 @@ export default function AstrologyMatchesScreen() {
     );
   }
 
+  // Mevcut kullanıcı swipe edilmiş mi kontrol et
+  if (currentUser && isUserSwiped(currentUser.id)) {
+    console.log(`🔄 [UI] Kullanıcı ${currentUser.firstName} (ID: ${currentUser.id}) zaten swipe edilmiş, sonraki kullanıcıya geçiliyor`);
+    // Otomatik olarak sonraki kullanıcıya geç
+    setTimeout(() => {
+      nextUser();
+    }, 100);
+    return null; // Loading göster
+  }
+
   // Kullanıcı kalmadı
   if (!currentUser) {
     return (
@@ -891,7 +954,7 @@ export default function AstrologyMatchesScreen() {
         <Text style={styles.emptySubtitle}>
           Şu an için gösterilecek yeni profil yok. Biraz sonra tekrar deneyin!
         </Text>
-        <TouchableOpacity style={styles.refreshButtonOld} onPress={fetchUsers}>
+        <TouchableOpacity style={styles.refreshButtonOld} onPress={refreshUsers}>
           <Ionicons 
             name="refresh" 
             size={16} 
@@ -1161,15 +1224,15 @@ export default function AstrologyMatchesScreen() {
         </View>
       )}
 
-      {/* Error Toast */}
-      {errorToast.show && (
+      {/* Error Toast - Kaldırıldı */}
+      {/* {errorToast.show && (
         <View style={styles.errorToast}>
           <Text style={styles.errorToastText}>⚠️ {errorToast.message}</Text>
         </View>
-      )}
+      )} */}
 
       {/* Match Screen */}
-      {showMatchScreen && matchedUserData && userProfile && (
+      {showMatchScreen && matchedUserData && userProfile && !isClosing && (
         <AstrologyMatchScreen
           currentUser={{
             id: userProfile.id || 0,
@@ -1188,31 +1251,55 @@ export default function AstrologyMatchesScreen() {
           onClose={() => {
             console.log('🔴 [MATCH] Match screen kapatılıyor');
             try {
+              setIsClosing(true);
+              // State'leri sırayla güncelle
               setShowMatchScreen(false);
-              setMatchedUserData(null);
-              setMatchResponse(null);
+              
+              // Kısa bir gecikme ile diğer state'leri temizle
+              setTimeout(() => {
+                setMatchedUserData(null);
+                setMatchResponse(null);
+                setIsClosing(false);
+                console.log('✅ [MATCH] Match screen state\'leri temizlendi');
+              }, 100);
+              
               console.log('✅ [MATCH] Match screen başarıyla kapatıldı');
             } catch (error) {
               console.error('❌ [MATCH] Match screen kapatma hatası:', error);
               // Fallback: Force close
               setShowMatchScreen(false);
+              setMatchedUserData(null);
+              setMatchResponse(null);
+              setIsClosing(false);
             }
           }}
           onStartChat={() => {
             console.log('💬 [MATCH] Sohbet başlatılıyor');
             try {
+              setIsClosing(true);
+              // Önce match screen'i kapat
+              setShowMatchScreen(false);
+              
+              // Kısa bir gecikme ile state'leri temizle ve navigation yap
+              setTimeout(() => {
+                setMatchedUserData(null);
+                setMatchResponse(null);
+                setIsClosing(false);
+                
+                // Chat ekranına yönlendir
+                router.push('/chat' as any);
+                
+                console.log('✅ [MATCH] Chat ekranına yönlendirildi');
+              }, 150);
+              
+            } catch (error) {
+              console.error('❌ [MATCH] Sohbet başlatma hatası:', error);
+              // Fallback: Force close ve navigation
               setShowMatchScreen(false);
               setMatchedUserData(null);
               setMatchResponse(null);
-              
-              // Chat ekranına yönlendir
+              setIsClosing(false);
               router.push('/chat' as any);
-              
-              console.log('✅ [MATCH] Chat ekranına yönlendirildi');
-            } catch (error) {
-              console.error('❌ [MATCH] Sohbet başlatma hatası:', error);
-              // Fallback: Force close
-              setShowMatchScreen(false);
               Alert.alert('Hata', 'Chat ekranına yönlendirilemedi');
             }
           }}

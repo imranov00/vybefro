@@ -2,35 +2,419 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    Image,
-    Platform,
-    RefreshControl,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Modal,
+  Platform,
+  RefreshControl,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming
+} from 'react-native-reanimated';
 
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
 import { ChatListItem } from '../services/api';
+
+// Evren temalı arka plan bileşenleri
+const AstrologyUniverse = () => {
+  const starRotation = useSharedValue(0);
+  const planetRotation = useSharedValue(0);
+  const zodiacRotation = useSharedValue(0);
+
+  useEffect(() => {
+    // Yıldızların yavaş dönüşü
+    starRotation.value = withRepeat(
+      withTiming(360, { duration: 120000, easing: Easing.linear }),
+      -1,
+      false
+    );
+
+    // Gezegenlerin dönüşü
+    planetRotation.value = withRepeat(
+      withTiming(360, { duration: 80000, easing: Easing.linear }),
+      -1,
+      false
+    );
+
+    // Burç çarkının dönüşü
+    zodiacRotation.value = withRepeat(
+      withTiming(360, { duration: 180000, easing: Easing.linear }),
+      -1,
+      false
+    );
+  }, []);
+
+  const starStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${starRotation.value}deg` }],
+  }));
+
+  const planetStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${planetRotation.value}deg` }],
+  }));
+
+  const zodiacStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${zodiacRotation.value}deg` }],
+  }));
+
+  return (
+    <View style={styles.universeContainer}>
+      {/* Uzak yıldızlar */}
+      <Animated.View style={[styles.starField, starStyle]}>
+        {Array.from({ length: 100 }).map((_, i) => (
+          <View
+            key={`star-${i}`}
+            style={[
+              styles.star,
+              {
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                opacity: Math.random() * 0.8 + 0.2,
+                width: Math.random() * 3 + 1,
+                height: Math.random() * 3 + 1,
+              },
+            ]}
+          />
+        ))}
+      </Animated.View>
+
+      {/* Gezegenler */}
+      <Animated.View style={[styles.planetField, planetStyle]}>
+        <View style={[styles.planet, styles.planet1]} />
+        <View style={[styles.planet, styles.planet2]} />
+        <View style={[styles.planet, styles.planet3]} />
+        <View style={[styles.planet, styles.planet4]} />
+      </Animated.View>
+
+      {/* Burç sembolleri */}
+      <Animated.View style={[styles.zodiacField, zodiacStyle]}>
+        {['♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓'].map((symbol, i) => (
+          <View
+            key={`zodiac-${i}`}
+            style={[
+              styles.zodiacSymbol,
+              {
+                transform: [
+                  { rotate: `${(i * 30)}deg` },
+                  { translateY: -120 },
+                ],
+              },
+            ]}
+          >
+            <Text style={styles.zodiacText}>{symbol}</Text>
+          </View>
+        ))}
+      </Animated.View>
+
+      {/* Nebula efektleri */}
+      <View style={styles.nebula1} />
+      <View style={styles.nebula2} />
+      <View style={styles.nebula3} />
+    </View>
+  );
+};
+
+const MusicUniverse = () => {
+  const noteRotation = useSharedValue(0);
+  const instrumentRotation = useSharedValue(0);
+  const waveAnimation = useSharedValue(0);
+
+  useEffect(() => {
+    // Notaların dönüşü
+    noteRotation.value = withRepeat(
+      withTiming(360, { duration: 90000, easing: Easing.linear }),
+      -1,
+      false
+    );
+
+    // Enstrümanların dönüşü
+    instrumentRotation.value = withRepeat(
+      withTiming(360, { duration: 150000, easing: Easing.linear }),
+      -1,
+      false
+    );
+
+    // Ses dalgası animasyonu
+    waveAnimation.value = withRepeat(
+      withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
+  }, []);
+
+  const noteStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${noteRotation.value}deg` }],
+  }));
+
+  const instrumentStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${instrumentRotation.value}deg` }],
+  }));
+
+  const waveStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: 0.8 + (waveAnimation.value * 0.4) }],
+    opacity: 0.3 - (waveAnimation.value * 0.2),
+  }));
+
+  return (
+    <View style={styles.universeContainer}>
+      {/* Müzik notaları */}
+      <Animated.View style={[styles.noteField, noteStyle]}>
+        {['♪', '♫', '♬', '♩', '♭', '♯', '♮'].map((note, i) => (
+          <View
+            key={`note-${i}`}
+            style={[
+              styles.musicNote,
+              {
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                transform: [{ rotate: `${Math.random() * 360}deg` }],
+              },
+            ]}
+          >
+            <Text style={styles.noteText}>{note}</Text>
+          </View>
+        ))}
+      </Animated.View>
+
+      {/* Enstrümanlar */}
+      <Animated.View style={[styles.instrumentField, instrumentStyle]}>
+        {['🎸', '🎹', '🎻', '🎺', '🥁', '🎤', '🎧', '🎼'].map((instrument, i) => (
+          <View
+            key={`instrument-${i}`}
+            style={[
+              styles.instrument,
+              {
+                transform: [
+                  { rotate: `${(i * 45)}deg` },
+                  { translateY: -100 },
+                ],
+              },
+            ]}
+          >
+            <Text style={styles.instrumentText}>{instrument}</Text>
+          </View>
+        ))}
+      </Animated.View>
+
+      {/* Ses dalgaları */}
+      <Animated.View style={[styles.soundWave1, waveStyle]} />
+      <Animated.View style={[styles.soundWave2, waveStyle]} />
+      <Animated.View style={[styles.soundWave3, waveStyle]} />
+
+      {/* Müzik parçacıkları */}
+      {Array.from({ length: 50 }).map((_, i) => (
+        <View
+          key={`particle-${i}`}
+          style={[
+            styles.musicParticle,
+            {
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              backgroundColor: ['#1DB954', '#1ED760', '#FFD700', '#FF6B6B'][Math.floor(Math.random() * 4)],
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
+};
+
+// Mesaj önizleme modal bileşeni
+const MessagePreviewModal = ({ 
+  visible, 
+  onClose, 
+  chat, 
+  currentTheme 
+}: { 
+  visible: boolean; 
+  onClose: () => void; 
+  chat: ChatListItem | null; 
+  currentTheme: any;
+}) => {
+  const [messages, setMessages] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Mesajları yükle
+  useEffect(() => {
+    if (visible && chat) {
+      loadPreviewMessages();
+    }
+  }, [visible, chat]);
+
+  const loadPreviewMessages = async () => {
+    if (!chat) return;
+    
+    setLoading(true);
+    try {
+      // Son 10 mesajı yükle (görüldü olmadan)
+      // Bu kısım API'ye göre değişebilir
+      const previewMessages = [
+        {
+          id: 1,
+          content: chat.lastMessage || 'Henüz mesaj yok',
+          sender: {
+            id: chat.otherUser?.id || 0,
+            displayName: chat.otherUser?.displayName || chat.chatName,
+            profileImageUrl: chat.otherUser?.profileImageUrl,
+            isPremium: chat.otherUser?.isPremium || false,
+            isOnline: chat.otherUser?.isOnline || false,
+          },
+          timeAgo: (chat as any).lastMessageTime || 'Şimdi',
+          status: 'READ',
+          isCurrentUser: false,
+        }
+      ];
+      
+      setMessages(previewMessages);
+    } catch (error) {
+      console.error('Mesaj önizleme yükleme hatası:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  console.log('🔍 [MODAL] Render durumu:', { visible, chat: chat?.chatName });
+  
+  if (!chat) {
+    console.log('❌ [MODAL] Chat null, modal render edilmiyor');
+    return null;
+  }
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={onClose}
+      statusBarTranslucent={true}
+    >
+      <View style={styles.modalOverlay}>
+        <TouchableOpacity 
+          style={styles.modalBackground} 
+          onPress={onClose}
+          activeOpacity={1}
+        />
+        
+        <View style={styles.modalContainer}>
+          <LinearGradient
+            colors={currentTheme.cardGradient as any}
+            style={styles.modalContent}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <View style={styles.modalUserInfo}>
+                {chat.otherUser?.profileImageUrl ? (
+                  <Image 
+                    source={{ uri: chat.otherUser.profileImageUrl }}
+                    style={styles.modalAvatar}
+                  />
+                ) : (
+                  <LinearGradient
+                    colors={currentTheme.gradient as any}
+                    style={styles.modalAvatarPlaceholder}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <Text style={styles.modalAvatarText}>
+                      {chat.otherUser?.displayName?.charAt(0).toUpperCase() || '?'}
+                    </Text>
+                  </LinearGradient>
+                )}
+                
+                <View style={styles.modalUserDetails}>
+                  <Text style={styles.modalUserName}>
+                    {chat.otherUser?.displayName || chat.chatName}
+                  </Text>
+                  <Text style={styles.modalUserStatus}>
+                    {chat.otherUser?.isOnline ? '🟢 Çevrimiçi' : '⚪ Çevrimdışı'}
+                  </Text>
+                </View>
+              </View>
+              
+              <TouchableOpacity onPress={onClose} style={styles.modalCloseButton}>
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Modal Content */}
+            <View style={styles.modalBody}>
+              {loading ? (
+                <View style={styles.modalLoading}>
+                  <ActivityIndicator size="large" color={currentTheme.primary} />
+                  <Text style={styles.modalLoadingText}>Mesajlar yükleniyor...</Text>
+                </View>
+              ) : (
+                <View style={styles.modalMessages}>
+                  {messages.map((message, index) => (
+                    <View key={index} style={styles.modalMessageItem}>
+                      <View style={styles.modalMessageBubble}>
+                        <Text style={styles.modalMessageText}>
+                          {message.content}
+                        </Text>
+                        <Text style={styles.modalMessageTime}>
+                          {message.timeAgo}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                  
+                  {messages.length === 0 && (
+                    <View style={styles.modalEmpty}>
+                      <Ionicons name="chatbubbles-outline" size={48} color="#CCC" />
+                      <Text style={styles.modalEmptyText}>Henüz mesaj yok</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+
+            {/* Modal Footer */}
+            <View style={styles.modalFooter}>
+              <Text style={styles.modalFooterText}>
+                💡 Uzun basarak mesajları görüntüleyebilirsiniz
+              </Text>
+            </View>
+          </LinearGradient>
+        </View>
+      </View>
+    </Modal>
+  );
+};
 
 export default function ChatScreen() {
   const { currentMode } = useAuth();
   const { 
     chatList, 
     isLoadingChatList, 
-    refreshChatList, 
+    refreshChatList,
+    privateChatList,
+    isLoadingPrivateChats,
+    refreshPrivateChats,
     loadMessages,
     markMessagesAsRead 
   } = useChat();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<'matches' | 'global'>('matches');
+  
+  // Mesaj önizleme modal state'i
+  const [previewModalVisible, setPreviewModalVisible] = useState(false);
+  const [selectedChat, setSelectedChat] = useState<ChatListItem | null>(null);
 
   // Tema renklerini belirle
   const theme = {
@@ -38,30 +422,141 @@ export default function ChatScreen() {
       primary: '#8000FF',
       secondary: '#5B00B5',
       accent: '#FFD700',
-      gradient: ['#8000FF', '#5B00B5', '#3D007A']
+      gradient: ['#8000FF', '#5B00B5', '#3D007A'] as const,
+      cardGradient: ['rgba(128, 0, 255, 0.1)', 'rgba(91, 0, 181, 0.05)'] as const,
+      shadowColor: '#8000FF'
     },
     music: {
       primary: '#1DB954',
       secondary: '#1ED760', 
       accent: '#FFD700',
-      gradient: ['#1DB954', '#1ED760', '#1AA34A']
+      gradient: ['#1DB954', '#1ED760', '#1AA34A'] as const,
+      cardGradient: ['rgba(29, 185, 84, 0.1)', 'rgba(30, 215, 96, 0.05)'] as const,
+      shadowColor: '#1DB954'
     }
   };
 
   const currentTheme = theme[currentMode];
+
+  // Son mesaj zamanını formatla
+  const formatLastActivity = (lastActivity: string) => {
+    if (!lastActivity) return 'Şimdi';
+    
+    try {
+      const now = new Date();
+      
+      // Backend'den gelen tarih Türkiye saati (UTC+3) formatında geliyor
+      // Bunu UTC'ye çevirmemiz gerekiyor
+      let messageTime;
+      if (lastActivity.includes('Z') || lastActivity.includes('+')) {
+        // UTC formatında geliyor
+        messageTime = new Date(lastActivity);
+      } else {
+        // Türkiye saati (UTC+3) formatında geliyor, UTC'ye çevir
+        const localTime = new Date(lastActivity);
+        // Türkiye UTC+3 olduğu için 3 saat çıkar
+        const utcTime = new Date(localTime.getTime() - (3 * 60 * 60 * 1000));
+        messageTime = utcTime;
+      }
+      
+      // Invalid date kontrolü
+      if (isNaN(messageTime.getTime())) {
+        console.warn('⚠️ [CHAT] Invalid date:', lastActivity);
+        return 'Şimdi';
+      }
+      
+      const diffMs = now.getTime() - messageTime.getTime();
+      const diffMins = Math.floor(diffMs / (1000 * 60));
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+      // Debug log'u kaldırıldı - artık doğru çalışıyor
+
+      if (diffMins < 1) return 'Şimdi';
+      if (diffMins < 60) return `${diffMins}dk`;
+      if (diffHours < 24) return `${diffHours}s`;
+      if (diffDays < 7) return `${diffDays}g`;
+      
+      return messageTime.toLocaleDateString('tr-TR', { 
+        day: '2-digit', 
+        month: '2-digit' 
+      });
+    } catch (error) {
+      console.error('❌ [CHAT] Date format hatası:', error, lastActivity);
+      return 'Şimdi';
+    }
+  };
+
+  // Kombine chat listesi oluştur (genel chat + private chat'ler)
+  const combinedChatList = React.useMemo(() => {
+    const combined: any[] = [];
+    
+    if (activeTab === 'global') {
+      // Sadece genel chat'i göster
+      combined.push(...chatList);
+    } else {
+      // Sadece private chat'leri göster
+      privateChatList.forEach(privateChat => {
+        // Son mesaj zamanını dinamik olarak hesapla
+        let lastMessageTime = 'Şimdi';
+        if (privateChat.lastMessage?.sentAt) {
+          lastMessageTime = formatLastActivity(privateChat.lastMessage.sentAt);
+        } else if (privateChat.timeAgo && privateChat.timeAgo !== 'Şimdi') {
+          lastMessageTime = privateChat.timeAgo;
+        }
+        
+        const chatListItem = {
+          chatRoomId: privateChat.id,
+          chatType: 'PRIVATE' as const,
+          chatName: privateChat.displayName,
+          lastMessage: privateChat.lastMessage?.content || 'Henüz mesaj yok',
+          lastMessageTime: lastMessageTime as any,
+          lastActivity: privateChat.lastMessage?.sentAt || (privateChat as any).lastActivity || new Date().toISOString(),
+          unreadCount: privateChat.unreadCount,
+          isOnline: privateChat.otherUser.isOnline,
+          avatar: privateChat.otherUser.profileImageUrl,
+          matchType: privateChat.matchType as 'ZODIAC' | 'MUSIC' || 'ZODIAC' as const,
+          isPremium: privateChat.otherUser.isPremium,
+          activeUserCount: null,
+          otherUser: privateChat.otherUser
+        };
+        combined.push(chatListItem);
+      });
+    }
+    
+    return combined;
+  }, [chatList, privateChatList, formatLastActivity, activeTab]);
 
   // Sayfa her fokuslandığında chat listesini yenile
   useFocusEffect(
     useCallback(() => {
       console.log('💬 [CHAT] Chat screen focused - refreshing chat list');
       refreshChatList();
+      refreshPrivateChats();
     }, [])
   );
+
+  // Zamanları güncellemek için periyodik güncelleme (her 30 saniye)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Sadece chat listesi görünürse güncelle
+      if (combinedChatList.length > 0) {
+        console.log('🕐 [CHAT] Zamanları güncelliyor...');
+        // Force re-render için state'i güncelle
+        setRefreshing(prev => !prev);
+      }
+    }, 30000); // 30 saniye
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Pull-to-refresh
   const handleRefresh = async () => {
     setRefreshing(true);
-    await refreshChatList();
+    await Promise.all([
+      refreshChatList(),
+      refreshPrivateChats()
+    ]);
     setRefreshing(false);
   };
 
@@ -81,22 +576,108 @@ export default function ChatScreen() {
 
              // Chat ekranına yönlendir
        if (chat.chatType === 'GLOBAL') {
-         router.push('/chat/global' as any);
+         router.navigate('/chat/global' as any);
        } else {
-         router.push(`/chat/${chat.chatRoomId}` as any);
+         router.navigate(`/chat/${chat.chatRoomId}` as any);
        }
     } catch (error) {
       console.error('❌ [CHAT] Chat açma hatası:', error);
     }
   };
 
+  // Uzun basma ile mesaj önizleme
+  const handleLongPress = (chat: ChatListItem) => {
+    console.log('👁️ [CHAT] Mesaj önizleme açılıyor:', chat.chatName);
+    console.log('👁️ [CHAT] Chat detayları:', {
+      chatName: chat.chatName,
+      chatType: chat.chatType,
+      lastMessage: chat.lastMessage
+    });
+    
+    // Test için alert ekleyelim
+    Alert.alert(
+      'Mesaj Önizleme',
+      `${chat.chatName} için mesaj önizleme açılıyor...`,
+      [
+        { text: 'İptal', style: 'cancel' },
+        { 
+          text: 'Aç', 
+          onPress: () => {
+            setSelectedChat(chat);
+            setPreviewModalVisible(true);
+          }
+        }
+      ]
+    );
+  };
+
+  // Modal kapatma
+  const handleCloseModal = () => {
+    setPreviewModalVisible(false);
+    setSelectedChat(null);
+  };
+
+  // Burç simgelerini tanımla
+  const getZodiacEmoji = (zodiacSign?: string) => {
+    if (!zodiacSign) return '⭐';
+    
+    console.log('🔍 [ZODIAC] getZodiacEmoji çağrısı:', {
+      zodiacSign,
+      upperCase: zodiacSign.toUpperCase()
+    });
+    
+    // Emoji yerine text kullan (daha güvenilir)
+    const zodiacEmojis: { [key: string]: string } = {
+      'ARIES': '♈',
+      'TAURUS': '♉', 
+      'GEMINI': '♊',
+      'CANCER': '♋',
+      'LEO': '♌',
+      'VIRGO': '♍',
+      'LIBRA': '♎',
+      'SCORPIO': '♏',
+      'SAGITTARIUS': '♐',
+      'CAPRICORN': '♑',
+      'AQUARIUS': '♒',
+      'PISCES': '♓'
+    };
+    
+    // Eğer emoji render edilmiyorsa, kısa isim kullan
+    const zodiacNames: { [key: string]: string } = {
+      'ARIES': 'KOÇ',
+      'TAURUS': 'BOĞA', 
+      'GEMINI': 'İKİZLER',
+      'CANCER': 'YENGEÇ',
+      'LEO': 'ASLAN',
+      'VIRGO': 'BAŞAK',
+      'LIBRA': 'TERAZİ',
+      'SCORPIO': 'AKREP',
+      'SAGITTARIUS': 'YAY',
+      'CAPRICORN': 'OĞLAK',
+      'AQUARIUS': 'KOVA',
+      'PISCES': 'BALIK'
+    };
+    
+    const result = zodiacEmojis[zodiacSign.toUpperCase()] || zodiacNames[zodiacSign.toUpperCase()] || '⭐';
+    console.log('🔍 [ZODIAC] Sonuç:', result);
+    
+    return result;
+  };
+
   // Match type ikonunu belirle
-  const getMatchTypeIcon = (matchType?: 'ASTROLOGY' | 'MUSIC') => {
+  const getMatchTypeIcon = (matchType?: 'ZODIAC' | 'MUSIC', zodiacSign?: string, zodiacSignDisplay?: string) => {
     if (!matchType) return null;
     
     switch (matchType) {
-      case 'ASTROLOGY':
-        return '🌟';
+      case 'ZODIAC':
+        // Backend'den gelen zodiacSignDisplay'i kullan (zaten doğru simgeyi içeriyor)
+        if (zodiacSignDisplay && zodiacSignDisplay.includes('♓')) {
+          return '♓'; // Balık
+        } else if (zodiacSignDisplay && zodiacSignDisplay.includes('♈')) {
+          return '♈'; // Koç
+        } else {
+          return getZodiacEmoji(zodiacSign); // Fallback
+        }
       case 'MUSIC':
         return '🎵';
       default:
@@ -104,131 +685,196 @@ export default function ChatScreen() {
     }
   };
 
-  // Son mesaj zamanını formatla
-  const formatLastActivity = (lastActivity: string) => {
-    const now = new Date();
-    const messageTime = new Date(lastActivity);
-    const diffMs = now.getTime() - messageTime.getTime();
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffMins < 1) return 'Şimdi';
-    if (diffMins < 60) return `${diffMins}dk`;
-    if (diffHours < 24) return `${diffHours}s`;
-    if (diffDays < 7) return `${diffDays}g`;
-    
-    return messageTime.toLocaleDateString('tr-TR', { 
-      day: '2-digit', 
-      month: '2-digit' 
-    });
-  };
-
   // Chat item render
-  const renderChatItem = ({ item }: { item: ChatListItem }) => {
+  const renderChatItem = ({ item, index }: { item: ChatListItem; index: number }) => {
     const isGlobalChat = item.chatType === 'GLOBAL';
-    const matchIcon = getMatchTypeIcon(item.matchType);
+    
+    // Debug: teo için değerleri kontrol et
+    if (item.otherUser?.displayName === 'teo') {
+      console.log('🔍 [CHAT] teo debug:', {
+        matchType: item.matchType,
+        zodiacSign: item.otherUser?.zodiacSign,
+        zodiacSignDisplay: item.otherUser?.zodiacSignDisplay,
+        otherUser: item.otherUser
+      });
+    }
+    
+    const matchIcon = getMatchTypeIcon(item.matchType, item.otherUser?.zodiacSign || undefined, item.otherUser?.zodiacSignDisplay || undefined);
     const lastMessage = item.lastMessage;
+    
+    // Zamanı dinamik olarak hesapla
+    const getTimeDisplay = () => {
+      if (isGlobalChat) {
+        return formatLastActivity(item.lastActivity);
+      } else {
+        // Özel chat için lastActivity varsa onu kullan, yoksa lastMessageTime
+        if (item.lastActivity) {
+          return formatLastActivity(item.lastActivity);
+        }
+        return (item as any).lastMessageTime || 'Şimdi';
+      }
+    };
+
+    const handlePressIn = () => {
+      // Basit scale animasyonu için Animated API kullan
+    };
+
+    const handlePressOut = () => {
+      // Basit scale animasyonu için Animated API kullan
+    };
 
     return (
-      <TouchableOpacity 
-        style={styles.chatItem}
-        onPress={() => handleChatPress(item)}
-      >
-        <View style={styles.chatItemContent}>
-          {/* Avatar */}
-          <View style={styles.avatarContainer}>
-            {isGlobalChat ? (
-              <View style={[styles.globalChatAvatar, { backgroundColor: currentTheme.primary }]}>
-                <Text style={styles.globalChatIcon}>🌍</Text>
-              </View>
-            ) : item.otherUser?.profileImageUrl ? (
-              <Image 
-                source={{ uri: item.otherUser.profileImageUrl }}
-                style={styles.avatar}
-              />
-            ) : (
-              <View style={[styles.avatarPlaceholder, { backgroundColor: currentTheme.secondary }]}>
-                <Text style={styles.avatarText}>
-                  {item.otherUser?.displayName?.charAt(0).toUpperCase() || '?'}
-                </Text>
-              </View>
-            )}
-
-            {/* Online indicator (sadece private chatler için) */}
-            {!isGlobalChat && item.otherUser?.isOnline && (
-              <View style={styles.onlineIndicator} />
-            )}
-          </View>
-
-          {/* Chat bilgileri */}
-          <View style={styles.chatInfo}>
-            {/* Üst satır: İsim, match icon, premium badge, zaman */}
-            <View style={styles.chatHeader}>
-              <View style={styles.chatNameContainer}>
-                <Text style={styles.chatName} numberOfLines={1}>
-                  {isGlobalChat ? item.chatName : item.otherUser?.displayName || 'Bilinmeyen'}
-                </Text>
-                
-                {/* Match type icon */}
-                {matchIcon && (
-                  <Text style={styles.matchIcon}>{matchIcon}</Text>
-                )}
-                
-                {/* Premium badge */}
-                {!isGlobalChat && item.otherUser?.isPremium && (
-                  <Text style={styles.premiumBadge}>👑</Text>
-                )}
-              </View>
-
-              <View style={styles.timeContainer}>
-                {/* Aktif kullanıcı sayısı (genel chat için) */}
-                {isGlobalChat && item.activeUserCount && (
-                  <View style={styles.activeUsersContainer}>
-                    <View style={styles.activeIndicator} />
-                    <Text style={styles.activeUsersText}>
-                      {item.activeUserCount}
+      <View style={styles.chatItemWrapper}>
+        <TouchableOpacity 
+          style={styles.chatItem}
+          onPress={() => {
+            console.log('👆 [CHAT] Normal tıklama:', item.chatName);
+            handleChatPress(item);
+          }}
+          onLongPress={() => {
+            console.log('👆 [CHAT] Uzun basma algılandı:', item.chatName);
+            handleLongPress(item);
+          }}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          activeOpacity={0.9}
+          delayLongPress={800} // 800ms uzun basma süresi (daha güvenilir)
+        >
+          {/* Card Background */}
+          <LinearGradient
+            colors={currentTheme.cardGradient as any}
+            style={styles.chatItemBackground}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          />
+          
+          <View style={styles.chatItemContent}>
+            {/* Avatar */}
+            <View style={styles.avatarContainer}>
+              {isGlobalChat ? (
+                                 <LinearGradient
+                   colors={currentTheme.gradient as any}
+                   style={styles.globalChatAvatar}
+                   start={{ x: 0, y: 0 }}
+                   end={{ x: 1, y: 1 }}
+                 >
+                  <Text style={styles.globalChatIcon}>🌍</Text>
+                </LinearGradient>
+              ) : item.otherUser?.profileImageUrl ? (
+                <View style={styles.avatarWrapper}>
+                  <Image 
+                    source={{ uri: item.otherUser.profileImageUrl }}
+                    style={styles.avatar}
+                  />
+                  {/* Avatar border gradient */}
+                                     <LinearGradient
+                     colors={currentTheme.gradient as any}
+                     style={styles.avatarBorder}
+                     start={{ x: 0, y: 0 }}
+                     end={{ x: 1, y: 1 }}
+                   />
+                </View>
+              ) : (
+                <View style={styles.avatarWrapper}>
+                                    <LinearGradient
+                    colors={currentTheme.gradient as any}
+                    style={styles.avatarPlaceholder}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <Text style={styles.avatarText}>
+                      {item.otherUser?.displayName?.charAt(0).toUpperCase() || '?'}
                     </Text>
-                  </View>
-                )}
-                
-                {/* Son mesaj zamanı */}
-                <Text style={styles.timeText}>
-                  {formatLastActivity(item.lastActivity)}
-                </Text>
-              </View>
-            </View>
+                  </LinearGradient>
+                </View>
+              )}
 
-            {/* Alt satır: Son mesaj */}
-            <View style={styles.messagePreview}>
-              <Text 
-                style={[
-                  styles.lastMessageText,
-                  item.unreadCount > 0 && styles.unreadMessageText
-                ]} 
-                numberOfLines={1}
-              >
-                {lastMessage?.content || (isGlobalChat ? 'Sohbete katılın!' : 'Henüz mesaj yok')}
-              </Text>
-              
-              {/* Unread badge */}
-              {item.unreadCount > 0 && (
-                <View style={[styles.unreadBadge, { backgroundColor: currentTheme.primary }]}>
-                  <Text style={styles.unreadBadgeText}>
-                    {item.unreadCount > 99 ? '99+' : item.unreadCount}
-                  </Text>
+              {/* Online indicator (sadece private chatler için) */}
+              {!isGlobalChat && item.otherUser?.isOnline && (
+                <View style={styles.onlineIndicator}>
+                  <View style={styles.onlinePulse} />
                 </View>
               )}
             </View>
+
+            {/* Chat bilgileri */}
+            <View style={styles.chatInfo}>
+              {/* Üst satır: İsim, match icon, premium badge, zaman */}
+              <View style={styles.chatHeader}>
+                <View style={styles.chatNameContainer}>
+                  <Text style={styles.chatName} numberOfLines={1}>
+                    {isGlobalChat ? item.chatName : item.otherUser?.displayName || 'Bilinmeyen'}
+                  </Text>
+                  
+                  {/* Match type icon */}
+                  {matchIcon && (
+                    <View style={styles.matchIconContainer}>
+                      <Text style={styles.matchIcon}>{matchIcon}</Text>
+                    </View>
+                  )}
+                  
+                  {/* Premium badge */}
+                  {!isGlobalChat && item.otherUser?.isPremium && (
+                    <View style={styles.premiumBadgeContainer}>
+                      <Text style={styles.premiumBadge}>👑</Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.timeContainer}>
+                  {/* Aktif kullanıcı sayısı (genel chat için) */}
+                  {isGlobalChat && item.activeUserCount && (
+                    <View style={styles.activeUsersContainer}>
+                      <View style={styles.activeIndicator} />
+                      <Text style={styles.activeUsersText}>
+                        {item.activeUserCount}
+                      </Text>
+                    </View>
+                  )}
+                  
+                  {/* Son mesaj zamanı */}
+                  <Text style={styles.timeText}>
+                    {getTimeDisplay()}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Alt satır: Son mesaj */}
+              <View style={styles.messagePreview}>
+                <Text 
+                  style={[
+                    styles.lastMessageText,
+                    item.unreadCount > 0 && styles.unreadMessageText
+                  ]} 
+                  numberOfLines={1}
+                >
+                  {typeof lastMessage === 'string' ? lastMessage : lastMessage?.content || (isGlobalChat ? 'Sohbete katılın!' : 'Henüz mesaj yok')}
+                </Text>
+                
+                {/* Unread badge */}
+                {item.unreadCount > 0 && (
+                                    <LinearGradient
+                    colors={currentTheme.gradient as any}
+                    style={styles.unreadBadge}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <Text style={styles.unreadBadgeText}>
+                      {item.unreadCount > 99 ? '99+' : item.unreadCount}
+                    </Text>
+                  </LinearGradient>
+                )}
+              </View>
+            </View>
           </View>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
     );
   };
 
   // Boş liste gösterimi
   const renderEmpty = () => {
-    if (isLoadingChatList) {
+    if (isLoadingChatList || isLoadingPrivateChats) {
       return (
         <View style={styles.emptyContainer}>
           <ActivityIndicator size="large" color={currentTheme.primary} />
@@ -237,13 +883,39 @@ export default function ChatScreen() {
       );
     }
 
+    if (activeTab === 'global') {
+      return (
+        <View style={styles.emptyContainer}>
+          <LinearGradient
+            colors={currentTheme.cardGradient as any}
+            style={styles.emptyCard}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Ionicons name="globe-outline" size={80} color={currentTheme.primary} />
+            <Text style={styles.emptyText}>Genel Sohbet</Text>
+            <Text style={styles.emptySubtext}>
+              Herkesle sohbet etmeye başlayın! 🌍
+            </Text>
+          </LinearGradient>
+        </View>
+      );
+    }
+
     return (
       <View style={styles.emptyContainer}>
-        <Ionicons name="chatbubbles-outline" size={80} color="#CCC" />
-        <Text style={styles.emptyText}>Henüz sohbet yok</Text>
-        <Text style={styles.emptySubtext}>
-          Yeni eşleşmeler yaptığınızda burada görünecek
-        </Text>
+        <LinearGradient
+          colors={currentTheme.cardGradient as any}
+          style={styles.emptyCard}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <Ionicons name="people-outline" size={80} color={currentTheme.primary} />
+          <Text style={styles.emptyText}>Henüz eşleşme yok</Text>
+          <Text style={styles.emptySubtext}>
+            Yeni eşleşmeler yaptığınızda burada görünecek
+          </Text>
+        </LinearGradient>
       </View>
     );
   };
@@ -255,15 +927,63 @@ export default function ChatScreen() {
       {/* Arka plan gradient */}
       <LinearGradient colors={currentTheme.gradient as any} style={styles.background} />
 
+      {/* Evren temalı arka plan */}
+      {currentMode === 'astrology' ? <AstrologyUniverse /> : <MusicUniverse />}
+
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>💬 Mesajlar</Text>
+        
+        {/* Tab Buttons */}
+        <View style={styles.tabContainer}>
+          <TouchableOpacity 
+            style={[
+              styles.tabButton, 
+              activeTab === 'matches' && styles.activeTabButton
+            ]}
+            onPress={() => setActiveTab('matches')}
+          >
+            <Text style={[
+              styles.tabIcon,
+              activeTab === 'matches' && { color: currentTheme.primary }
+            ]}>
+              👥
+            </Text>
+            <Text style={[
+              styles.tabText,
+              activeTab === 'matches' && { color: currentTheme.primary }
+            ]}>
+              Eşleşmelerim
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[
+              styles.tabButton, 
+              activeTab === 'global' && styles.activeTabButton
+            ]}
+            onPress={() => setActiveTab('global')}
+          >
+            <Text style={[
+              styles.tabIcon,
+              activeTab === 'global' && { color: currentTheme.primary }
+            ]}>
+              🌍
+            </Text>
+            <Text style={[
+              styles.tabText,
+              activeTab === 'global' && { color: currentTheme.primary }
+            ]}>
+              Genel Sohbet
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Chat listesi */}
       <View style={styles.chatListContainer}>
         <FlatList
-          data={chatList}
+          data={combinedChatList}
           renderItem={renderChatItem}
           keyExtractor={(item) => `${item.chatType}-${item.chatRoomId}`}
           showsVerticalScrollIndicator={false}
@@ -276,9 +996,18 @@ export default function ChatScreen() {
             />
           }
           ListEmptyComponent={renderEmpty}
-          contentContainerStyle={chatList.length === 0 ? styles.emptyContentContainer : styles.listContent}
+          contentContainerStyle={combinedChatList.length === 0 ? styles.emptyContentContainer : styles.listContent}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
         />
       </View>
+
+      {/* Mesaj önizleme modal */}
+      <MessagePreviewModal
+        visible={previewModalVisible}
+        onClose={handleCloseModal}
+        chat={selectedChat}
+        currentTheme={currentTheme}
+      />
     </View>
   );
 }
@@ -295,6 +1024,189 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
 
+  // Evren temalı arka plan stilleri
+  universeContainer: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    overflow: 'hidden',
+  },
+
+  // Astroloji evreni
+  starField: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+  },
+  star: {
+    position: 'absolute',
+    backgroundColor: 'white',
+    borderRadius: 1,
+  },
+  planetField: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  planet: {
+    position: 'absolute',
+    borderRadius: 50,
+  },
+  planet1: {
+    width: 20,
+    height: 20,
+    backgroundColor: 'rgba(255, 215, 0, 0.6)',
+    top: '20%',
+    left: '15%',
+  },
+  planet2: {
+    width: 15,
+    height: 15,
+    backgroundColor: 'rgba(255, 165, 0, 0.5)',
+    top: '60%',
+    right: '20%',
+  },
+  planet3: {
+    width: 25,
+    height: 25,
+    backgroundColor: 'rgba(138, 43, 226, 0.4)',
+    bottom: '30%',
+    left: '10%',
+  },
+  planet4: {
+    width: 18,
+    height: 18,
+    backgroundColor: 'rgba(255, 20, 147, 0.5)',
+    top: '40%',
+    right: '10%',
+  },
+  zodiacField: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  zodiacSymbol: {
+    position: 'absolute',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  zodiacText: {
+    fontSize: 24,
+    color: 'rgba(255, 215, 0, 0.8)',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  nebula1: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(138, 43, 226, 0.1)',
+    top: '10%',
+    right: '10%',
+  },
+  nebula2: {
+    position: 'absolute',
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: 'rgba(255, 20, 147, 0.08)',
+    bottom: '20%',
+    left: '5%',
+  },
+  nebula3: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(255, 215, 0, 0.06)',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -90 }, { translateY: -90 }],
+  },
+
+  // Müzik evreni
+  noteField: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+  },
+  musicNote: {
+    position: 'absolute',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  noteText: {
+    fontSize: 20,
+    color: 'rgba(29, 185, 84, 0.8)',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  instrumentField: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  instrument: {
+    position: 'absolute',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  instrumentText: {
+    fontSize: 28,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  soundWave1: {
+    position: 'absolute',
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    borderWidth: 2,
+    borderColor: 'rgba(29, 185, 84, 0.2)',
+    top: '20%',
+    left: '50%',
+    transform: [{ translateX: -150 }, { translateY: -150 }],
+  },
+  soundWave2: {
+    position: 'absolute',
+    width: 400,
+    height: 400,
+    borderRadius: 200,
+    borderWidth: 1,
+    borderColor: 'rgba(30, 215, 96, 0.15)',
+    top: '30%',
+    left: '50%',
+    transform: [{ translateX: -200 }, { translateY: -200 }],
+  },
+  soundWave3: {
+    position: 'absolute',
+    width: 500,
+    height: 500,
+    borderRadius: 250,
+    borderWidth: 1,
+    borderColor: 'rgba(26, 163, 74, 0.1)',
+    top: '40%',
+    left: '50%',
+    transform: [{ translateX: -250 }, { translateY: -250 }],
+  },
+  musicParticle: {
+    position: 'absolute',
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    opacity: 0.6,
+  },
+
   // Header
   header: {
     alignItems: 'center',
@@ -308,74 +1220,153 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: 'white',
     textAlign: 'center',
+    marginBottom: 20,
+  },
+  
+  // Tab Container
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 25,
+    padding: 4,
+    width: '80%',
+  },
+  tabButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 21,
+  },
+  activeTabButton: {
+    backgroundColor: 'rgba(255,255,255,0.9)',
+  },
+  tabIcon: {
+    fontSize: 16,
+    marginRight: 6,
+    color: 'white',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'white',
   },
 
   // Chat listesi
   chatListContainer: {
     flex: 1,
-    backgroundColor: 'white',
+    backgroundColor: 'transparent',
     borderTopLeftRadius: 25,
     borderTopRightRadius: 25,
     paddingTop: 20,
+    paddingHorizontal: 16,
   },
   listContent: {
     paddingBottom: Platform.OS === 'ios' ? 100 : 80,
   },
+  separator: {
+    height: 12,
+  },
+
+  // Chat item wrapper
+  chatItemWrapper: {
+    marginBottom: 8,
+  },
 
   // Chat item
   chatItem: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderRadius: 20,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  chatItemBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 20,
   },
   chatItemContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    padding: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
   },
 
   // Avatar
   avatarContainer: {
     position: 'relative',
-    marginRight: 12,
+    marginRight: 16,
+  },
+  avatarWrapper: {
+    position: 'relative',
   },
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+  },
+  avatarBorder: {
+    position: 'absolute',
+    top: -2,
+    left: -2,
+    right: -2,
+    bottom: -2,
+    borderRadius: 30,
+    opacity: 0.3,
   },
   avatarPlaceholder: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
     color: 'white',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
   },
   globalChatAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
   },
   globalChatIcon: {
-    fontSize: 24,
+    fontSize: 28,
   },
   onlineIndicator: {
     position: 'absolute',
     bottom: 2,
     right: 2,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: '#00FF7F',
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: 'white',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  onlinePulse: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'white',
   },
 
   // Chat info
@@ -386,7 +1377,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   chatNameContainer: {
     flexDirection: 'row',
@@ -394,17 +1385,31 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   chatName: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#333',
+    marginRight: 8,
+  },
+  matchIconContainer: {
+    backgroundColor: 'rgba(128, 0, 255, 0.1)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     marginRight: 6,
   },
   matchIcon: {
     fontSize: 14,
-    marginRight: 4,
+    fontWeight: '600',
+  },
+  premiumBadgeContainer: {
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
   premiumBadge: {
-    fontSize: 14,
+    fontSize: 12,
+    fontWeight: '600',
   },
 
   // Time container
@@ -414,7 +1419,11 @@ const styles = StyleSheet.create({
   activeUsersContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 2,
+    marginBottom: 4,
+    backgroundColor: 'rgba(0, 255, 127, 0.1)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   activeIndicator: {
     width: 6,
@@ -430,7 +1439,8 @@ const styles = StyleSheet.create({
   },
   timeText: {
     fontSize: 12,
-    color: '#999',
+    color: '#666',
+    fontWeight: '500',
   },
 
   // Message preview
@@ -440,10 +1450,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   lastMessageText: {
-    fontSize: 14,
+    fontSize: 15,
     color: '#666',
     flex: 1,
-    marginRight: 8,
+    marginRight: 12,
+    lineHeight: 20,
   },
   unreadMessageText: {
     fontWeight: '600',
@@ -452,16 +1463,24 @@ const styles = StyleSheet.create({
 
   // Unread badge
   unreadBadge: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
+    minWidth: 24,
+    height: 24,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   unreadBadgeText: {
     color: 'white',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: 'bold',
   },
 
@@ -475,18 +1494,162 @@ const styles = StyleSheet.create({
   emptyContentContainer: {
     flexGrow: 1,
   },
+  emptyCard: {
+    alignItems: 'center',
+    padding: 40,
+    borderRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+  },
   emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#666',
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#333',
     marginTop: 16,
     textAlign: 'center',
   },
   emptySubtext: {
-    fontSize: 14,
-    color: '#999',
+    fontSize: 16,
+    color: '#666',
     textAlign: 'center',
     marginTop: 8,
+    lineHeight: 24,
+  },
+
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  modalContainer: {
+    width: '90%',
+    height: '80%',
+    borderRadius: 20,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  modalContent: {
+    flex: 1,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.2)',
+  },
+  modalUserInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  modalAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 10,
+  },
+  modalAvatarPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalAvatarText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  modalUserDetails: {
+    flex: 1,
+  },
+  modalUserName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: 'white',
+  },
+  modalUserStatus: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.7)',
+  },
+  modalCloseButton: {
+    padding: 5,
+  },
+  modalBody: {
+    flex: 1,
+    padding: 20,
+  },
+  modalLoading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalLoadingText: {
+    marginTop: 10,
+    color: 'white',
+    fontSize: 16,
+  },
+  modalMessages: {
+    flex: 1,
+  },
+  modalMessageItem: {
+    marginBottom: 10,
+  },
+  modalMessageBubble: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 15,
+    padding: 12,
+    maxWidth: '80%',
+  },
+  modalMessageText: {
+    color: 'white',
+    fontSize: 14,
     lineHeight: 20,
   },
+  modalMessageTime: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.6)',
+    marginTop: 5,
+    textAlign: 'right',
+  },
+  modalEmpty: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  modalEmptyText: {
+    marginTop: 10,
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 16,
+  },
+  modalFooter: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.2)',
+  },
+  modalFooterText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+
 });

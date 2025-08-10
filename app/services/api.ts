@@ -4,7 +4,7 @@ import { ZodiacSign } from '../types/zodiac';
 import { getRefreshToken, getToken, removeAllTokens, saveRefreshToken, saveToken } from '../utils/tokenStorage';
 
 // NGROK URL'i - değişebilir
-const NGROK_URL = 'https://2ae3d6361ef5.ngrok-free.app';
+const NGROK_URL = 'https://e32e09c4aa9f.ngrok-free.app';
 
 // Alternative endpoints (gerektiğinde eklenebilir)
 const FALLBACK_URLS: string[] = [
@@ -500,20 +500,52 @@ export interface SwipeLimitInfo {
 
 export interface DiscoverUser {
   id: number;
+  username: string;
   firstName: string;
   lastName: string;
+  fullName: string;
+  birthDate: string;
   age: number;
-  zodiacSign: string;
-  profileImageUrl: string | null;
-  photos: Array<{ imageUrl: string }>;
-  compatibilityScore: number;
-  compatibilityDescription: string;
-  isOnline?: boolean;
-  distance?: number;
+  gender: string;
   bio?: string;
-  isVerified?: boolean;
-  isPremium?: boolean;
-  isNewUser?: boolean;
+  
+  zodiacSign: string;
+  zodiacSignDisplay: string;
+  compatibilityScore: number;
+  compatibilityMessage: string;
+  
+  profileImageUrl: string | null;
+  photos: Array<{
+    id: number;
+    photoUrl: string;
+    isProfilePhoto: boolean;
+    displayOrder: number;
+  }>;
+  photoCount: number;
+  
+  isPremium: boolean;
+  lastActiveTime: string;
+  activityStatus: string;
+  
+  location: string;
+  distanceKm: number;
+  
+  activities: Array<{
+    type: string;
+    description: string;
+    timestamp: string;
+  }>;
+  
+  totalLikes: number;
+  totalMatches: number;
+  
+  isVerified: boolean;
+  hasInstagram: boolean;
+  hasSpotify: boolean;
+  
+  isNewUser: boolean;
+  hasLikedCurrentUser: boolean;
+  profileCompleteness: string;
 }
 
 export interface DiscoverResponse {
@@ -523,9 +555,36 @@ export interface DiscoverResponse {
   hasMore: boolean;
   currentPage: number;
   limit: number;
+  refresh: boolean;
+  mode: string;
+  userCount: number;
+  cooldownInfo: {
+    dislikeCooldownMinutes: number;
+    likeCooldownMinutes: number;
+    matchExpiryHours: number;
+    isPremiumCooldown: boolean;
+  };
   swipeLimitInfo: SwipeLimitInfo;
   message?: string;
 }
+
+// JWT token'ını decode etmek için basit fonksiyon (debug amaçlı)
+const decodeJWT = (token: string) => {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (error) {
+    console.error('❌ [API] Token decode hatası:', error);
+    return null;
+  }
+};
 
 // API'yi kullanırken gerekli token header'larını oluşturur
 const createAuthHeader = async () => {
@@ -540,6 +599,22 @@ const createAuthHeader = async () => {
     
     if (!token) {
       throw new Error('Token bulunamadı');
+    }
+    
+    // Token içeriğini debug et
+    const decodedToken = decodeJWT(token);
+    if (decodedToken) {
+      console.log('🔍 [API] Token içeriği:', {
+        userId: decodedToken.userId || decodedToken.sub || decodedToken.id,
+        username: decodedToken.username,
+        exp: decodedToken.exp ? new Date(decodedToken.exp * 1000).toISOString() : 'N/A',
+        iat: decodedToken.iat ? new Date(decodedToken.iat * 1000).toISOString() : 'N/A'
+      });
+      
+      // Token süresi dolmuş mu kontrol et
+      if (decodedToken.exp && decodedToken.exp * 1000 < Date.now()) {
+        console.warn('⚠️ [API] Token süresi dolmuş!');
+      }
     }
     
     const headers: Record<string, string> = {
@@ -804,7 +879,9 @@ export const userApi = {
 
   getDiscoverUsers: async (page: number = 1, limit: number = 10, refresh: boolean = false): Promise<DiscoverResponse> => {
     const authHeader = await createAuthHeader();
-    const response = await api.get(`/api/swipes/discover?page=${page}&limit=${limit}&refresh=${refresh}`, authHeader);
+    console.log(`🔍 [API] Discover users çağrısı - page: ${page}, limit: ${limit}, refresh: ${refresh}`);
+    const response = await api.get(`/api/swipe/discover?refresh=${refresh}&page=${page}&limit=${limit}`, authHeader);
+    console.log(`✅ [API] Discover users yanıtı - ${response.data.userCount} kullanıcı, hasMore: ${response.data.hasMore}`);
     return response.data;
   },
 
@@ -1131,6 +1208,31 @@ export interface ChatUser {
   displayName: string;
 }
 
+export interface PrivateChatRoom {
+  id: number;
+  type: 'PRIVATE';
+  name: string;
+  otherUser: ChatUser;
+  lastMessage: {
+    id: number;
+    content: string;
+    sentAt: string;
+    sender: ChatUser;
+  } | null;
+  unreadCount: number;
+  matchId: number;
+  matchType: 'ZODIAC' | 'MUSIC'; // Backend'den gelen match type
+  displayName: string;
+  timeAgo: string;
+}
+
+export interface PrivateChatListResponse {
+  success: boolean;
+  privateChatRooms: PrivateChatRoom[];
+  count: number;
+  message: string;
+}
+
 export interface ChatMessage {
   id: number;
   chatRoomId: number;
@@ -1176,6 +1278,7 @@ export interface PrivateChatResponse {
   createdAt: string;
   otherUser: ChatUser;
   matchId: number;
+  matchType: 'ZODIAC' | 'MUSIC'; // Backend'den gelen match type
   compatibilityScore: number;
   messages: ChatMessage[];
   currentPage: number;
@@ -1212,7 +1315,7 @@ export interface ChatListItem {
   unreadCount: number;
   lastActivity: string;
   otherUser?: ChatUser;
-  matchType?: 'ASTROLOGY' | 'MUSIC';
+  matchType?: 'ZODIAC' | 'MUSIC';
   activeUserCount?: number;
 }
 
@@ -1263,6 +1366,83 @@ export const matchApi = {
 
 // Chat API'leri
 export const chatApi = {
+  // Private chat listesini getir
+  getPrivateChatList: async (): Promise<PrivateChatListResponse> => {
+    console.log('🔄 [API] getPrivateChatList çağrısı');
+    
+    try {
+      const authHeader = await createAuthHeader();
+      const response = await api.get('/api/chat/private/list', authHeader);
+      
+      console.log('✅ [API] getPrivateChatList yanıtı:', {
+        chatCount: response.data.privateChatRooms?.length || 0,
+        success: response.data.success,
+        message: response.data.message
+      });
+      
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] getPrivateChatList hatası:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message
+      });
+      
+      // 500 hatası özel durumu - backend'de kullanıcı bulunamadı
+      if (error.response?.status === 500) {
+        const errorData = error.response.data;
+        if (errorData?.error?.includes('Kullanıcı bulunamadı')) {
+          console.error('🔍 [API] Backend kullanıcı bulunamadı hatası - Token problemi tespit edildi');
+          
+          // Token'ı yeniden kontrol et
+          const token = await getToken();
+          if (token) {
+            const decodedToken = decodeJWT(token);
+            console.error('🔍 [API] Problematik token içeriği:', decodedToken);
+            
+            // Token'da sadece username var, userId yok - bu backend JWT konfigürasyon hatası
+            if (decodedToken?.sub && !decodedToken?.userId && !decodedToken?.id) {
+              console.error('❌ [API] JWT Token yapılandırma hatası: Token\'da kullanıcı ID\'si yok, sadece username var');
+              console.error('🔧 [API] Backend\'de JWT token oluşturulurken userId field\'ı eklenmeli');
+              
+              // Geçici çözüm: Token'ı yenilemeyi dene
+              try {
+                console.log('🔄 [API] Token yenileme deneniyor...');
+                await authApi.refreshToken();
+                
+                // Yenilenen token ile tekrar dene
+                const newAuthHeader = await createAuthHeader();
+                const retryResponse = await api.get('/api/chat/private/list', newAuthHeader);
+                
+                console.log('✅ [API] Token yenileme sonrası başarılı:', {
+                  chatCount: retryResponse.data.privateChatRooms?.length || 0,
+                  success: retryResponse.data.success
+                });
+                
+                return retryResponse.data;
+              } catch (refreshError) {
+                console.error('❌ [API] Token yenileme de başarısız:', refreshError);
+              }
+            }
+          }
+          
+          // Kullanıcı dostu hata mesajı
+          throw new Error('Token yapılandırma sorunu tespit edildi. Backend geliştiricisi ile iletişime geçin.');
+        }
+      }
+      
+      // 401 hatası - Token geçersiz
+      if (error.response?.status === 401) {
+        console.error('🔒 [API] 401 Unauthorized - Token geçersiz');
+        throw new Error('Oturum süresi dolmuş. Lütfen tekrar giriş yapın.');
+      }
+      
+      // Diğer hatalar
+      throw error;
+    }
+  },
+
   // Genel chat mesajlarını getir
   getGlobalMessages: async (page: number = 0, size: number = 20): Promise<GlobalChatResponse> => {
     console.log('🔄 [API] getGlobalMessages çağrısı:', { page, size });
@@ -1335,9 +1515,38 @@ export const chatApi = {
     const authHeader = await createAuthHeader();
     try {
       const response = await api.get(`/api/chat/private/${chatRoomId}/messages?page=${page}&size=${size}`, authHeader);
+      
+      // otherUser kontrolü ekle
+      if (!response.data.otherUser || !response.data.otherUser.id) {
+        console.error('❌ [API] getPrivateMessages - otherUser eksik:', {
+          hasOtherUser: !!response.data.otherUser,
+          otherUserId: response.data.otherUser?.id,
+          responseData: response.data
+        });
+        
+        // Backend'den otherUser null geldiğinde, chat listesinden almaya çalış
+        console.log('🔄 [API] otherUser eksik, chat listesinden almaya çalışılıyor...');
+        try {
+          const chatListResponse = await api.get('/api/chat/private/list', authHeader);
+          const chatRoom = chatListResponse.data.privateChatRooms?.find((chat: any) => chat.id === chatRoomId);
+          
+          if (chatRoom && chatRoom.otherUser) {
+            console.log('✅ [API] Chat listesinden otherUser bulundu:', chatRoom.otherUser);
+            response.data.otherUser = chatRoom.otherUser;
+          } else {
+            console.error('❌ [API] Chat listesinde de otherUser bulunamadı');
+            throw new Error('Sohbet bilgileri eksik. Lütfen tekrar deneyin.');
+          }
+        } catch (chatListError) {
+          console.error('❌ [API] Chat listesi alınamadı:', chatListError);
+          throw new Error('Sohbet bilgileri eksik. Lütfen tekrar deneyin.');
+        }
+      }
+      
       console.log('✅ [API] getPrivateMessages yanıtı:', {
         messageCount: response.data.messages?.length || 0,
         otherUser: response.data.otherUser?.displayName,
+        otherUserId: response.data.otherUser?.id,
         unreadCount: response.data.unreadCount
       });
       return response.data;
@@ -1374,9 +1583,18 @@ export const chatApi = {
         receiverId: data.receiverId
       });
       
+      // Özel hata durumları
       if (error.response?.status === 400) {
         const errorMessage = error.response?.data?.error || 'Geçersiz mesaj verisi';
         throw new Error(errorMessage);
+      }
+      
+      if (error.response?.status === 500) {
+        const errorMessage = error.response?.data?.error || 'Sunucu hatası';
+        if (errorMessage.includes('Transaction silently rolled back')) {
+          throw new Error('Mesaj gönderilemedi. Lütfen tekrar deneyin.');
+        }
+        throw new Error('Sunucu hatası. Lütfen daha sonra tekrar deneyin.');
       }
       
       throw error;
@@ -1406,7 +1624,7 @@ export const chatApi = {
         {
           chatRoomId: globalResponse.data.chatRoomId,
           chatType: 'GLOBAL' as const,
-          chatName: '🌍 Genel Chat',
+          chatName: '🌍 Genel Sohbet',
           lastMessage: globalResponse.data.messages?.[0] || null,
           unreadCount: 0,
           lastActivity: globalResponse.data.messages?.[0]?.sentAt || new Date().toISOString(),

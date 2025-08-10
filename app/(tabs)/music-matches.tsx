@@ -3,25 +3,25 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
 import {
-    Dimensions,
-    FlatList,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Dimensions,
+  FlatList,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import Animated, {
-    useAnimatedStyle,
-    useSharedValue,
-    withRepeat,
-    withSpring,
-    withTiming
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSpring,
+  withTiming
 } from 'react-native-reanimated';
 import { useAuth } from '../context/AuthContext';
-import { userApi, UserWhoLikedMe } from '../services/api';
+import { swipeApi, userApi, UserWhoLikedMe } from '../services/api';
 
 const { width, height } = Dimensions.get('window');
 
@@ -110,6 +110,22 @@ export default function MusicMatchesScreen() {
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [likedUsers, setLikedUsers] = useState<UserWhoLikedMe[]>([]);
+
+  // Müzik modunda da daha önce swipe edilmişleri filtrele
+  const fetchMusicUsers = async () => {
+    try {
+      console.log('🎵 [MUSIC] Yeni müzik eşleşmeleri getiriliyor (refresh=false)');
+      const response = await swipeApi.getDiscoverUsers(1, 10, false);
+      
+      if (response.success) {
+        console.log(`🎶 [MUSIC] ${response.users.length} yeni kullanıcı bulundu (mode: ${response.mode || 'filtered'})`);
+        console.log(`📊 [MUSIC] Toplam: ${response.totalCount}, HasMore: ${response.hasMore}`);
+        // TODO: Static data yerine API data'sını kullan
+      }
+    } catch (error) {
+      console.warn('⚠️ [MUSIC] Kullanıcılar alınamadı:', error);
+    }
+  };
   
   // Animasyon değerleri
   const fadeAnim = useSharedValue(1);
@@ -117,7 +133,7 @@ export default function MusicMatchesScreen() {
   const slideAnim = useSharedValue(0);
   const pulseAnim = useSharedValue(1);
 
-  // Müzik pulse animasyonu
+  // Müzik pulse animasyonu ve API çağrısı
   useEffect(() => {
     slideAnim.value = withTiming(1, { duration: 300 });
     
@@ -127,6 +143,9 @@ export default function MusicMatchesScreen() {
       -1,
       true
     );
+
+    // API çağrısı - daha önce swipe edilmişleri filtrele
+    fetchMusicUsers();
   }, []);
 
   const animatedStyle = useAnimatedStyle(() => {

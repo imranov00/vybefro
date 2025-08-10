@@ -107,7 +107,7 @@ export default function MessageBubble({
       onPress={onPress}
       disabled={!onPress}
     >
-      {/* Avatar (sadece diğer kullanıcılar için) */}
+      {/* Avatar (sadece diğer kullanıcılar için ve sol tarafta) */}
       {!isCurrentUser && showAvatar && (
         <View style={styles.avatarContainer}>
           {message.sender.profileImageUrl ? (
@@ -131,7 +131,10 @@ export default function MessageBubble({
       )}
 
       {/* Mesaj içeriği */}
-      <View style={styles.messageContent}>
+      <View style={[
+        styles.messageContent,
+        isCurrentUser ? styles.currentUserContent : styles.otherUserContent
+      ]}>
         {/* Kullanıcı adı (diğer kullanıcılar için) */}
         {!isCurrentUser && (
           <View style={styles.senderInfo}>
@@ -181,6 +184,13 @@ export default function MessageBubble({
           )}
         </View>
       </View>
+
+      {/* Avatar (sadece benim mesajlarım için ve sağ tarafta) */}
+      {isCurrentUser && showAvatar && (
+        <View style={styles.currentUserAvatarContainer}>
+          {/* Benim avatarım burada gösterilebilir */}
+        </View>
+      )}
     </TouchableOpacity>
   );
 }
@@ -193,16 +203,21 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   currentUserContainer: {
-    justifyContent: 'flex-end',
+    justifyContent: 'flex-end', // Benim mesajlarım sağ tarafta
   },
   otherUserContainer: {
-    justifyContent: 'flex-start',
+    justifyContent: 'flex-start', // Diğer kullanıcının mesajları sol tarafta
   },
   
   // Avatar
   avatarContainer: {
     position: 'relative',
     marginRight: 8,
+    marginBottom: 20,
+  },
+  currentUserAvatarContainer: {
+    position: 'relative',
+    marginLeft: 8,
     marginBottom: 20,
   },
   avatar: {
@@ -236,8 +251,13 @@ const styles = StyleSheet.create({
 
   // Mesaj içeriği
   messageContent: {
-    flex: 1,
-    maxWidth: '80%',
+    maxWidth: '70%', // Mesaj genişliğini sınırla
+  },
+  currentUserContent: {
+    alignItems: 'flex-end', // Benim mesajlarım sağa hizala
+  },
+  otherUserContent: {
+    alignItems: 'flex-start', // Diğer kullanıcının mesajları sola hizala
   },
   senderInfo: {
     flexDirection: 'row',
@@ -264,13 +284,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   currentUserBubble: {
-    alignSelf: 'flex-end',
-    borderBottomRightRadius: 4,
+    backgroundColor: 'transparent', // Gradient kullanacağız
+    borderBottomRightRadius: 4, // Sağ alt köşe keskin
   },
   otherUserBubble: {
-    alignSelf: 'flex-start',
     backgroundColor: '#F0F0F0',
-    borderBottomLeftRadius: 4,
+    borderBottomLeftRadius: 4, // Sol alt köşe keskin
   },
   currentUserGradient: {
     borderRadius: 18,
@@ -296,10 +315,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   currentUserFooter: {
-    justifyContent: 'flex-end',
+    justifyContent: 'flex-end', // Sağa hizala
   },
   otherUserFooter: {
-    justifyContent: 'flex-start',
+    justifyContent: 'flex-start', // Sola hizala
   },
   timeText: {
     fontSize: 11,

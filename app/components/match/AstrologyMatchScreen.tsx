@@ -19,6 +19,7 @@ import Animated, {
     withSpring,
     withTiming
 } from 'react-native-reanimated';
+import { useChat } from '../../context/ChatContext';
 import { calculateCompatibility, getCompatibilityDescription } from '../../types/compatibility';
 import { getZodiacInfo } from '../../types/zodiac';
 
@@ -60,6 +61,7 @@ const AstrologyMatchScreen: React.FC<AstrologyMatchScreenProps> = ({
     timestamp: new Date().toLocaleTimeString()
   });
   const router = useRouter();
+  const { refreshPrivateChats } = useChat();
   const [isClosing, setIsClosing] = React.useState(false);
   
   // Animation values
@@ -123,6 +125,19 @@ const AstrologyMatchScreen: React.FC<AstrologyMatchScreenProps> = ({
     setTimeout(() => {
       buttonY.value = withSpring(0, { damping: 15 });
     }, 1400);
+    
+    // Cleanup function
+    return () => {
+      console.log('🧹 [ASTRO_MATCH] Component unmounting, cleanup...');
+      // Animasyonları durdur
+      backgroundOpacity.value = 0;
+      textOpacity.value = 0;
+      profileCardsY.value = height;
+      heartsScale.value = 1;
+      starsScale.value = 0;
+      compatibilityScale.value = 0;
+      buttonY.value = 100;
+    };
   }, []);
 
   const backgroundStyle = useAnimatedStyle(() => ({
@@ -156,8 +171,8 @@ const AstrologyMatchScreen: React.FC<AstrologyMatchScreenProps> = ({
   const handleClose = () => {
     if (isClosing) return; // Çift tıklama koruması
     
-    setIsClosing(true);
     console.log('🔴 [ASTRO_MATCH] Kapanma işlemi başlatılıyor');
+    setIsClosing(true);
     
     // Kapanma animasyonu
     backgroundOpacity.value = withTiming(0, { duration: 300 });
@@ -167,33 +182,45 @@ const AstrologyMatchScreen: React.FC<AstrologyMatchScreenProps> = ({
     // Animasyon tamamlandıktan sonra kapat
     setTimeout(() => {
       try {
+        console.log('🔴 [ASTRO_MATCH] onClose çağrılıyor...');
         onClose();
         console.log('✅ [ASTRO_MATCH] Kapanma tamamlandı');
       } catch (error) {
         console.error('❌ [ASTRO_MATCH] Kapanma hatası:', error);
+        // Hata durumunda state'i sıfırla
+        setIsClosing(false);
       }
-    }, 300);
+    }, 350); // Animasyon süresinden biraz daha uzun
   };
 
-  const handleStartChat = () => {
+    const handleStartChat = () => {
     if (isClosing) return; // Çift tıklama koruması
     
-    setIsClosing(true);
     console.log('💬 [ASTRO_MATCH] Sohbet başlatılıyor');
+    setIsClosing(true);
     
     // Kapanma animasyonu
     backgroundOpacity.value = withTiming(0, { duration: 300 });
     textOpacity.value = withTiming(0, { duration: 200 });
     
     // Animasyon tamamlandıktan sonra sohbet başlat
-    setTimeout(() => {
+    setTimeout(async () => {
       try {
+        // Private chat listesini yenile (yeni match için chat odası oluştu)
+        console.log('🔄 [ASTRO_MATCH] Private chat listesi yenileniyor...');
+        await refreshPrivateChats();
+        
+        console.log('🔴 [ASTRO_MATCH] onStartChat çağrılıyor...');
         onStartChat();
         console.log('✅ [ASTRO_MATCH] Sohbet başlatıldı');
       } catch (error) {
         console.error('❌ [ASTRO_MATCH] Sohbet başlatma hatası:', error);
+        // Hata durumunda state'i sıfırla ve tekrar dene
+        setIsClosing(false);
+        // Hata olsa bile chat'i açmaya çalış
+        onStartChat();
       }
-    }, 300);
+    }, 350); // Animasyon süresinden biraz daha uzun
   };
 
   return (

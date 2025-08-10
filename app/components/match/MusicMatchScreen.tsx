@@ -95,13 +95,26 @@ const MusicMatchScreen: React.FC<MusicMatchScreenProps> = ({
     setTimeout(() => {
       buttonY.value = withSpring(0, { damping: 15 });
     }, 1400);
+    
+    // Cleanup function
+    return () => {
+      console.log('🧹 [MUSIC_MATCH] Component unmounting, cleanup...');
+      // Animasyonları durdur
+      backgroundOpacity.value = 0;
+      textOpacity.value = 0;
+      profileCardsY.value = height;
+      heartsScale.value = 1;
+      musicNotesScale.value = 0;
+      musicCompatibilityScale.value = 0;
+      buttonY.value = 100;
+    };
   }, []);
 
   const handleClose = () => {
     if (isClosing) return; // Çift tıklama koruması
     
-    setIsClosing(true);
     console.log('🔴 [MUSIC_MATCH] Kapanma işlemi başlatılıyor');
+    setIsClosing(true);
     
     // Kapanma animasyonu
     backgroundOpacity.value = withTiming(0, { duration: 300 });
@@ -111,19 +124,22 @@ const MusicMatchScreen: React.FC<MusicMatchScreenProps> = ({
     // Animasyon tamamlandıktan sonra kapat
     setTimeout(() => {
       try {
+        console.log('🔴 [MUSIC_MATCH] onClose çağrılıyor...');
         onClose();
         console.log('✅ [MUSIC_MATCH] Kapanma tamamlandı');
       } catch (error) {
         console.error('❌ [MUSIC_MATCH] Kapanma hatası:', error);
+        // Hata durumunda state'i sıfırla
+        setIsClosing(false);
       }
-    }, 300);
+    }, 350); // Animasyon süresinden biraz daha uzun
   };
 
   const handleStartChat = () => {
     if (isClosing) return; // Çift tıklama koruması
     
-    setIsClosing(true);
     console.log('💬 [MUSIC_MATCH] Sohbet başlatılıyor');
+    setIsClosing(true);
     
     // Kapanma animasyonu
     backgroundOpacity.value = withTiming(0, { duration: 300 });
@@ -132,12 +148,15 @@ const MusicMatchScreen: React.FC<MusicMatchScreenProps> = ({
     // Animasyon tamamlandıktan sonra sohbet başlat
     setTimeout(() => {
       try {
+        console.log('🔴 [MUSIC_MATCH] onStartChat çağrılıyor...');
         onStartChat();
         console.log('✅ [MUSIC_MATCH] Sohbet başlatıldı');
       } catch (error) {
         console.error('❌ [MUSIC_MATCH] Sohbet başlatma hatası:', error);
+        // Hata durumunda state'i sıfırla
+        setIsClosing(false);
       }
-    }, 300);
+    }, 350); // Animasyon süresinden biraz daha uzun
   };
 
   const backgroundStyle = useAnimatedStyle(() => ({

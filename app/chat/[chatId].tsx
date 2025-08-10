@@ -86,31 +86,80 @@ export default function PrivateChatScreen() {
       return false;
     }
 
+    // otherUser kontrolü ekle
+    if (!activeChat.otherUser || !activeChat.otherUser.id) {
+      console.error('❌ [PRIVATE CHAT] otherUser veya otherUser.id bulunamadı:', {
+        hasActiveChat: !!activeChat,
+        hasOtherUser: !!activeChat.otherUser,
+        otherUserId: activeChat.otherUser?.id
+      });
+      return false;
+    }
+
     const receiverId = activeChat.otherUser.id;
     console.log('💬 [PRIVATE CHAT] Mesaj gönderiliyor:', {
       receiverId,
-      message: message.substring(0, 50)
+      message: message.substring(0, 50),
+      otherUser: activeChat.otherUser
     });
     
     try {
       const success = await sendPrivateMessage(message, receiverId);
       return success;
-    } catch (error: any) {
-      console.error('❌ [PRIVATE CHAT] Mesaj gönderme hatası:', error);
-      
-      Alert.alert(
-        'Hata',
-        error.message || 'Mesaj gönderilemedi',
-        [{ text: 'Tamam', style: 'default' }]
-      );
-      
-      return false;
-    }
+         } catch (error: any) {
+       console.error('❌ [PRIVATE CHAT] Mesaj gönderme hatası:', error);
+       
+       // Kullanıcıya uygun hata mesajı göster
+       if (error.message?.includes('Sohbet bilgileri eksik')) {
+         Alert.alert(
+           'Sohbet Sorunu',
+           'Sohbet bilgileri eksik. Sayfayı yenilemek ister misiniz?',
+           [
+             { text: 'İptal', style: 'cancel' },
+             { text: 'Yenile', style: 'default', onPress: () => handleRefresh() }
+           ]
+         );
+       } else if (error.message?.includes('limit')) {
+         Alert.alert(
+           '⏰ Mesaj Limiti',
+           error.message,
+           [
+             { text: 'Tamam', style: 'default' },
+             { 
+               text: 'Premium Ol', 
+               style: 'default', 
+               onPress: () => {
+                 console.log('👑 [PRIVATE CHAT] Premium butonuna tıklandı');
+                 router.push('/(profile)/premiumScreen');
+               }
+             }
+           ]
+         );
+       } else if (error.message?.includes('Transaction silently rolled back') || 
+                  error.message?.includes('Mesaj gönderilemedi. Lütfen tekrar deneyin.')) {
+         Alert.alert(
+           'Mesaj Hatası',
+           'Mesaj gönderilemedi. Lütfen tekrar deneyin.',
+           [{ text: 'Tamam', style: 'default' }]
+         );
+       } else if (error.message?.includes('Sunucu hatası')) {
+         Alert.alert(
+           'Sunucu Hatası',
+           'Sunucu hatası. Lütfen daha sonra tekrar deneyin.',
+           [{ text: 'Tamam', style: 'default' }]
+         );
+       } else {
+         Alert.alert('Hata', error.message || 'Mesaj gönderilemedi');
+       }
+       
+       return false;
+     }
   };
 
   // Geri gitme
   const handleGoBack = () => {
-    router.back();
+    // Chat listesine dön
+    router.navigate('/(tabs)/chat' as any);
   };
 
   // Profil görüntüleme
@@ -137,9 +186,11 @@ export default function PrivateChatScreen() {
       };
     }
 
+    // Debug log'u kaldırıldı
+
     return {
       otherUser: activeChat.otherUser,
-      matchType: activeChat.matchId ? 'ASTROLOGY' as const : 'MUSIC' as const, // Bu backend'den gelmeli
+      matchType: activeChat.matchType as 'ZODIAC' | 'MUSIC' | null, // Backend'den gelen gerçek matchType
       compatibilityScore: activeChat.compatibilityScore,
       matchDate: activeChat.matchDate
     };
@@ -147,13 +198,47 @@ export default function PrivateChatScreen() {
 
   const chatInfo = getChatInfo();
 
+  // Burç simgelerini tanımla
+  const getZodiacEmoji = (zodiacSign?: string) => {
+    if (!zodiacSign) return '⭐';
+    
+    const zodiacEmojis: { [key: string]: string } = {
+      'ARIES': '♈',
+      'TAURUS': '♉', 
+      'GEMINI': '♊',
+      'CANCER': '♋',
+      'LEO': '♌',
+      'VIRGO': '♍',
+      'LIBRA': '♎',
+      'SCORPIO': '♏',
+      'SAGITTARIUS': '♐',
+      'CAPRICORN': '♑',
+      'AQUARIUS': '♒',
+      'PISCES': '♓'
+    };
+    
+    return zodiacEmojis[zodiacSign.toUpperCase()] || '⭐';
+  };
+
   // Match type ikonunu belirle
-  const getMatchTypeIcon = (matchType: 'ASTROLOGY' | 'MUSIC' | null) => {
+  const getMatchTypeIcon = (matchType: 'ZODIAC' | 'MUSIC' | null) => {
     if (!matchType) return '';
     
+    // Debug log'u kaldırıldı
+    
     switch (matchType) {
-      case 'ASTROLOGY':
-        return '🌟';
+      case 'ZODIAC':
+        // Eşleştiği kişinin burç simgesini göster
+        const zodiacSign = chatInfo.otherUser?.zodiacSign;
+        const zodiacSignDisplay = chatInfo.otherUser?.zodiacSignDisplay;
+        
+        if (zodiacSignDisplay && zodiacSignDisplay.includes('♓')) {
+          return '♓'; // Balık
+        } else if (zodiacSignDisplay && zodiacSignDisplay.includes('♈')) {
+          return '♈'; // Koç
+        } else {
+          return getZodiacEmoji(zodiacSign || undefined);
+        }
       case 'MUSIC':
         return '🎵';
       default:

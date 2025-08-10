@@ -1,6 +1,6 @@
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
-import { chatApi, ChatListItem, ChatMessage, GlobalChatResponse, MessageLimitInfo, PrivateChatResponse } from '../services/api';
+import { chatApi, ChatListItem, ChatMessage, GlobalChatResponse, MessageLimitInfo, PrivateChatResponse, PrivateChatRoom } from '../services/api';
 
 // Context değer tipi
 type ChatContextType = {
@@ -8,6 +8,11 @@ type ChatContextType = {
   chatList: ChatListItem[];
   isLoadingChatList: boolean;
   refreshChatList: () => Promise<void>;
+  
+  // Private chat listesi
+  privateChatList: PrivateChatRoom[];
+  isLoadingPrivateChats: boolean;
+  refreshPrivateChats: () => Promise<void>;
   
   // Aktif chat
   activeChat: GlobalChatResponse | PrivateChatResponse | null;
@@ -48,6 +53,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // State'ler
   const [chatList, setChatList] = useState<ChatListItem[]>([]);
   const [isLoadingChatList, setIsLoadingChatList] = useState(false);
+  const [privateChatList, setPrivateChatList] = useState<PrivateChatRoom[]>([]);
+  const [isLoadingPrivateChats, setIsLoadingPrivateChats] = useState(false);
   
   const [activeChat, setActiveChat] = useState<GlobalChatResponse | PrivateChatResponse | null>(null);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
@@ -76,6 +83,32 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Private chat listesini yenile
+  const refreshPrivateChats = async () => {
+    try {
+      setIsLoadingPrivateChats(true);
+      console.log('🔄 [CHAT CONTEXT] Private chat listesi yenileniyor...');
+      
+      const privateChatData = await chatApi.getPrivateChatList();
+      setPrivateChatList(privateChatData.privateChatRooms);
+      
+      console.log('✅ [CHAT CONTEXT] Private chat listesi yüklendi:', privateChatData.privateChatRooms.length);
+    } catch (error: any) {
+      console.error('❌ [CHAT CONTEXT] Private chat listesi yüklenemedi:', error);
+      
+      // Oturum problemi varsa kullanıcıyı bilgilendir
+      if (error.message?.includes('Oturum bilgilerinizde bir sorun var') || 
+          error.message?.includes('Oturum süresi dolmuş')) {
+        setError(error.message);
+      } else {
+        // Diğer hatalar için sessizce geç, kritik değil
+        console.log('ℹ️ [CHAT CONTEXT] Private chat hatası görmezden geliniyor');
+      }
+    } finally {
+      setIsLoadingPrivateChats(false);
+    }
+  };
+
   // Mesajları yükle
   const loadMessages = async (chatRoomId: number, chatType: 'GLOBAL' | 'PRIVATE') => {
     try {
@@ -95,6 +128,33 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
       } else {
         chatData = await chatApi.getPrivateMessages(chatRoomId, 0, 20);
+        
+        // Private chat için otherUser kontrolü
+        if (!('chatType' in chatData) && (!chatData.otherUser || !chatData.otherUser.id)) {
+          console.error('❌ [CHAT CONTEXT] Private chat otherUser eksik:', {
+            hasOtherUser: !!chatData.otherUser,
+            otherUserId: chatData.otherUser?.id,
+            chatData: chatData
+          });
+          
+          // Chat listesinden otherUser bilgisini almaya çalış
+          console.log('🔄 [CHAT CONTEXT] Chat listesinden otherUser almaya çalışılıyor...');
+          try {
+            await refreshPrivateChats();
+            const chatRoom = privateChatList.find(chat => chat.id === chatRoomId);
+            
+            if (chatRoom && chatRoom.otherUser) {
+              console.log('✅ [CHAT CONTEXT] Chat listesinden otherUser bulundu:', chatRoom.otherUser);
+              chatData.otherUser = chatRoom.otherUser;
+            } else {
+              console.error('❌ [CHAT CONTEXT] Chat listesinde de otherUser bulunamadı');
+              throw new Error('Sohbet bilgileri eksik. Lütfen tekrar deneyin.');
+            }
+          } catch (fallbackError) {
+            console.error('❌ [CHAT CONTEXT] Fallback otherUser alma hatası:', fallbackError);
+            throw new Error('Sohbet bilgileri eksik. Lütfen tekrar deneyin.');
+          }
+        }
       }
       
       setActiveChat(chatData);
@@ -106,7 +166,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       });
     } catch (error: any) {
       console.error('❌ [CHAT CONTEXT] Mesajlar yüklenemedi:', error);
-      setError('Mesajlar yüklenemedi');
+      
+      // Özel hata mesajları
+      if (error.message?.includes('Sohbet bilgileri eksik')) {
+        setError('Sohbet bilgileri eksik. Sayfayı yenileyin.');
+      } else {
+        setError('Mesajlar yüklenemedi');
+      }
     } finally {
       setIsLoadingMessages(false);
     }
@@ -240,14 +306,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         addNewMessage(response.message);
       }
       
-      // Chat listesini güncelle
-      await refreshChatList();
+      // Özel chat listesini güncelle
+      await refreshPrivateChats();
       
       console.log('✅ [CHAT CONTEXT] Özel mesaj gönderildi');
       return true;
     } catch (error: any) {
       console.error('❌ [CHAT CONTEXT] Özel mesaj gönderilemedi:', error);
-      setError(error.message || 'Mesaj gönderilemedi');
+      
+      // Özel hata mesajları
+      if (error.message?.includes('Transaction silently rolled back') || 
+          error.message?.includes('Mesaj gönderilemedi. Lütfen tekrar deneyin.')) {
+        setError('Mesaj gönderilemedi. Lütfen tekrar deneyin.');
+      } else if (error.message?.includes('Sunucu hatası')) {
+        setError('Sunucu hatası. Lütfen daha sonra tekrar deneyin.');
+      } else {
+        setError(error.message || 'Mesaj gönderilemedi');
+      }
+      
       return false;
     }
   };
@@ -297,6 +373,41 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         totalMessages: prevChat.totalMessages + 1
       };
     });
+    
+    // Chat listesini de güncelle (yeni mesaj geldiğinde)
+    if (activeChat && !('chatType' in activeChat)) {
+      // Özel chat için private chat listesini güncelle
+      setPrivateChatList(prevList => 
+        prevList.map(chat => 
+          chat.id === message.chatRoomId 
+            ? {
+                ...chat,
+                lastMessage: {
+                  id: message.id,
+                  content: message.content,
+                  sentAt: message.sentAt,
+                  sender: message.sender
+                },
+                lastActivity: message.sentAt,
+                timeAgo: 'Şimdi' // Mesaj yeni gönderildiği için "Şimdi" olarak işaretle
+              }
+            : chat
+        )
+      );
+    } else if (activeChat && 'chatType' in activeChat) {
+      // Genel chat için chat listesini güncelle
+      setChatList(prevList => 
+        prevList.map(chat => 
+          chat.chatRoomId === message.chatRoomId 
+            ? {
+                ...chat,
+                lastMessage: message,
+                lastActivity: message.sentAt
+              }
+            : chat
+        )
+      );
+    }
   };
 
   // Mesajları okundu olarak işaretle
@@ -313,6 +424,37 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     console.log('✅ [CHAT CONTEXT] Mesajlar okundu olarak işaretlendi:', chatRoomId);
   };
 
+  // Zaman formatla
+  const formatTimeAgo = (dateString: string) => {
+    try {
+      const now = new Date();
+      const messageTime = new Date(dateString);
+      
+      if (isNaN(messageTime.getTime())) {
+        console.warn('⚠️ [CHAT CONTEXT] Invalid date:', dateString);
+        return 'Şimdi';
+      }
+      
+      const diffMs = now.getTime() - messageTime.getTime();
+      const diffMins = Math.floor(diffMs / (1000 * 60));
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+      if (diffMins < 1) return 'Şimdi';
+      if (diffMins < 60) return `${diffMins}dk`;
+      if (diffHours < 24) return `${diffHours}s`;
+      if (diffDays < 7) return `${diffDays}g`;
+      
+      return messageTime.toLocaleDateString('tr-TR', { 
+        day: '2-digit', 
+        month: '2-digit' 
+      });
+    } catch (error) {
+      console.error('❌ [CHAT CONTEXT] Date format hatası:', error, dateString);
+      return 'Şimdi';
+    }
+  };
+
   // Hata temizle
   const clearError = () => {
     setError(null);
@@ -321,6 +463,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // Component mount olduğunda chat listesini ve limit bilgisini yükle
   useEffect(() => {
     refreshChatList();
+    refreshPrivateChats();
     refreshMessageLimit();
   }, []);
 
@@ -379,6 +522,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               // Chat listesini de güncelle (yeni mesaj geldiğinde)
               if (chatType === 'GLOBAL') {
                 refreshChatList();
+              } else {
+                // Özel chat için private chat listesini güncelle
+                refreshPrivateChats();
               }
             }
           }
@@ -452,6 +598,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         chatList,
         isLoadingChatList,
         refreshChatList,
+        privateChatList,
+        isLoadingPrivateChats,
+        refreshPrivateChats,
         activeChat,
         activeChatId,
         isLoadingMessages,
