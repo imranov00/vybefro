@@ -1,6 +1,14 @@
-import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import { chatApi, ChatListItem, ChatMessage, GlobalChatResponse, MessageLimitInfo, PrivateChatResponse, PrivateChatRoom } from '../services/api';
+import {
+    initializeWebSocket,
+    VybeWebSocketClient,
+    WebSocketMessage,
+    WebSocketMessageType,
+    WebSocketStatus
+} from '../services/websocket';
+import { getToken } from '../utils/tokenStorage';
 
 // Context değer tipi
 type ChatContextType = {
@@ -40,6 +48,19 @@ type ChatContextType = {
   // Real-time polling kontrolü
   setFastPolling: (enabled: boolean) => void;
   
+  // WebSocket durumu
+  wsStatus: WebSocketStatus;
+  wsClient: VybeWebSocketClient | null;
+  
+  // WebSocket işlemleri
+  joinChatRoom: (chatRoomId: number) => void;
+  leaveChatRoom: (chatRoomId: number) => void;
+  sendTypingIndicator: (chatRoomId: number, isTyping: boolean) => void;
+  updateMessageStatus: (messageId: number, chatRoomId: number, status: 'DELIVERED' | 'READ') => void;
+  
+  // Typing indicator'lar
+  typingUsers: Map<number, Set<number>>; // chatRoomId -> Set<userId>
+  
   // Hata yönetimi
   error: string | null;
   clearError: () => void;
@@ -64,6 +85,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [isTyping, setIsTyping] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fastPolling, setFastPolling] = useState(false);
+  
+  // WebSocket state'leri
+  const [wsStatus, setWsStatus] = useState<WebSocketStatus>(WebSocketStatus.DISCONNECTED);
+  const [wsClient, setWsClient] = useState<VybeWebSocketClient | null>(null);
+  const [typingUsers, setTypingUsers] = useState<Map<number, Set<number>>>(new Map());
+  
+  // Ref'ler
+  const wsClientRef = useRef<VybeWebSocketClient | null>(null);
+  const typingUsersRef = useRef<Map<number, Set<number>>>(new Map());
 
   // Chat listesini yükle
   const refreshChatList = async () => {
@@ -460,11 +490,186 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setError(null);
   };
 
+  // WebSocket fonksiyonları
+  const joinChatRoom = (chatRoomId: number) => {
+    if (wsClientRef.current) {
+      wsClientRef.current.joinChat(chatRoomId);
+      console.log('👥 [CHAT CONTEXT] Chat odasına katılındı:', chatRoomId);
+    }
+  };
+
+  const leaveChatRoom = (chatRoomId: number) => {
+    if (wsClientRef.current) {
+      wsClientRef.current.leaveChat(chatRoomId);
+      console.log('👋 [CHAT CONTEXT] Chat odasından çıkıldı:', chatRoomId);
+    }
+  };
+
+  const sendTypingIndicator = (chatRoomId: number, isTyping: boolean) => {
+    if (wsClientRef.current) {
+      wsClientRef.current.sendTypingIndicator(chatRoomId, isTyping);
+    }
+  };
+
+  const updateMessageStatus = (messageId: number, chatRoomId: number, status: 'DELIVERED' | 'READ') => {
+    if (wsClientRef.current) {
+      wsClientRef.current.updateMessageStatus(messageId, chatRoomId, status);
+    }
+  };
+
+  // WebSocket event handler'ları
+  const setupWebSocketHandlers = (client: VybeWebSocketClient) => {
+    client.setEventHandlers({
+      onMessageReceived: (message: WebSocketMessage) => {
+        console.log('📥 [CHAT CONTEXT] WebSocket mesaj alındı:', message.type);
+        
+        if (message.type === WebSocketMessageType.MESSAGE_RECEIVED && message.data) {
+          const chatMessage = message.data as ChatMessage;
+          addNewMessage(chatMessage);
+        }
+      },
+      
+      onMessageDelivered: (messageId: number, chatRoomId: number) => {
+        console.log('✅ [CHAT CONTEXT] Mesaj iletildi:', messageId, chatRoomId);
+        // Mesaj durumunu güncelle
+        setActiveChat(prevChat => {
+          if (!prevChat) return prevChat;
+          
+          return {
+            ...prevChat,
+            messages: prevChat.messages.map(msg => 
+              msg.id === messageId ? { ...msg, status: 'DELIVERED' as const } : msg
+            )
+          };
+        });
+      },
+      
+      onMessageRead: (messageId: number, chatRoomId: number) => {
+        console.log('👁️ [CHAT CONTEXT] Mesaj okundu:', messageId, chatRoomId);
+        // Mesaj durumunu güncelle
+        setActiveChat(prevChat => {
+          if (!prevChat) return prevChat;
+          
+          return {
+            ...prevChat,
+            messages: prevChat.messages.map(msg => 
+              msg.id === messageId ? { ...msg, status: 'READ' as const } : msg
+            )
+          };
+        });
+      },
+      
+      onTypingStart: (userId: number, chatRoomId: number, userName: string) => {
+        console.log('⌨️ [CHAT CONTEXT] Yazıyor:', userName, chatRoomId);
+        
+        setTypingUsers(prev => {
+          const newMap = new Map(prev);
+          const chatUsers = new Set(newMap.get(chatRoomId) || []);
+          chatUsers.add(userId);
+          newMap.set(chatRoomId, chatUsers);
+          return newMap;
+        });
+      },
+      
+      onTypingStop: (userId: number, chatRoomId: number) => {
+        console.log('⏹️ [CHAT CONTEXT] Yazmayı durdurdu:', userId, chatRoomId);
+        
+        setTypingUsers(prev => {
+          const newMap = new Map(prev);
+          const chatUsers = new Set(newMap.get(chatRoomId) || []);
+          chatUsers.delete(userId);
+          if (chatUsers.size === 0) {
+            newMap.delete(chatRoomId);
+          } else {
+            newMap.set(chatRoomId, chatUsers);
+          }
+          return newMap;
+        });
+      },
+      
+      onUserOnline: (userId: number) => {
+        console.log('🟢 [CHAT CONTEXT] Kullanıcı online:', userId);
+        // Private chat listesinde kullanıcıyı online yap
+        setPrivateChatList(prev => 
+          prev.map(chat => 
+            chat.otherUser.id === userId 
+              ? { ...chat, otherUser: { ...chat.otherUser, isOnline: true } }
+              : chat
+          )
+        );
+      },
+      
+      onUserOffline: (userId: number) => {
+        console.log('🔴 [CHAT CONTEXT] Kullanıcı offline:', userId);
+        // Private chat listesinde kullanıcıyı offline yap
+        setPrivateChatList(prev => 
+          prev.map(chat => 
+            chat.otherUser.id === userId 
+              ? { ...chat, otherUser: { ...chat.otherUser, isOnline: false } }
+              : chat
+          )
+        );
+      },
+      
+      onConnected: () => {
+        console.log('✅ [CHAT CONTEXT] WebSocket bağlandı');
+        setWsStatus(WebSocketStatus.CONNECTED);
+      },
+      
+      onDisconnected: () => {
+        console.log('🔌 [CHAT CONTEXT] WebSocket bağlantısı kesildi');
+        setWsStatus(WebSocketStatus.DISCONNECTED);
+      },
+      
+      onError: (error: string) => {
+        console.error('❌ [CHAT CONTEXT] WebSocket hatası:', error);
+        setWsStatus(WebSocketStatus.ERROR);
+        setError(`WebSocket hatası: ${error}`);
+      }
+    });
+  };
+
+  // WebSocket başlatma
+  const initializeWebSocketConnection = async () => {
+    try {
+      const token = await getToken();
+      if (!token) {
+        console.warn('⚠️ [CHAT CONTEXT] Token bulunamadı, WebSocket başlatılamıyor');
+        return;
+      }
+
+      console.log('🔌 [CHAT CONTEXT] WebSocket bağlantısı başlatılıyor...');
+      setWsStatus(WebSocketStatus.CONNECTING);
+      
+      const client = await initializeWebSocket(token, 'ws://localhost:8080');
+      wsClientRef.current = client;
+      setWsClient(client);
+      
+      setupWebSocketHandlers(client);
+      
+      console.log('✅ [CHAT CONTEXT] WebSocket bağlantısı başarılı');
+    } catch (error) {
+      console.error('❌ [CHAT CONTEXT] WebSocket başlatma hatası:', error);
+      setWsStatus(WebSocketStatus.ERROR);
+      setError('WebSocket bağlantısı kurulamadı');
+    }
+  };
+
   // Component mount olduğunda chat listesini ve limit bilgisini yükle
   useEffect(() => {
     refreshChatList();
     refreshPrivateChats();
     refreshMessageLimit();
+    initializeWebSocketConnection();
+  }, []);
+
+  // Component unmount olduğunda WebSocket'i kapat
+  useEffect(() => {
+    return () => {
+      if (wsClientRef.current) {
+        wsClientRef.current.disconnect();
+      }
+    };
   }, []);
 
   // Real-time updates için hızlı polling (genel chat için 2 saniye, özel chat için 5 saniye)
@@ -477,11 +682,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       let pollingInterval;
       
       if (chatType === 'GLOBAL') {
-        // Genel chat için: hızlı modda 1 saniye, normal modda 3 saniye
-        pollingInterval = fastPolling ? 1000 : 3000;
+        // Genel chat için: hızlı modda 3 saniye, normal modda 10 saniye
+        pollingInterval = fastPolling ? 3000 : 10000;
       } else {
-        // Özel chat için: hızlı modda 2 saniye, normal modda 5 saniye
-        pollingInterval = fastPolling ? 2000 : 5000;
+        // Özel chat için: hızlı modda 5 saniye, normal modda 15 saniye
+        pollingInterval = fastPolling ? 5000 : 15000;
       }
       
       interval = setInterval(async () => {
@@ -519,12 +724,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 addNewMessage(message);
               });
               
-              // Chat listesini de güncelle (yeni mesaj geldiğinde)
+              // Chat listesini sadece yeni mesaj geldiğinde güncelle (daha az sıklıkta)
               if (chatType === 'GLOBAL') {
-                refreshChatList();
+                // Global chat için sadece yeni mesaj geldiğinde güncelle
+                setTimeout(() => refreshChatList(), 1000);
               } else {
                 // Özel chat için private chat listesini güncelle
-                refreshPrivateChats();
+                setTimeout(() => refreshPrivateChats(), 1000);
               }
             }
           }
@@ -615,6 +821,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         isTyping,
         setIsTyping,
         setFastPolling,
+        wsStatus,
+        wsClient,
+        joinChatRoom,
+        leaveChatRoom,
+        sendTypingIndicator,
+        updateMessageStatus,
+        typingUsers,
         error,
         clearError
       }}

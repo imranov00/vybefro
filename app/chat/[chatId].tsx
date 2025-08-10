@@ -6,7 +6,9 @@ import React, { useCallback, useState } from 'react';
 import {
     Alert,
     Image,
+    KeyboardAvoidingView,
     Platform,
+    SafeAreaView,
     StatusBar,
     StyleSheet,
     Text,
@@ -29,7 +31,12 @@ export default function PrivateChatScreen() {
     loadMessages, 
     loadMoreMessages,
     sendPrivateMessage,
-    markMessagesAsRead
+    markMessagesAsRead,
+    joinChatRoom,
+    leaveChatRoom,
+    sendTypingIndicator,
+    typingUsers,
+    wsStatus
   } = useChat();
   const router = useRouter();
   const { chatId } = useLocalSearchParams();
@@ -56,14 +63,24 @@ export default function PrivateChatScreen() {
   // Chat ID'yi number'a çevir
   const chatRoomId = parseInt(chatId as string, 10);
 
-  // Sayfa yüklendiğinde özel chat mesajlarını getir
+  // Sayfa yüklendiğinde özel chat mesajlarını getir ve WebSocket'e katıl
   useFocusEffect(
     useCallback(() => {
       if (!isNaN(chatRoomId)) {
         console.log('💬 [PRIVATE CHAT] Screen focused - loading private messages:', chatRoomId);
         loadMessages(chatRoomId, 'PRIVATE');
         markMessagesAsRead(chatRoomId);
+        
+        // WebSocket'e chat odasına katıl
+        joinChatRoom(chatRoomId);
       }
+      
+      // Cleanup: Chat odasından çık
+      return () => {
+        if (!isNaN(chatRoomId)) {
+          leaveChatRoom(chatRoomId);
+        }
+      };
     }, [chatRoomId])
   );
 
@@ -259,11 +276,17 @@ export default function PrivateChatScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      
-      {/* Arka plan gradient */}
-      <LinearGradient colors={currentTheme.gradient as any} style={styles.background} />
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView 
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? -64 : 0}
+      >
+        <View style={styles.container}>
+          <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+          
+          {/* Arka plan gradient */}
+          <LinearGradient colors={currentTheme.gradient as any} style={styles.background} />
 
       {/* Header */}
       <View style={styles.header}>
@@ -312,6 +335,16 @@ export default function PrivateChatScreen() {
             <Text style={styles.userStatus}>
               {chatInfo.otherUser?.activityStatus || 'Bilinmeyen'}
             </Text>
+            {/* WebSocket durumu */}
+            <View style={styles.wsStatusContainer}>
+              <View style={[
+                styles.wsStatusIndicator, 
+                { backgroundColor: wsStatus === 'CONNECTED' ? '#00FF7F' : '#FF4757' }
+              ]} />
+              <Text style={styles.wsStatusText}>
+                {wsStatus === 'CONNECTED' ? 'Çevrimiçi' : 'Bağlantı yok'}
+              </Text>
+            </View>
           </View>
         </TouchableOpacity>
 
@@ -346,6 +379,8 @@ export default function PrivateChatScreen() {
             onRefresh={handleRefresh}
             isRefreshing={refreshing}
             emptyMessage={`${chatInfo.otherUser?.displayName || 'Bu kişi'} ile sohbet başlasın! 💬`}
+            typingUsers={typingUsers.get(chatRoomId)}
+            otherUserName={chatInfo.otherUser?.displayName}
           />
         )}
       </View>
@@ -356,12 +391,24 @@ export default function PrivateChatScreen() {
         limitInfo={null} // Özel mesajlarda limit yok
         placeholder={`${chatInfo.otherUser?.displayName || 'Kullanıcı'}'ya mesaj yaz...`}
         disabled={isLoadingMessages}
+        chatRoomId={chatRoomId}
+        onTypingChange={(isTyping) => sendTypingIndicator(chatRoomId, isTyping)}
       />
-    </View>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
   container: {
     flex: 1,
   },
@@ -378,7 +425,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingTop: Platform.OS === 'ios' ? 10 : 10,
     paddingBottom: 16,
   },
   backButton: {
@@ -488,6 +535,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderTopLeftRadius: 25,
     borderTopRightRadius: 25,
+    marginBottom: Platform.OS === 'ios' ? 0 : 0,
   },
 
   // Error state
@@ -506,5 +554,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#8000FF',
     fontWeight: '600',
+  },
+
+  // WebSocket durumu
+  wsStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  wsStatusIndicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 6,
+  },
+  wsStatusText: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.6)',
+    fontWeight: '500',
   },
 });

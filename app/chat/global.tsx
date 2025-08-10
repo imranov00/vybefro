@@ -5,7 +5,9 @@ import { useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
   Alert,
+  KeyboardAvoidingView,
   Platform,
+  SafeAreaView,
   StatusBar,
   StyleSheet,
   Text,
@@ -30,7 +32,12 @@ export default function GlobalChatScreen() {
     sendGlobalMessage,
     messageLimitInfo,
     refreshMessageLimit,
-    setFastPolling
+    setFastPolling,
+    joinChatRoom,
+    leaveChatRoom,
+    sendTypingIndicator,
+    typingUsers,
+    wsStatus
   } = useChat();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
@@ -53,21 +60,25 @@ export default function GlobalChatScreen() {
 
   const currentTheme = theme[currentMode];
 
-  // Sayfa yüklendiğinde genel chat mesajlarını getir
+  // Sayfa yüklendiğinde genel chat mesajlarını getir ve WebSocket'e katıl
   useFocusEffect(
     useCallback(() => {
       console.log('🌍 [GLOBAL CHAT] Screen focused - loading global messages');
       loadMessages(1, 'GLOBAL'); // Global chat room ID genellikle 1
       refreshMessageLimit();
       
-      // Focus olduğunda polling'i hızlandır (1 saniye)
+      // WebSocket'e global chat odasına katıl
+      joinChatRoom(1);
+      
+      // Focus olduğunda polling'i hızlandır (3 saniye)
       setFastPolling(true);
-      console.log('🚀 [GLOBAL CHAT] Hızlı polling başlatıldı (1 saniye)');
+      console.log('🚀 [GLOBAL CHAT] Hızlı polling başlatıldı (3 saniye)');
       
       return () => {
-        // Sayfa kapatıldığında normal polling'e dön
+        // Sayfa kapatıldığında normal polling'e dön ve chat odasından çık
         setFastPolling(false);
-        console.log('⏸️ [GLOBAL CHAT] Screen blurred - normal polling (3 saniye)');
+        leaveChatRoom(1);
+        console.log('⏸️ [GLOBAL CHAT] Screen blurred - normal polling (10 saniye)');
       };
     }, [])
   );
@@ -156,11 +167,17 @@ export default function GlobalChatScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      
-      {/* Arka plan gradient */}
-      <LinearGradient colors={currentTheme.gradient as any} style={styles.background} />
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView 
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? -64 : 0}
+      >
+        <View style={styles.container}>
+          <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+          
+          {/* Arka plan gradient */}
+          <LinearGradient colors={currentTheme.gradient as any} style={styles.background} />
 
       {/* Header */}
       <View style={styles.header}>
@@ -174,6 +191,16 @@ export default function GlobalChatScreen() {
             <View style={styles.activeIndicator} />
             <Text style={styles.activeUsersText}>
               {getActiveUserCount()} aktif kullanıcı
+            </Text>
+          </View>
+          {/* WebSocket durumu */}
+          <View style={styles.wsStatusContainer}>
+            <View style={[
+              styles.wsStatusIndicator, 
+              { backgroundColor: wsStatus === 'CONNECTED' ? '#00FF7F' : '#FF4757' }
+            ]} />
+            <Text style={styles.wsStatusText}>
+              {wsStatus === 'CONNECTED' ? 'Çevrimiçi' : 'Bağlantı yok'}
             </Text>
           </View>
         </View>
@@ -194,6 +221,8 @@ export default function GlobalChatScreen() {
           onRefresh={handleRefresh}
           isRefreshing={refreshing}
           emptyMessage="Genel sohbete hoş geldiniz! İlk mesajı sen gönder! 🌍"
+          typingUsers={typingUsers.get(1)}
+          otherUserName="Birisi"
         />
       </View>
 
@@ -203,6 +232,8 @@ export default function GlobalChatScreen() {
         limitInfo={messageLimitInfo}
         placeholder="Herkesle sohbet et..."
         disabled={isLoadingMessages || !activeChat}
+        chatRoomId={1}
+        onTypingChange={(isTyping) => sendTypingIndicator(1, isTyping)}
       />
 
       {/* Hoş geldin mesajı (sadece ilk yükleme) */}
@@ -213,11 +244,21 @@ export default function GlobalChatScreen() {
           </Text>
         </View>
       )}
-    </View>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
   container: {
     flex: 1,
   },
@@ -235,7 +276,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingTop: Platform.OS === 'ios' ? 10 : 10,
     paddingBottom: 16,
   },
   backButton: {
@@ -287,6 +328,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderTopLeftRadius: 25,
     borderTopRightRadius: 25,
+    marginBottom: Platform.OS === 'ios' ? 0 : 0,
   },
 
   // Welcome message
@@ -305,5 +347,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 18,
+  },
+
+  // WebSocket durumu
+  wsStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  wsStatusIndicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 6,
+  },
+  wsStatusText: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.6)',
+    fontWeight: '500',
   },
 });

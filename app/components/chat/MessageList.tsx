@@ -3,6 +3,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
+    Keyboard,
+    Platform,
     RefreshControl,
     StyleSheet,
     Text,
@@ -22,6 +24,8 @@ interface MessageListProps {
   onRefresh: () => void;
   isRefreshing: boolean;
   emptyMessage?: string;
+  typingUsers?: Set<number>;
+  otherUserName?: string;
 }
 
 export default function MessageList({
@@ -32,11 +36,14 @@ export default function MessageList({
   onLoadMore,
   onRefresh,
   isRefreshing,
-  emptyMessage = "Henüz mesaj yok. İlk mesajı sen gönder! 💬"
+  emptyMessage = "Henüz mesaj yok. İlk mesajı sen gönder! 💬",
+  typingUsers,
+  otherUserName
 }: MessageListProps) {
   const { currentMode } = useAuth();
   const flatListRef = useRef<FlatList>(null);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   // Tema renklerini belirle
   const theme = {
@@ -55,6 +62,28 @@ export default function MessageList({
   };
 
   const currentTheme = theme[currentMode];
+
+  // Klavye durumunu takip et
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => {
+        setKeyboardVisible(true);
+      }
+    );
+
+    const keyboardDidHideListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+      }
+    );
+
+    return () => {
+      keyboardDidShowListener?.remove();
+      keyboardDidHideListener?.remove();
+    };
+  }, []);
 
   // Yeni mesaj geldiğinde scroll'u en alta kaydır
   useEffect(() => {
@@ -90,6 +119,26 @@ export default function MessageList({
   const renderSeparator = () => (
     <View style={styles.separator} />
   );
+
+  // Typing indicator render fonksiyonu
+  const renderTypingIndicator = () => {
+    if (!typingUsers || typingUsers.size === 0) return null;
+    
+    return (
+      <View style={styles.typingContainer}>
+        <View style={styles.typingBubble}>
+          <View style={styles.typingDots}>
+            <View style={[styles.typingDot, { backgroundColor: currentTheme.primary }]} />
+            <View style={[styles.typingDot, { backgroundColor: currentTheme.primary }]} />
+            <View style={[styles.typingDot, { backgroundColor: currentTheme.primary }]} />
+          </View>
+          <Text style={styles.typingText}>
+            {otherUserName || 'Birisi'} yazıyor...
+          </Text>
+        </View>
+      </View>
+    );
+  };
 
   // Yükleme göstergesi (daha fazla mesaj için)
   const renderFooter = () => {
@@ -165,6 +214,7 @@ export default function MessageList({
         ItemSeparatorComponent={renderSeparator}
         ListFooterComponent={renderFooter}
         ListEmptyComponent={renderEmpty}
+        ListHeaderComponent={renderTypingIndicator}
         onScroll={handleScroll}
         scrollEventThrottle={16}
         contentContainerStyle={messages.length === 0 ? styles.emptyContentContainer : undefined}
@@ -242,5 +292,37 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 8,
+  },
+
+  // Typing indicator
+  typingContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  typingBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F0F0',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    maxWidth: '80%',
+    alignSelf: 'flex-start',
+  },
+  typingDots: {
+    flexDirection: 'row',
+    marginRight: 8,
+    gap: 4,
+  },
+  typingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    opacity: 0.6,
+  },
+  typingText: {
+    fontSize: 14,
+    color: '#666',
+    fontStyle: 'italic',
   },
 });

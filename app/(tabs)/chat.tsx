@@ -366,20 +366,6 @@ export default function ChatScreen() {
     }, [])
   );
 
-  // Zamanları güncellemek için periyodik güncelleme (her 30 saniye)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // Sadece chat listesi görünürse güncelle
-      if (combinedChatList.length > 0) {
-        console.log('🕐 [CHAT] Zamanları güncelliyor...');
-        // Force re-render için state'i güncelle
-        setRefreshing(prev => !prev);
-      }
-    }, 30000); // 30 saniye
-
-    return () => clearInterval(interval);
-  }, []);
-
   // Pull-to-refresh
   const handleRefresh = async () => {
     setRefreshing(true);
