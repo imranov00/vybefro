@@ -1,13 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  FlatList,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    FlatList,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { ChatMessage } from '../../services/api';
@@ -67,8 +67,8 @@ export default function MessageList({
 
   // Mesaj render fonksiyonu
   const renderMessage = ({ item, index }: { item: ChatMessage; index: number }) => {
-    // Mesajın kimden geldiğini doğru tespit et
-    const isCurrentUser = item.sender.id === currentUserId;
+    // Mesajın kimden geldiğini doğru tespit et (tip uyuşmazlığına dayanıklı)
+    const isCurrentUser = Number(item.sender.id) === Number(currentUserId);
     
     const previousMessage = index < messages.length - 1 ? messages[index + 1] : null;
     

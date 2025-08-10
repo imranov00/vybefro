@@ -5,12 +5,9 @@ import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Image,
-  Modal,
   Platform,
-  Pressable,
   RefreshControl,
   StatusBar,
   StyleSheet,
@@ -233,122 +230,6 @@ const MusicUniverse = () => {
   );
 };
 
-// Mesaj önizleme modal bileşeni
-const MessagePreviewModal = ({ 
-  visible, 
-  onClose, 
-  chat, 
-  currentTheme 
-}: { 
-  visible: boolean; 
-  onClose: () => void; 
-  chat: ChatListItem | null; 
-  currentTheme: any;
-}) => {
-  const [messages, setMessages] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  // Mesajları yükle
-  useEffect(() => {
-    if (visible && chat) {
-      loadPreviewMessages();
-    }
-  }, [visible, chat]);
-
-  const loadPreviewMessages = async () => {
-    if (!chat) return;
-    
-    setLoading(true);
-    try {
-      // Son 10 mesajı yükle (görüldü olmadan)
-      // Bu kısım API'ye göre değişebilir
-      const previewMessages = [
-        {
-          id: 1,
-          content: chat.lastMessage || 'Henüz mesaj yok',
-          sender: {
-            id: chat.otherUser?.id || 0,
-            displayName: chat.otherUser?.displayName || chat.chatName,
-            profileImageUrl: chat.otherUser?.profileImageUrl,
-            isPremium: chat.otherUser?.isPremium || false,
-            isOnline: chat.otherUser?.isOnline || false,
-          },
-          timeAgo: (chat as any).lastMessageTime || 'Şimdi',
-          status: 'READ',
-          isCurrentUser: false,
-        }
-      ];
-      
-      setMessages(previewMessages);
-    } catch (error) {
-      console.error('Mesaj önizleme yükleme hatası:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  console.log('🔍 [MODAL] Render durumu:', { visible, chat: chat?.chatName });
-  
-  if (!chat) {
-    console.log('❌ [MODAL] Chat null, modal render edilmiyor');
-    return null;
-  }
-
-  console.log('🎯 [MODAL] Modal render ediliyor:', { visible, chat: chat?.chatName });
-  
-  return (
-    <Modal
-      visible={visible}
-      transparent={true}
-      animationType="fade"
-      onRequestClose={onClose}
-      statusBarTranslucent={true}
-      onShow={() => console.log('🎯 [MODAL] Modal onShow tetiklendi')}
-      onDismiss={() => console.log('🎯 [MODAL] Modal onDismiss tetiklendi')}
-    >
-      <View style={styles.modalOverlay}>
-        <TouchableOpacity 
-          style={styles.modalBackground} 
-          onPress={onClose}
-          activeOpacity={1}
-        />
-        
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            {/* Basit Test Modal */}
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalUserName}>
-                {chat.otherUser?.displayName || chat.chatName}
-              </Text>
-              <TouchableOpacity onPress={onClose} style={styles.modalCloseButton}>
-                <Ionicons name="close" size={24} color="#666" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.modalBody}>
-              <Text style={styles.modalMessageText}>
-                Son mesaj: {typeof chat.lastMessage === 'string' ? chat.lastMessage : 'Henüz mesaj yok'}
-              </Text>
-              <Text style={styles.modalMessageText}>
-                Chat ID: {chat.chatRoomId}
-              </Text>
-              <Text style={styles.modalMessageText}>
-                Chat Type: {chat.chatType}
-              </Text>
-            </View>
-
-            <View style={styles.modalFooter}>
-              <Text style={styles.modalFooterText}>
-                ✅ Modal çalışıyor!
-              </Text>
-            </View>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-};
-
 export default function ChatScreen() {
   const { currentMode } = useAuth();
   const { 
@@ -364,10 +245,6 @@ export default function ChatScreen() {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<'matches' | 'global'>('matches');
-  
-  // Mesaj önizleme modal state'i
-  const [previewModalVisible, setPreviewModalVisible] = useState(false);
-  const [selectedChat, setSelectedChat] = useState<ChatListItem | null>(null);
 
   // Tema renklerini belirle
   const theme = {
@@ -538,27 +415,6 @@ export default function ChatScreen() {
     }
   };
 
-  // Uzun basma ile mesaj önizleme
-  const handleLongPress = (chat: ChatListItem) => {
-    console.log('👁️ [CHAT] Mesaj önizleme açılıyor:', chat.chatName);
-    console.log('👁️ [CHAT] Chat detayları:', {
-      chatName: chat.chatName,
-      chatType: chat.chatType,
-      lastMessage: chat.lastMessage
-    });
-    
-    // Direkt modal aç
-    setSelectedChat(chat);
-    setPreviewModalVisible(true);
-    console.log('✅ [CHAT] Modal state güncellendi:', { chat: chat.chatName, visible: true });
-  };
-
-  // Modal kapatma
-  const handleCloseModal = () => {
-    setPreviewModalVisible(false);
-    setSelectedChat(null);
-  };
-
   // Burç simgelerini tanımla
   const getZodiacEmoji = (zodiacSign?: string) => {
     if (!zodiacSign) return '⭐';
@@ -657,24 +513,22 @@ export default function ChatScreen() {
       }
     };
 
+    const handlePressIn = () => {
+      // Basit scale animasyonu için Animated API kullan
+    };
 
+    const handlePressOut = () => {
+      // Basit scale animasyonu için Animated API kullan
+    };
 
     return (
       <View style={styles.chatItemWrapper}>
-        <Pressable 
-          style={({ pressed }) => [
-            styles.chatItem,
-            pressed && { opacity: 0.9 }
-          ]}
-          onPress={() => {
-            console.log('👆 [CHAT] Normal tıklama:', item.chatName);
-            handleChatPress(item);
-          }}
-          onLongPress={() => {
-            console.log('👆 [CHAT] Uzun basma algılandı:', item.chatName);
-            handleLongPress(item);
-          }}
-          delayLongPress={800} // 800ms uzun basma süresi
+        <TouchableOpacity 
+          style={styles.chatItem}
+          onPress={() => handleChatPress(item)}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          activeOpacity={0.9}
         >
           {/* Card Background */}
           <LinearGradient
@@ -803,7 +657,7 @@ export default function ChatScreen() {
               </View>
             </View>
           </View>
-        </Pressable>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -869,24 +723,6 @@ export default function ChatScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>💬 Mesajlar</Text>
-        
-        {/* Test Butonu */}
-        <TouchableOpacity 
-          style={styles.testButton}
-          onPress={() => {
-            console.log('🧪 [TEST] Test butonu tıklandı');
-            if (combinedChatList.length > 0) {
-              const testChat = combinedChatList[0];
-              console.log('🧪 [TEST] Test chat:', testChat.chatName);
-              setSelectedChat(testChat);
-              setPreviewModalVisible(true);
-            } else {
-              Alert.alert('Test', 'Chat listesi boş!');
-            }
-          }}
-        >
-          <Text style={styles.testButtonText}>🧪 Test Modal</Text>
-        </TouchableOpacity>
         
         {/* Tab Buttons */}
         <View style={styles.tabContainer}>
@@ -954,14 +790,6 @@ export default function ChatScreen() {
           ItemSeparatorComponent={() => <View style={styles.separator} />}
         />
       </View>
-
-      {/* Mesaj önizleme modal */}
-      <MessagePreviewModal
-        visible={previewModalVisible}
-        onClose={handleCloseModal}
-        chat={selectedChat}
-        currentTheme={currentTheme}
-      />
     </View>
   );
 }
@@ -1475,156 +1303,4 @@ const styles = StyleSheet.create({
     marginTop: 8,
     lineHeight: 24,
   },
-
-  // Modal styles
-  modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 9999,
-  },
-  modalBackground: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  modalContainer: {
-    width: '90%',
-    height: '80%',
-    borderRadius: 20,
-    overflow: 'hidden',
-    position: 'relative',
-    zIndex: 10000,
-    elevation: 10,
-  },
-  modalContent: {
-    flex: 1,
-    borderRadius: 20,
-    overflow: 'hidden',
-    backgroundColor: 'white',
-    padding: 20,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.2)',
-  },
-  modalUserInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  modalAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 10,
-  },
-  modalAvatarPlaceholder: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalAvatarText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  modalUserDetails: {
-    flex: 1,
-  },
-  modalUserName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: 'white',
-  },
-  modalUserStatus: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.7)',
-  },
-  modalCloseButton: {
-    padding: 5,
-  },
-  modalBody: {
-    flex: 1,
-    padding: 20,
-  },
-  modalLoading: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalLoadingText: {
-    marginTop: 10,
-    color: 'white',
-    fontSize: 16,
-  },
-  modalMessages: {
-    flex: 1,
-  },
-  modalMessageItem: {
-    marginBottom: 10,
-  },
-  modalMessageBubble: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 15,
-    padding: 12,
-    maxWidth: '80%',
-  },
-  modalMessageText: {
-    color: 'white',
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  modalMessageTime: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.6)',
-    marginTop: 5,
-    textAlign: 'right',
-  },
-  modalEmpty: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  modalEmptyText: {
-    marginTop: 10,
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 16,
-  },
-  modalFooter: {
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.2)',
-  },
-  modalFooterText: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  testButton: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginBottom: 10,
-  },
-  testButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-
 });

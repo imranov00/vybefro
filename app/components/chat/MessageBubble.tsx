@@ -152,7 +152,7 @@ export default function MessageBubble({
         ]}>
           {isCurrentUser && (
             <LinearGradient
-              colors={currentTheme.gradient}
+              colors={currentTheme.gradient as any}
               style={styles.currentUserGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
@@ -201,6 +201,7 @@ const styles = StyleSheet.create({
     marginVertical: 4,
     paddingHorizontal: 16,
     alignItems: 'flex-end',
+    width: '100%', // iOS'ta hizalama için tam genişlik
   },
   currentUserContainer: {
     justifyContent: 'flex-end', // Benim mesajlarım sağ tarafta
@@ -254,10 +255,12 @@ const styles = StyleSheet.create({
     maxWidth: '70%', // Mesaj genişliğini sınırla
   },
   currentUserContent: {
-    alignItems: 'flex-end', // Benim mesajlarım sağa hizala
+    alignItems: 'flex-end', // İçerik sağa hizala
+    alignSelf: 'flex-end', // Balonu sağ tarafa konumlandır
   },
   otherUserContent: {
-    alignItems: 'flex-start', // Diğer kullanıcının mesajları sola hizala
+    alignItems: 'flex-start', // İçerik sola hizala
+    alignSelf: 'flex-start', // Balonu sol tarafa konumlandır
   },
   senderInfo: {
     flexDirection: 'row',
