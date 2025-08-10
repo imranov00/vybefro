@@ -10,6 +10,7 @@ import {
   Image,
   Modal,
   Platform,
+  Pressable,
   RefreshControl,
   StatusBar,
   StyleSheet,
@@ -293,13 +294,17 @@ const MessagePreviewModal = ({
     return null;
   }
 
+  console.log('🎯 [MODAL] Modal render ediliyor:', { visible, chat: chat?.chatName });
+  
   return (
     <Modal
       visible={visible}
       transparent={true}
-      animationType="slide"
+      animationType="fade"
       onRequestClose={onClose}
       statusBarTranslucent={true}
+      onShow={() => console.log('🎯 [MODAL] Modal onShow tetiklendi')}
+      onDismiss={() => console.log('🎯 [MODAL] Modal onDismiss tetiklendi')}
     >
       <View style={styles.modalOverlay}>
         <TouchableOpacity 
@@ -309,87 +314,35 @@ const MessagePreviewModal = ({
         />
         
         <View style={styles.modalContainer}>
-          <LinearGradient
-            colors={currentTheme.cardGradient as any}
-            style={styles.modalContent}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            {/* Modal Header */}
+          <View style={styles.modalContent}>
+            {/* Basit Test Modal */}
             <View style={styles.modalHeader}>
-              <View style={styles.modalUserInfo}>
-                {chat.otherUser?.profileImageUrl ? (
-                  <Image 
-                    source={{ uri: chat.otherUser.profileImageUrl }}
-                    style={styles.modalAvatar}
-                  />
-                ) : (
-                  <LinearGradient
-                    colors={currentTheme.gradient as any}
-                    style={styles.modalAvatarPlaceholder}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  >
-                    <Text style={styles.modalAvatarText}>
-                      {chat.otherUser?.displayName?.charAt(0).toUpperCase() || '?'}
-                    </Text>
-                  </LinearGradient>
-                )}
-                
-                <View style={styles.modalUserDetails}>
-                  <Text style={styles.modalUserName}>
-                    {chat.otherUser?.displayName || chat.chatName}
-                  </Text>
-                  <Text style={styles.modalUserStatus}>
-                    {chat.otherUser?.isOnline ? '🟢 Çevrimiçi' : '⚪ Çevrimdışı'}
-                  </Text>
-                </View>
-              </View>
-              
+              <Text style={styles.modalUserName}>
+                {chat.otherUser?.displayName || chat.chatName}
+              </Text>
               <TouchableOpacity onPress={onClose} style={styles.modalCloseButton}>
                 <Ionicons name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
 
-            {/* Modal Content */}
             <View style={styles.modalBody}>
-              {loading ? (
-                <View style={styles.modalLoading}>
-                  <ActivityIndicator size="large" color={currentTheme.primary} />
-                  <Text style={styles.modalLoadingText}>Mesajlar yükleniyor...</Text>
-                </View>
-              ) : (
-                <View style={styles.modalMessages}>
-                  {messages.map((message, index) => (
-                    <View key={index} style={styles.modalMessageItem}>
-                      <View style={styles.modalMessageBubble}>
-                        <Text style={styles.modalMessageText}>
-                          {message.content}
-                        </Text>
-                        <Text style={styles.modalMessageTime}>
-                          {message.timeAgo}
-                        </Text>
-                      </View>
-                    </View>
-                  ))}
-                  
-                  {messages.length === 0 && (
-                    <View style={styles.modalEmpty}>
-                      <Ionicons name="chatbubbles-outline" size={48} color="#CCC" />
-                      <Text style={styles.modalEmptyText}>Henüz mesaj yok</Text>
-                    </View>
-                  )}
-                </View>
-              )}
-            </View>
-
-            {/* Modal Footer */}
-            <View style={styles.modalFooter}>
-              <Text style={styles.modalFooterText}>
-                💡 Uzun basarak mesajları görüntüleyebilirsiniz
+              <Text style={styles.modalMessageText}>
+                Son mesaj: {typeof chat.lastMessage === 'string' ? chat.lastMessage : 'Henüz mesaj yok'}
+              </Text>
+              <Text style={styles.modalMessageText}>
+                Chat ID: {chat.chatRoomId}
+              </Text>
+              <Text style={styles.modalMessageText}>
+                Chat Type: {chat.chatType}
               </Text>
             </View>
-          </LinearGradient>
+
+            <View style={styles.modalFooter}>
+              <Text style={styles.modalFooterText}>
+                ✅ Modal çalışıyor!
+              </Text>
+            </View>
+          </View>
         </View>
       </View>
     </Modal>
@@ -594,21 +547,10 @@ export default function ChatScreen() {
       lastMessage: chat.lastMessage
     });
     
-    // Test için alert ekleyelim
-    Alert.alert(
-      'Mesaj Önizleme',
-      `${chat.chatName} için mesaj önizleme açılıyor...`,
-      [
-        { text: 'İptal', style: 'cancel' },
-        { 
-          text: 'Aç', 
-          onPress: () => {
-            setSelectedChat(chat);
-            setPreviewModalVisible(true);
-          }
-        }
-      ]
-    );
+    // Direkt modal aç
+    setSelectedChat(chat);
+    setPreviewModalVisible(true);
+    console.log('✅ [CHAT] Modal state güncellendi:', { chat: chat.chatName, visible: true });
   };
 
   // Modal kapatma
@@ -715,18 +657,15 @@ export default function ChatScreen() {
       }
     };
 
-    const handlePressIn = () => {
-      // Basit scale animasyonu için Animated API kullan
-    };
 
-    const handlePressOut = () => {
-      // Basit scale animasyonu için Animated API kullan
-    };
 
     return (
       <View style={styles.chatItemWrapper}>
-        <TouchableOpacity 
-          style={styles.chatItem}
+        <Pressable 
+          style={({ pressed }) => [
+            styles.chatItem,
+            pressed && { opacity: 0.9 }
+          ]}
           onPress={() => {
             console.log('👆 [CHAT] Normal tıklama:', item.chatName);
             handleChatPress(item);
@@ -735,10 +674,7 @@ export default function ChatScreen() {
             console.log('👆 [CHAT] Uzun basma algılandı:', item.chatName);
             handleLongPress(item);
           }}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-          activeOpacity={0.9}
-          delayLongPress={800} // 800ms uzun basma süresi (daha güvenilir)
+          delayLongPress={800} // 800ms uzun basma süresi
         >
           {/* Card Background */}
           <LinearGradient
@@ -867,7 +803,7 @@ export default function ChatScreen() {
               </View>
             </View>
           </View>
-        </TouchableOpacity>
+        </Pressable>
       </View>
     );
   };
@@ -933,6 +869,24 @@ export default function ChatScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>💬 Mesajlar</Text>
+        
+        {/* Test Butonu */}
+        <TouchableOpacity 
+          style={styles.testButton}
+          onPress={() => {
+            console.log('🧪 [TEST] Test butonu tıklandı');
+            if (combinedChatList.length > 0) {
+              const testChat = combinedChatList[0];
+              console.log('🧪 [TEST] Test chat:', testChat.chatName);
+              setSelectedChat(testChat);
+              setPreviewModalVisible(true);
+            } else {
+              Alert.alert('Test', 'Chat listesi boş!');
+            }
+          }}
+        >
+          <Text style={styles.testButtonText}>🧪 Test Modal</Text>
+        </TouchableOpacity>
         
         {/* Tab Buttons */}
         <View style={styles.tabContainer}>
@@ -1524,10 +1478,15 @@ const styles = StyleSheet.create({
 
   // Modal styles
   modalOverlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 9999,
   },
   modalBackground: {
     position: 'absolute',
@@ -1542,11 +1501,15 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
     position: 'relative',
+    zIndex: 10000,
+    elevation: 10,
   },
   modalContent: {
     flex: 1,
     borderRadius: 20,
     overflow: 'hidden',
+    backgroundColor: 'white',
+    padding: 20,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1650,6 +1613,18 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.7)',
     fontSize: 12,
     textAlign: 'center',
+  },
+  testButton: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginBottom: 10,
+  },
+  testButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
 
 });
