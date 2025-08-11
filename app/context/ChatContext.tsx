@@ -64,6 +64,11 @@ type ChatContextType = {
   // Hata yönetimi
   error: string | null;
   clearError: () => void;
+  
+  // Hybrid yaklaşım için yeni özellikler
+  isWebSocketConnected: boolean;
+  pendingMessages: Set<string>; // Gönderilen ama henüz WebSocket'ten gelmeyen mesajlar
+  forceRefreshMessages: () => Promise<void>;
 };
 
 // Context oluştur
@@ -91,9 +96,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [wsClient, setWsClient] = useState<VybeWebSocketClient | null>(null);
   const [typingUsers, setTypingUsers] = useState<Map<string, Set<string>>>(new Map());
   
+  // Hybrid yaklaşım için yeni state'ler
+  const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
+  const [pendingMessages, setPendingMessages] = useState<Set<string>>(new Set());
+  
   // Ref'ler
   const wsClientRef = useRef<VybeWebSocketClient | null>(null);
   const typingUsersRef = useRef<Map<string, Set<string>>>(new Map());
+  const pendingMessagesRef = useRef<Set<string>>(new Set());
+  const lastMessageCheckRef = useRef<number>(0);
 
   // Chat listesini yükle
   const refreshChatList = async () => {
@@ -246,42 +257,57 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Genel chat'e mesaj gönder
+  // Genel chat'e mesaj gönder - Hybrid yaklaşım
   const sendGlobalMessage = async (content: string): Promise<boolean> => {
     console.log('🔄 [CHAT CONTEXT] sendGlobalMessage başlatıldı:', {
       content: content.substring(0, 50),
       activeChat: activeChat ? 'var' : 'yok',
-      chatType: activeChat && 'chatType' in activeChat ? activeChat.chatType : 'bilinmiyor'
+      chatType: activeChat && 'chatType' in activeChat ? activeChat.chatType : 'bilinmiyor',
+      wsConnected: isWebSocketConnected
     });
     
     try {
       setError(null);
       
+      // 1. API'ye mesajı gönder
       const response = await chatApi.sendGlobalMessage({ content });
-      console.log('✅ [CHAT CONTEXT] API yanıtı alındı:', response.message.id);
+      const messageId = response.message.id.toString();
       
-      // Yeni mesajı aktif chat'e ekle
+      console.log('✅ [CHAT CONTEXT] API yanıtı alındı:', messageId);
+      
+      // 2. Pending mesajlara ekle (WebSocket'ten gelene kadar)
+      setPendingMessages(prev => new Set([...prev, messageId]));
+      pendingMessagesRef.current.add(messageId);
+      
+      // 3. Optimistic UI güncellemesi - mesajı hemen ekle
       if (activeChat && 'chatType' in activeChat && activeChat.chatType === 'GLOBAL') {
-        console.log('✅ [CHAT CONTEXT] Mesaj aktif chat\'e ekleniyor');
+        console.log('✅ [CHAT CONTEXT] Optimistic UI güncellemesi yapılıyor');
         addNewMessage(response.message);
-      } else {
-        console.warn('⚠️ [CHAT CONTEXT] Aktif chat global değil veya yok:', {
-          hasActiveChat: !!activeChat,
-          hasChatType: activeChat && 'chatType' in activeChat,
-          chatType: activeChat && 'chatType' in activeChat ? activeChat.chatType : null
-        });
       }
       
-      // Chat listesini güncelle (sadece mesaj eklenmediğinde)
+      // 4. WebSocket bağlantısı varsa mesajı bekle, yoksa polling yap
+      if (isWebSocketConnected) {
+        console.log('🔌 [CHAT CONTEXT] WebSocket bağlı, mesaj bekleniyor...');
+        
+        // 3 saniye içinde WebSocket'ten mesaj gelmezse polling yap
+        setTimeout(() => {
+          if (pendingMessagesRef.current.has(messageId)) {
+            console.log('⏰ [CHAT CONTEXT] WebSocket mesajı gelmedi, polling yapılıyor...');
+            forceRefreshMessages();
+          }
+        }, 3000);
+      } else {
+        console.log('🔌 [CHAT CONTEXT] WebSocket bağlı değil, polling yapılıyor...');
+        // WebSocket bağlı değilse hemen polling yap
+        setTimeout(() => forceRefreshMessages(), 1000);
+      }
+      
+      // 5. Chat listesini güncelle (sadece mesaj eklenmediğinde)
       if (!activeChat || !('chatType' in activeChat) || activeChat.chatType !== 'GLOBAL') {
         await refreshChatList();
       }
       
       console.log('✅ [CHAT CONTEXT] Genel mesaj gönderildi');
-      
-      // WebSocket ile real-time mesajlaşma kullanıldığı için polling'e gerek yok
-      // Mesaj WebSocket üzerinden gelecek
-      
       return true;
     } catch (error: any) {
       console.error('❌ [CHAT CONTEXT] Genel mesaj gönderilemedi:', error);
@@ -345,8 +371,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Yeni mesaj ekle (real-time için)
+  // Yeni mesaj ekle - Hybrid yaklaşım ile iyileştirildi
   const addNewMessage = (message: ChatMessage) => {
+    const messageId = message.id.toString();
+    
+    // Pending mesajlardan kaldır (WebSocket'ten geldi)
+    if (pendingMessagesRef.current.has(messageId)) {
+      console.log('✅ [CHAT CONTEXT] Pending mesaj WebSocket\'ten geldi:', messageId);
+      setPendingMessages(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(messageId);
+        return newSet;
+      });
+      pendingMessagesRef.current.delete(messageId);
+    }
+    
     setActiveChat(prevChat => {
       if (!prevChat || prevChat.chatRoomId !== message.chatRoomId) {
         console.log('⚠️ [CHAT CONTEXT] Mesaj eklenmedi - chat room uyumsuz:', {
@@ -489,7 +528,44 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // WebSocket event handler'ları
+  // Zorla mesaj yenileme (fallback mekanizması)
+  const forceRefreshMessages = async () => {
+    if (!activeChat || !activeChatId) {
+      console.log('⚠️ [CHAT CONTEXT] Aktif chat yok, refresh yapılamıyor');
+      return;
+    }
+    
+    const now = Date.now();
+    if (now - lastMessageCheckRef.current < 2000) {
+      console.log('⏰ [CHAT CONTEXT] Çok sık refresh, bekleniyor...');
+      return;
+    }
+    
+    lastMessageCheckRef.current = now;
+    
+    try {
+      console.log('🔄 [CHAT CONTEXT] Mesajlar zorla yenileniyor...');
+      
+      if ('chatType' in activeChat && activeChat.chatType === 'GLOBAL') {
+        const newChatData = await chatApi.getGlobalMessages(0, 20);
+        setActiveChat(newChatData);
+        
+        // Limit bilgisini de güncelle
+        if (newChatData.userMessageLimit) {
+          setMessageLimitInfo(newChatData.userMessageLimit);
+        }
+      } else {
+        const newChatData = await chatApi.getPrivateMessages(activeChatId, 0, 20);
+        setActiveChat(newChatData);
+      }
+      
+      console.log('✅ [CHAT CONTEXT] Mesajlar yenilendi');
+    } catch (error) {
+      console.error('❌ [CHAT CONTEXT] Mesaj yenileme hatası:', error);
+    }
+  };
+
+  // WebSocket event handler'ları - Hybrid yaklaşım ile güncellendi
   const setupWebSocketHandlers = (client: VybeWebSocketClient) => {
     client.setEventHandlers({
       onMessageReceived: (message: WebSocketMessage) => {
@@ -586,17 +662,37 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       onConnected: () => {
         console.log('✅ [CHAT CONTEXT] WebSocket bağlandı');
         setWsStatus(WebSocketStatus.CONNECTED);
+        setIsWebSocketConnected(true);
+        
+        // Bağlantı kurulduğunda pending mesajları kontrol et
+        if (pendingMessagesRef.current.size > 0) {
+          console.log('🔄 [CHAT CONTEXT] WebSocket bağlandı, pending mesajlar kontrol ediliyor...');
+          setTimeout(() => forceRefreshMessages(), 2000);
+        }
       },
       
       onDisconnected: () => {
         console.log('🔌 [CHAT CONTEXT] WebSocket bağlantısı kesildi');
         setWsStatus(WebSocketStatus.DISCONNECTED);
+        setIsWebSocketConnected(false);
+        
+        // Bağlantı koptuğunda pending mesajlar için polling başlat
+        if (pendingMessagesRef.current.size > 0) {
+          console.log('🔄 [CHAT CONTEXT] WebSocket koptu, polling başlatılıyor...');
+          setTimeout(() => forceRefreshMessages(), 1000);
+        }
       },
       
       onError: (error: string) => {
         console.error('❌ [CHAT CONTEXT] WebSocket hatası:', error);
         setWsStatus(WebSocketStatus.ERROR);
+        setIsWebSocketConnected(false);
         setError(`WebSocket hatası: ${error}`);
+        
+        // Hata durumunda da polling başlat
+        if (pendingMessagesRef.current.size > 0) {
+          setTimeout(() => forceRefreshMessages(), 1000);
+        }
       }
     });
   };
@@ -737,7 +833,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         updateMessageStatus,
         typingUsers,
         error,
-        clearError
+        clearError,
+        // Hybrid yaklaşım için yeni özellikler
+        isWebSocketConnected,
+        pendingMessages,
+        forceRefreshMessages
       }}
     >
       {children}
