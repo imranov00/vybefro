@@ -4,7 +4,7 @@ import { ZodiacSign } from '../types/zodiac';
 import { getRefreshToken, getToken, removeAllTokens, saveRefreshToken, saveToken } from '../utils/tokenStorage';
 
 // NGROK URL'i - değişebilir
-const NGROK_URL = 'https://e32e09c4aa9f.ngrok-free.app';
+const NGROK_URL = 'https://e8512bc164cb.ngrok-free.app';
 
 // Alternative endpoints (gerektiğinde eklenebilir)
 const FALLBACK_URLS: string[] = [

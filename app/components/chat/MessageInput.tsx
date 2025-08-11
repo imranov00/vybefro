@@ -3,15 +3,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-    Animated,
-    Keyboard,
-    Platform,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Animated,
+  Keyboard,
+  KeyboardEvent,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { MessageLimitInfo } from '../../services/api';
@@ -38,11 +38,11 @@ export default function MessageInput({
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   // Tema renklerini belirle
   const theme = {
@@ -61,6 +61,60 @@ export default function MessageInput({
   };
 
   const currentTheme = theme[currentMode];
+
+  // Klavye event listener'ları
+  useEffect(() => {
+    const keyboardWillShow = (event: KeyboardEvent) => {
+      setIsKeyboardVisible(true);
+      setKeyboardHeight(event.endCoordinates.height);
+    };
+
+    const keyboardWillHide = () => {
+      setIsKeyboardVisible(false);
+      setKeyboardHeight(0);
+    };
+
+    const keyboardDidShow = (event: KeyboardEvent) => {
+      setIsKeyboardVisible(true);
+      setKeyboardHeight(event.endCoordinates.height);
+    };
+
+    const keyboardDidHide = () => {
+      setIsKeyboardVisible(false);
+      setKeyboardHeight(0);
+    };
+
+    if (Platform.OS === 'ios') {
+      const showSubscription = Keyboard.addListener('keyboardWillShow', keyboardWillShow);
+      const hideSubscription = Keyboard.addListener('keyboardWillHide', keyboardWillHide);
+      
+      return () => {
+        showSubscription?.remove();
+        hideSubscription?.remove();
+      };
+    } else {
+      const showSubscription = Keyboard.addListener('keyboardDidShow', keyboardDidShow);
+      const hideSubscription = Keyboard.addListener('keyboardDidHide', keyboardDidHide);
+      
+      return () => {
+        showSubscription?.remove();
+        hideSubscription?.remove();
+      };
+    }
+  }, []);
+
+  // Input focus yönetimi
+  const focusInput = () => {
+    if (inputRef.current && !disabled) {
+      inputRef.current.focus();
+    }
+  };
+
+  const blurInput = () => {
+    if (inputRef.current) {
+      inputRef.current.blur();
+    }
+  };
 
   // Typing indicator yönetimi
   const handleTypingChange = (typing: boolean) => {
@@ -92,31 +146,9 @@ export default function MessageInput({
     }, 3000);
   };
 
-  // Klavye event listener'ları
-  useEffect(() => {
-    const keyboardDidShowListener = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      (event) => {
-        setKeyboardHeight(event.endCoordinates.height);
-        setIsKeyboardVisible(true);
-        // Klavye açıldığında input'u focus'la
-        setTimeout(() => {
-          inputRef.current?.focus();
-        }, 100);
-      }
-    );
-
-    const keyboardDidHideListener = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => {
-        setKeyboardHeight(0);
-        setIsKeyboardVisible(false);
-      }
-    );
-
+  // Component unmount'ta timeout'u temizle
+  React.useEffect(() => {
     return () => {
-      keyboardDidShowListener?.remove();
-      keyboardDidHideListener?.remove();
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
@@ -175,9 +207,10 @@ export default function MessageInput({
       
       if (success) {
         setMessage('');
-        inputRef.current?.blur();
         // Mesaj gönderildikten sonra typing'i durdur
         handleTypingChange(false);
+        // Klavyeyi kapat
+        blurInput();
       }
     } catch (error) {
       console.error('Mesaj gönderme hatası:', error);
@@ -216,127 +249,106 @@ export default function MessageInput({
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={[
-        styles.container,
-        isKeyboardVisible && Platform.OS === 'android' && { paddingBottom: keyboardHeight }
-      ]}>
-        {/* Limit bilgisi */}
-        {limitInfo && !limitInfo.canSendMessage && (
-          <View style={[styles.limitInfo, { borderTopColor: currentTheme.primary }]}>
-            <Text style={[styles.limitText, { color: currentTheme.primary }]}>
-              {formatLimitMessage()}
-            </Text>
-            {!limitInfo.isPremium && (
-              <TouchableOpacity 
-                style={styles.premiumButton}
-                onPress={handlePremiumPress}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.premiumButtonText, { color: currentTheme.primary }]}>
-                  Premium Ol
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-
-        {/* Input container */}
-        <View style={styles.inputContainer}>
-          {/* Text input */}
-          <TouchableOpacity 
-            style={[styles.textInputContainer, { borderColor: currentTheme.primary }]}
-            onPress={() => {
-              console.log('📱 [MESSAGE INPUT] Container pressed, focusing input');
-              inputRef.current?.focus();
-            }}
-            activeOpacity={1}
-          >
-            <TextInput
-              ref={inputRef}
-              style={styles.textInput}
-              placeholder={placeholder}
-              placeholderTextColor="#999"
-              value={message}
-              onChangeText={handleTextChange}
-              multiline
-              maxLength={500}
-              editable={!disabled && (limitInfo ? limitInfo.canSendMessage : true)}
-              onSubmitEditing={handleSendMessage}
-              blurOnSubmit={false}
-              returnKeyType="default"
-              autoCapitalize="sentences"
-              autoCorrect={true}
-              spellCheck={Platform.OS === 'ios'}
-              keyboardType="default"
-              textContentType="none"
-              autoComplete="off"
-              importantForAccessibility="yes"
-              accessible={true}
-              accessibilityLabel="Mesaj yazma alanı"
-              enablesReturnKeyAutomatically={true}
-              onFocus={() => {
-                console.log('📱 [MESSAGE INPUT] TextInput focused');
-              }}
-              onBlur={() => {
-                console.log('📱 [MESSAGE INPUT] TextInput blurred');
-              }}
-            />
-            
-            {/* Karakter sayısı */}
-            {message.length > 400 && (
-              <Text style={[styles.charCount, { 
-                color: message.length > 480 ? '#FF4757' : '#999' 
-              }]}>
-                {message.length}/500
+    <View style={[styles.container, { paddingBottom: isKeyboardVisible ? 0 : Platform.OS === 'ios' ? 34 : 12 }]}>
+      {/* Limit bilgisi */}
+      {limitInfo && !limitInfo.canSendMessage && (
+        <View style={[styles.limitInfo, { borderTopColor: currentTheme.primary }]}>
+          <Text style={[styles.limitText, { color: currentTheme.primary }]}>
+            {formatLimitMessage()}
+          </Text>
+          {!limitInfo.isPremium && (
+            <TouchableOpacity 
+              style={styles.premiumButton}
+              onPress={handlePremiumPress}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.premiumButtonText, { color: currentTheme.primary }]}>
+                Premium Ol
               </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* Input container */}
+      <View style={styles.inputContainer}>
+        {/* Text input */}
+        <TouchableOpacity 
+          style={[styles.textInputContainer, { borderColor: currentTheme.primary }]}
+          onPress={focusInput}
+          activeOpacity={0.8}
+        >
+          <TextInput
+            ref={inputRef}
+            style={styles.textInput}
+            placeholder={placeholder}
+            placeholderTextColor="#999"
+            value={message}
+            onChangeText={handleTextChange}
+            multiline
+            maxLength={500}
+            editable={!disabled && (limitInfo ? limitInfo.canSendMessage : true)}
+            onSubmitEditing={handleSendMessage}
+            blurOnSubmit={false}
+            returnKeyType="send"
+            enablesReturnKeyAutomatically={true}
+            textAlignVertical="center"
+            autoCorrect={false}
+            autoCapitalize="sentences"
+            keyboardType="default"
+            keyboardAppearance={Platform.OS === 'ios' ? 'dark' : 'default'}
+          />
+          
+          {/* Karakter sayısı */}
+          {message.length > 400 && (
+            <Text style={[styles.charCount, { 
+              color: message.length > 480 ? '#FF4757' : '#999' 
+            }]}>
+              {message.length}/500
+            </Text>
+          )}
+        </TouchableOpacity>
+
+        {/* Send button */}
+        <Animated.View style={[styles.sendButtonContainer, { transform: [{ scale: scaleAnim }] }]}>
+          <TouchableOpacity
+            style={[
+              styles.sendButton,
+              !canSendMessage() && styles.sendButtonDisabled
+            ]}
+            onPress={handleSendMessage}
+            disabled={!canSendMessage()}
+          >
+            {canSendMessage() && !isSending ? (
+              <LinearGradient
+                colors={currentTheme.gradient as any}
+                style={styles.sendButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Ionicons name="send" size={20} color="white" />
+              </LinearGradient>
+            ) : (
+              <View style={[styles.sendButtonGradient, styles.sendButtonDisabledBg]}>
+                <Ionicons 
+                  name={isSending ? "hourglass" : "send"} 
+                  size={20} 
+                  color="#999" 
+                />
+              </View>
             )}
           </TouchableOpacity>
-
-          {/* Send button */}
-          <Animated.View style={[styles.sendButtonContainer, { transform: [{ scale: scaleAnim }] }]}>
-            <TouchableOpacity
-              style={[
-                styles.sendButton,
-                !canSendMessage() && styles.sendButtonDisabled
-              ]}
-              onPress={handleSendMessage}
-              disabled={!canSendMessage()}
-            >
-              {canSendMessage() && !isSending ? (
-                <LinearGradient
-                  colors={currentTheme.gradient as any}
-                  style={styles.sendButtonGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <Ionicons name="send" size={20} color="white" />
-                </LinearGradient>
-              ) : (
-                <View style={[styles.sendButtonGradient, styles.sendButtonDisabledBg]}>
-                  <Ionicons 
-                    name={isSending ? "hourglass" : "send"} 
-                    size={20} 
-                    color="#999" 
-                  />
-                </View>
-              )}
-            </TouchableOpacity>
-          </Animated.View>
-        </View>
+        </Animated.View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     backgroundColor: 'white',
     borderTopWidth: 1,
     borderTopColor: '#E5E5E5',
-  },
-  container: {
-    backgroundColor: 'white',
   },
   
   // Limit bilgisi
@@ -378,34 +390,28 @@ const styles = StyleSheet.create({
   // Input container
   inputContainer: {
     flexDirection: 'row',
-    alignItems: Platform.OS === 'ios' ? 'flex-end' : 'center',
+    alignItems: 'flex-end',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingBottom: Platform.OS === 'ios' ? 10 : 12,
   },
   textInputContainer: {
     flex: 1,
     borderWidth: 1.5,
     borderRadius: 25,
     paddingHorizontal: 16,
-    paddingVertical: Platform.OS === 'ios' ? 8 : 6,
+    paddingVertical: 8,
     marginRight: 8,
     backgroundColor: '#F8F8F8',
-    minHeight: Platform.OS === 'ios' ? 44 : 40,
+    minHeight: 44,
     maxHeight: 120,
     position: 'relative',
-    justifyContent: Platform.OS === 'ios' ? 'center' : 'flex-start',
   },
   textInput: {
     fontSize: 16,
     color: '#333',
     maxHeight: 80,
-    minHeight: Platform.OS === 'ios' ? 28 : 24,
-    paddingTop: Platform.OS === 'ios' ? 8 : 6,
-    paddingBottom: Platform.OS === 'ios' ? 8 : 6,
-    paddingHorizontal: 0,
-    textAlignVertical: Platform.OS === 'android' ? 'center' : 'top',
-    lineHeight: Platform.OS === 'ios' ? 20 : 20,
+    paddingTop: Platform.OS === 'ios' ? 8 : 4,
+    paddingBottom: Platform.OS === 'ios' ? 8 : 4,
   },
   charCount: {
     position: 'absolute',

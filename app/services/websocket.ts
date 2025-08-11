@@ -78,11 +78,11 @@ export class VybeWebSocketClient {
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 5;
   private reconnectDelay: number = 1000; // 1 saniye
-  private pingInterval: number | null = null;
-  private pongTimeout: number | null = null;
+  private pingInterval: ReturnType<typeof setInterval> | null = null;
+  private pongTimeout: ReturnType<typeof setTimeout> | null = null;
   private eventHandlers: WebSocketEventHandlers = {};
   private joinedChats: Set<number> = new Set();
-  private typingTimeouts: Map<string, number> = new Map();
+  private typingTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private messageQueue: WebSocketMessage[] = [];
   private isProcessingQueue: boolean = false;
 

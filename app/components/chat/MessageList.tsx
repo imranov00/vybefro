@@ -1,10 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
-    Keyboard,
-    Platform,
     RefreshControl,
     StyleSheet,
     Text,
@@ -28,7 +26,12 @@ interface MessageListProps {
   otherUserName?: string;
 }
 
-export default function MessageList({
+export interface MessageListRef {
+  scrollToOffset: (params: { offset: number; animated?: boolean }) => void;
+  scrollToEnd: (params?: { animated?: boolean }) => void;
+}
+
+const MessageList = forwardRef<MessageListRef, MessageListProps>(({
   messages,
   currentUserId,
   isLoading,
@@ -39,11 +42,10 @@ export default function MessageList({
   emptyMessage = "Henüz mesaj yok. İlk mesajı sen gönder! 💬",
   typingUsers,
   otherUserName
-}: MessageListProps) {
+}, ref) => {
   const { currentMode } = useAuth();
   const flatListRef = useRef<FlatList>(null);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   // Tema renklerini belirle
   const theme = {
@@ -63,27 +65,15 @@ export default function MessageList({
 
   const currentTheme = theme[currentMode];
 
-  // Klavye durumunu takip et
-  useEffect(() => {
-    const keyboardDidShowListener = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => {
-        setKeyboardVisible(true);
-      }
-    );
-
-    const keyboardDidHideListener = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => {
-        setKeyboardVisible(false);
-      }
-    );
-
-    return () => {
-      keyboardDidShowListener?.remove();
-      keyboardDidHideListener?.remove();
-    };
-  }, []);
+  // Ref methods'ları expose et
+  useImperativeHandle(ref, () => ({
+    scrollToOffset: (params) => {
+      flatListRef.current?.scrollToOffset(params);
+    },
+    scrollToEnd: (params) => {
+      flatListRef.current?.scrollToEnd(params);
+    }
+  }));
 
   // Yeni mesaj geldiğinde scroll'u en alta kaydır
   useEffect(() => {
@@ -231,7 +221,11 @@ export default function MessageList({
       )}
     </View>
   );
-}
+});
+
+MessageList.displayName = 'MessageList';
+
+export default MessageList;
 
 const styles = StyleSheet.create({
   container: {

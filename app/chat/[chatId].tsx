@@ -2,11 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Alert,
     Image,
+    Keyboard,
     KeyboardAvoidingView,
+    KeyboardEvent,
     Platform,
     SafeAreaView,
     StatusBar,
@@ -41,6 +43,9 @@ export default function PrivateChatScreen() {
   const router = useRouter();
   const { chatId } = useLocalSearchParams();
   const [refreshing, setRefreshing] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const messageListRef = useRef<any>(null);
 
   // Tema renklerini belirle
   const theme = {
@@ -62,6 +67,57 @@ export default function PrivateChatScreen() {
 
   // Chat ID'yi number'a çevir
   const chatRoomId = parseInt(chatId as string, 10);
+
+  // Klavye event listener'ları
+  useEffect(() => {
+    const keyboardWillShow = (event: KeyboardEvent) => {
+      setIsKeyboardVisible(true);
+      setKeyboardHeight(event.endCoordinates.height);
+      
+      // Klavye açıldığında mesaj listesini en alta kaydır
+      setTimeout(() => {
+        messageListRef.current?.scrollToOffset?.({ offset: 0, animated: true });
+      }, 100);
+    };
+
+    const keyboardWillHide = () => {
+      setIsKeyboardVisible(false);
+      setKeyboardHeight(0);
+    };
+
+    const keyboardDidShow = (event: KeyboardEvent) => {
+      setIsKeyboardVisible(true);
+      setKeyboardHeight(event.endCoordinates.height);
+      
+      // Klavye açıldığında mesaj listesini en alta kaydır
+      setTimeout(() => {
+        messageListRef.current?.scrollToOffset?.({ offset: 0, animated: true });
+      }, 100);
+    };
+
+    const keyboardDidHide = () => {
+      setIsKeyboardVisible(false);
+      setKeyboardHeight(0);
+    };
+
+    if (Platform.OS === 'ios') {
+      const showSubscription = Keyboard.addListener('keyboardWillShow', keyboardWillShow);
+      const hideSubscription = Keyboard.addListener('keyboardWillHide', keyboardWillHide);
+      
+      return () => {
+        showSubscription?.remove();
+        hideSubscription?.remove();
+      };
+    } else {
+      const showSubscription = Keyboard.addListener('keyboardDidShow', keyboardDidShow);
+      const hideSubscription = Keyboard.addListener('keyboardDidHide', keyboardDidHide);
+      
+      return () => {
+        showSubscription?.remove();
+        hideSubscription?.remove();
+      };
+    }
+  }, []);
 
   // Sayfa yüklendiğinde özel chat mesajlarını getir ve WebSocket'e katıl
   useFocusEffect(
@@ -278,123 +334,122 @@ export default function PrivateChatScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView 
-        style={styles.keyboardAvoidingView}
+        style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? -64 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        <View style={styles.container}>
-          <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-          
-          {/* Arka plan gradient */}
-          <LinearGradient colors={currentTheme.gradient as any} style={styles.background} />
-
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
-          <Ionicons name="arrow-back" size={24} color="white" />
-        </TouchableOpacity>
+        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
         
-        <TouchableOpacity style={styles.headerInfo} onPress={handleViewProfile}>
-          <View style={styles.avatarContainer}>
-            {chatInfo.otherUser?.profileImageUrl ? (
-              <Image 
-                source={{ uri: chatInfo.otherUser.profileImageUrl }}
-                style={styles.headerAvatar}
-              />
-            ) : (
-              <View style={[styles.headerAvatarPlaceholder, { backgroundColor: currentTheme.secondary }]}>
-                <Text style={styles.headerAvatarText}>
-                  {chatInfo.otherUser?.displayName?.charAt(0).toUpperCase() || '?'}
-                </Text>
-              </View>
-            )}
-            
-            {/* Online indicator */}
-            {chatInfo.otherUser?.isOnline && (
-              <View style={styles.onlineIndicator} />
-            )}
-          </View>
+        {/* Arka plan gradient */}
+        <LinearGradient colors={currentTheme.gradient as any} style={styles.background} />
 
-          <View style={styles.userInfo}>
-            <View style={styles.nameContainer}>
-              <Text style={styles.userName} numberOfLines={1}>
-                {chatInfo.otherUser?.displayName || 'Bilinmeyen Kullanıcı'}
-              </Text>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
+            <Ionicons name="arrow-back" size={24} color="white" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.headerInfo} onPress={handleViewProfile}>
+            <View style={styles.avatarContainer}>
+              {chatInfo.otherUser?.profileImageUrl ? (
+                <Image 
+                  source={{ uri: chatInfo.otherUser.profileImageUrl }}
+                  style={styles.headerAvatar}
+                />
+              ) : (
+                <View style={[styles.headerAvatarPlaceholder, { backgroundColor: currentTheme.secondary }]}>
+                  <Text style={styles.headerAvatarText}>
+                    {chatInfo.otherUser?.displayName?.charAt(0).toUpperCase() || '?'}
+                  </Text>
+                </View>
+              )}
               
-              {/* Match type icon */}
-              <Text style={styles.matchIcon}>
-                {getMatchTypeIcon(chatInfo.matchType)}
-              </Text>
-              
-              {/* Premium badge */}
-              {chatInfo.otherUser?.isPremium && (
-                <Text style={styles.premiumBadge}>👑</Text>
+              {/* Online indicator */}
+              {chatInfo.otherUser?.isOnline && (
+                <View style={styles.onlineIndicator} />
               )}
             </View>
-            
-            <Text style={styles.userStatus}>
-              {chatInfo.otherUser?.activityStatus || 'Bilinmeyen'}
-            </Text>
-            {/* WebSocket durumu */}
-            <View style={styles.wsStatusContainer}>
-              <View style={[
-                styles.wsStatusIndicator, 
-                { backgroundColor: wsStatus === 'CONNECTED' ? '#00FF7F' : '#FF4757' }
-              ]} />
-              <Text style={styles.wsStatusText}>
-                {wsStatus === 'CONNECTED' ? 'Çevrimiçi' : 'Bağlantı yok'}
+
+            <View style={styles.userInfo}>
+              <View style={styles.nameContainer}>
+                <Text style={styles.userName} numberOfLines={1}>
+                  {chatInfo.otherUser?.displayName || 'Bilinmeyen Kullanıcı'}
+                </Text>
+                
+                {/* Match type icon */}
+                <Text style={styles.matchIcon}>
+                  {getMatchTypeIcon(chatInfo.matchType)}
+                </Text>
+                
+                {/* Premium badge */}
+                {chatInfo.otherUser?.isPremium && (
+                  <Text style={styles.premiumBadge}>👑</Text>
+                )}
+              </View>
+              
+              <Text style={styles.userStatus}>
+                {chatInfo.otherUser?.activityStatus || 'Bilinmeyen'}
               </Text>
+              {/* WebSocket durumu */}
+              <View style={styles.wsStatusContainer}>
+                <View style={[
+                  styles.wsStatusIndicator, 
+                  { backgroundColor: wsStatus === 'CONNECTED' ? '#00FF7F' : '#FF4757' }
+                ]} />
+                <Text style={styles.wsStatusText}>
+                  {wsStatus === 'CONNECTED' ? 'Çevrimiçi' : 'Bağlantı yok'}
+                </Text>
+              </View>
             </View>
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
 
-        <TouchableOpacity style={styles.moreButton}>
-          <Ionicons name="ellipsis-vertical" size={20} color="white" />
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity style={styles.moreButton}>
+            <Ionicons name="ellipsis-vertical" size={20} color="white" />
+          </TouchableOpacity>
+        </View>
 
-      {/* Uyumluluk bilgisi */}
-      {chatInfo.compatibilityScore && (
-        <View style={styles.compatibilityContainer}>
-          <Text style={styles.compatibilityText}>
-            💫 Uyumluluk: %{chatInfo.compatibilityScore}
-          </Text>
-          {chatInfo.matchDate && (
-            <Text style={styles.matchDateText}>
-              Eşleşme: {chatInfo.matchDate}
+        {/* Uyumluluk bilgisi */}
+        {chatInfo.compatibilityScore && (
+          <View style={styles.compatibilityContainer}>
+            <Text style={styles.compatibilityText}>
+              💫 Uyumluluk: %{chatInfo.compatibilityScore}
             </Text>
+            {chatInfo.matchDate && (
+              <Text style={styles.matchDateText}>
+                Eşleşme: {chatInfo.matchDate}
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* Mesaj listesi */}
+        <View style={[styles.messagesContainer, { marginBottom: isKeyboardVisible ? 0 : 0 }]}>
+          {activeChat && (
+            <MessageList
+              ref={messageListRef}
+              messages={activeChat.messages || []}
+              currentUserId={userProfile?.id || 0}
+              isLoading={isLoadingMessages}
+              hasMore={activeChat.hasMore}
+              onLoadMore={loadMoreMessages}
+              onRefresh={handleRefresh}
+              isRefreshing={refreshing}
+              emptyMessage={`${chatInfo.otherUser?.displayName || 'Bu kişi'} ile sohbet başlasın! 💬`}
+              typingUsers={typingUsers.get(chatRoomId)}
+              otherUserName={chatInfo.otherUser?.displayName}
+            />
           )}
         </View>
-      )}
 
-      {/* Mesaj listesi */}
-      <View style={styles.messagesContainer}>
-        {activeChat && (
-          <MessageList
-            messages={activeChat.messages || []}
-            currentUserId={userProfile?.id || 0}
-            isLoading={isLoadingMessages}
-            hasMore={activeChat.hasMore}
-            onLoadMore={loadMoreMessages}
-            onRefresh={handleRefresh}
-            isRefreshing={refreshing}
-            emptyMessage={`${chatInfo.otherUser?.displayName || 'Bu kişi'} ile sohbet başlasın! 💬`}
-            typingUsers={typingUsers.get(chatRoomId)}
-            otherUserName={chatInfo.otherUser?.displayName}
-          />
-        )}
-      </View>
-
-      {/* Mesaj input */}
-      <MessageInput
-        onSendMessage={handleSendMessage}
-        limitInfo={null} // Özel mesajlarda limit yok
-        placeholder={`${chatInfo.otherUser?.displayName || 'Kullanıcı'}'ya mesaj yaz...`}
-        disabled={isLoadingMessages}
-        chatRoomId={chatRoomId}
-        onTypingChange={(isTyping) => sendTypingIndicator(chatRoomId, isTyping)}
-      />
-        </View>
+        {/* Mesaj input */}
+        <MessageInput
+          onSendMessage={handleSendMessage}
+          limitInfo={null} // Özel mesajlarda limit yok
+          placeholder={`${chatInfo.otherUser?.displayName || 'Kullanıcı'}'ya mesaj yaz...`}
+          disabled={isLoadingMessages}
+          chatRoomId={chatRoomId}
+          onTypingChange={(isTyping) => sendTypingIndicator(chatRoomId, isTyping)}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -403,11 +458,7 @@ export default function PrivateChatScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: 'transparent',
-  },
-  keyboardAvoidingView: {
-    flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: '#8000FF',
   },
   container: {
     flex: 1,
@@ -425,7 +476,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 10 : 10,
+    paddingTop: Platform.OS === 'ios' ? 10 : 20,
     paddingBottom: 16,
   },
   backButton: {
@@ -535,7 +586,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderTopLeftRadius: 25,
     borderTopRightRadius: 25,
-    marginBottom: Platform.OS === 'ios' ? 0 : 0,
   },
 
   // Error state
