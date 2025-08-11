@@ -279,36 +279,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       
       console.log('✅ [CHAT CONTEXT] Genel mesaj gönderildi');
       
-      // Mesaj gönderildikten sonra 10 saniye boyunca çok hızlı polling (500ms)
-      const originalFastPolling = fastPolling;
-      setFastPolling(true);
-      
-      // 500ms'lik süper hızlı polling için geçici interval
-      const superFastInterval = setInterval(async () => {
-        try {
-          if (activeChat && 'chatType' in activeChat && activeChat.chatType === 'GLOBAL') {
-            const newChatData = await chatApi.getGlobalMessages(0, 5);
-            const currentMessageIds = activeChat.messages.map(m => m.id);
-            const newMessages = newChatData.messages.filter(m => !currentMessageIds.includes(m.id));
-            
-            if (newMessages.length > 0) {
-              console.log(`⚡ [CHAT CONTEXT] Süper hızlı polling - ${newMessages.length} yeni mesaj`);
-              newMessages.reverse().forEach(message => {
-                addNewMessage(message);
-              });
-            }
-          }
-        } catch (error) {
-          console.warn('⚠️ [CHAT CONTEXT] Süper hızlı polling hatası:', error);
-        }
-      }, 500);
-      
-      // 10 saniye sonra normal polling'e dön
-      setTimeout(() => {
-        clearInterval(superFastInterval);
-        setFastPolling(originalFastPolling);
-        console.log('⏸️ [CHAT CONTEXT] Süper hızlı polling durduruldu');
-      }, 10000);
+      // WebSocket ile real-time mesajlaşma kullanıldığı için polling'e gerek yok
+      // Mesaj WebSocket üzerinden gelecek
       
       return true;
     } catch (error: any) {
@@ -684,86 +656,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Real-time updates için hızlı polling (genel chat için 2 saniye, özel chat için 5 saniye)
-  useEffect(() => {
-    let interval: any;
-    
-    const startPolling = () => {
-      // Aktif chat'e göre polling süresi belirle
-      const chatType = activeChat && 'chatType' in activeChat ? 'GLOBAL' : 'PRIVATE';
-      let pollingInterval;
-      
-      if (chatType === 'GLOBAL') {
-        // Genel chat için: hızlı modda 3 saniye, normal modda 10 saniye
-        pollingInterval = fastPolling ? 3000 : 10000;
-      } else {
-        // Özel chat için: hızlı modda 5 saniye, normal modda 15 saniye
-        pollingInterval = fastPolling ? 5000 : 15000;
-      }
-      
-      interval = setInterval(async () => {
-        try {
-          // Sadece aktif chat varsa ve ekran görünürse güncelle
-          if (activeChatId && !isLoadingMessages && activeChat) {
-            console.log(`🔄 [CHAT CONTEXT] Real-time güncelleme - ${chatType} (${pollingInterval}ms)`);
-            
-            let newChatData: GlobalChatResponse | PrivateChatResponse;
-            
-            if (chatType === 'GLOBAL') {
-              newChatData = await chatApi.getGlobalMessages(0, 20);
-              
-              // Global chat için aktif kullanıcı sayısını da güncelle
-              setActiveChat(prevChat => {
-                if (!prevChat || !('activeUserCount' in prevChat)) return prevChat;
-                return {
-                  ...prevChat,
-                  activeUserCount: (newChatData as GlobalChatResponse).activeUserCount
-                };
-              });
-            } else {
-              newChatData = await chatApi.getPrivateMessages(activeChatId, 0, 20);
-            }
-            
-            // Yeni mesajlar varsa güncelle
-            const currentMessageIds = activeChat.messages.map(m => m.id);
-            const newMessages = newChatData.messages.filter(m => !currentMessageIds.includes(m.id));
-            
-            if (newMessages.length > 0) {
-              console.log(`🆕 [CHAT CONTEXT] ${newMessages.length} yeni mesaj bulundu (${chatType})`);
-              
-              // Yeni mesajları tek tek ekle (duplicate kontrolü ile)
-              newMessages.reverse().forEach(message => {
-                addNewMessage(message);
-              });
-              
-              // Chat listesini sadece yeni mesaj geldiğinde güncelle (daha az sıklıkta)
-              if (chatType === 'GLOBAL') {
-                // Global chat için sadece yeni mesaj geldiğinde güncelle
-                setTimeout(() => refreshChatList(), 1000);
-              } else {
-                // Özel chat için private chat listesini güncelle
-                setTimeout(() => refreshPrivateChats(), 1000);
-              }
-            }
-          }
-        } catch (error) {
-          console.warn('⚠️ [CHAT CONTEXT] Real-time güncelleme hatası:', error);
-          // Sessizce geç, kullanıcıyı rahatsız etme
-        }
-      }, pollingInterval);
-    };
-
-    // Aktif chat varsa polling başlat
-    if (activeChatId && activeChat) {
-      startPolling();
-    }
-
-    return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
-    };
-  }, [activeChatId, isLoadingMessages, activeChat, fastPolling]);
+  // Polling'i tamamen devre dışı bırak - sadece WebSocket kullan
+  // useEffect(() => {
+  //   console.log('🔌 [CHAT CONTEXT] Polling devre dışı - sadece WebSocket kullanılıyor');
+  // }, []);
 
   // Mesaj limiti countdown'u için interval
   useEffect(() => {
