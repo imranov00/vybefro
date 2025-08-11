@@ -22,7 +22,7 @@ interface MessageListProps {
   onRefresh: () => void;
   isRefreshing: boolean;
   emptyMessage?: string;
-  typingUsers?: Set<number>;
+  typingUsers?: Set<string>;
   otherUserName?: string;
 }
 

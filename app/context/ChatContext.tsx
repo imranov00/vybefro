@@ -1,12 +1,12 @@
 import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
-import { chatApi, ChatListItem, ChatMessage, GlobalChatResponse, MessageLimitInfo, PrivateChatResponse, PrivateChatRoom } from '../services/api';
+import { chatApi, ChatListItem, ChatMessage, GlobalChatResponse, MessageLimitInfo, PrivateChatResponse, PrivateChatRoom, userApi } from '../services/api';
 import {
-    initializeWebSocket,
-    VybeWebSocketClient,
-    WebSocketMessage,
-    WebSocketMessageType,
-    WebSocketStatus
+  initializeWebSocket,
+  VybeWebSocketClient,
+  WebSocketMessage,
+  WebSocketMessageType,
+  WebSocketStatus
 } from '../services/websocket';
 import { getToken } from '../utils/tokenStorage';
 
@@ -53,13 +53,13 @@ type ChatContextType = {
   wsClient: VybeWebSocketClient | null;
   
   // WebSocket işlemleri
-  joinChatRoom: (chatRoomId: number) => void;
-  leaveChatRoom: (chatRoomId: number) => void;
-  sendTypingIndicator: (chatRoomId: number, isTyping: boolean) => void;
-  updateMessageStatus: (messageId: number, chatRoomId: number, status: 'DELIVERED' | 'READ') => void;
+  joinChatRoom: (chatRoomId: string) => void;
+  leaveChatRoom: (chatRoomId: string) => void;
+  sendTypingIndicator: (chatRoomId: string, isTyping: boolean) => void;
+  updateMessageStatus: (messageId: string, chatRoomId: string, status: 'DELIVERED' | 'READ') => void;
   
   // Typing indicator'lar
-  typingUsers: Map<number, Set<number>>; // chatRoomId -> Set<userId>
+  typingUsers: Map<string, Set<string>>; // chatRoomId -> Set<userId>
   
   // Hata yönetimi
   error: string | null;
@@ -89,11 +89,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // WebSocket state'leri
   const [wsStatus, setWsStatus] = useState<WebSocketStatus>(WebSocketStatus.DISCONNECTED);
   const [wsClient, setWsClient] = useState<VybeWebSocketClient | null>(null);
-  const [typingUsers, setTypingUsers] = useState<Map<number, Set<number>>>(new Map());
+  const [typingUsers, setTypingUsers] = useState<Map<string, Set<string>>>(new Map());
   
   // Ref'ler
   const wsClientRef = useRef<VybeWebSocketClient | null>(null);
-  const typingUsersRef = useRef<Map<number, Set<number>>>(new Map());
+  const typingUsersRef = useRef<Map<string, Set<string>>>(new Map());
 
   // Chat listesini yükle
   const refreshChatList = async () => {
@@ -491,27 +491,27 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   };
 
   // WebSocket fonksiyonları
-  const joinChatRoom = (chatRoomId: number) => {
+  const joinChatRoom = (chatRoomId: string) => {
     if (wsClientRef.current) {
       wsClientRef.current.joinChat(chatRoomId);
       console.log('👥 [CHAT CONTEXT] Chat odasına katılındı:', chatRoomId);
     }
   };
 
-  const leaveChatRoom = (chatRoomId: number) => {
+  const leaveChatRoom = (chatRoomId: string) => {
     if (wsClientRef.current) {
       wsClientRef.current.leaveChat(chatRoomId);
       console.log('👋 [CHAT CONTEXT] Chat odasından çıkıldı:', chatRoomId);
     }
   };
 
-  const sendTypingIndicator = (chatRoomId: number, isTyping: boolean) => {
+  const sendTypingIndicator = (chatRoomId: string, isTyping: boolean) => {
     if (wsClientRef.current) {
       wsClientRef.current.sendTypingIndicator(chatRoomId, isTyping);
     }
   };
 
-  const updateMessageStatus = (messageId: number, chatRoomId: number, status: 'DELIVERED' | 'READ') => {
+  const updateMessageStatus = (messageId: string, chatRoomId: string, status: 'DELIVERED' | 'READ') => {
     if (wsClientRef.current) {
       wsClientRef.current.updateMessageStatus(messageId, chatRoomId, status);
     }
@@ -521,15 +521,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const setupWebSocketHandlers = (client: VybeWebSocketClient) => {
     client.setEventHandlers({
       onMessageReceived: (message: WebSocketMessage) => {
-        console.log('📥 [CHAT CONTEXT] WebSocket mesaj alındı:', message.type);
+        console.log('📥 [CHAT CONTEXT] WebSocket mesaj alındı:', message.action);
         
-        if (message.type === WebSocketMessageType.MESSAGE_RECEIVED && message.data) {
+        if (message.action === WebSocketMessageType.MESSAGE_RECEIVED && message.data) {
           const chatMessage = message.data as ChatMessage;
           addNewMessage(chatMessage);
         }
       },
       
-      onMessageDelivered: (messageId: number, chatRoomId: number) => {
+      onMessageDelivered: (messageId: string, chatRoomId: string) => {
         console.log('✅ [CHAT CONTEXT] Mesaj iletildi:', messageId, chatRoomId);
         // Mesaj durumunu güncelle
         setActiveChat(prevChat => {
@@ -538,13 +538,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           return {
             ...prevChat,
             messages: prevChat.messages.map(msg => 
-              msg.id === messageId ? { ...msg, status: 'DELIVERED' as const } : msg
+              msg.id.toString() === messageId ? { ...msg, status: 'DELIVERED' as const } : msg
             )
           };
         });
       },
       
-      onMessageRead: (messageId: number, chatRoomId: number) => {
+      onMessageRead: (messageId: string, chatRoomId: string) => {
         console.log('👁️ [CHAT CONTEXT] Mesaj okundu:', messageId, chatRoomId);
         // Mesaj durumunu güncelle
         setActiveChat(prevChat => {
@@ -553,13 +553,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           return {
             ...prevChat,
             messages: prevChat.messages.map(msg => 
-              msg.id === messageId ? { ...msg, status: 'READ' as const } : msg
+              msg.id.toString() === messageId ? { ...msg, status: 'READ' as const } : msg
             )
           };
         });
       },
       
-      onTypingStart: (userId: number, chatRoomId: number, userName: string) => {
+      onTypingStart: (userId: string, chatRoomId: string, userName: string) => {
         console.log('⌨️ [CHAT CONTEXT] Yazıyor:', userName, chatRoomId);
         
         setTypingUsers(prev => {
@@ -571,7 +571,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         });
       },
       
-      onTypingStop: (userId: number, chatRoomId: number) => {
+      onTypingStop: (userId: string, chatRoomId: string) => {
         console.log('⏹️ [CHAT CONTEXT] Yazmayı durdurdu:', userId, chatRoomId);
         
         setTypingUsers(prev => {
@@ -587,24 +587,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         });
       },
       
-      onUserOnline: (userId: number) => {
+      onUserOnline: (userId: string) => {
         console.log('🟢 [CHAT CONTEXT] Kullanıcı online:', userId);
         // Private chat listesinde kullanıcıyı online yap
         setPrivateChatList(prev => 
           prev.map(chat => 
-            chat.otherUser.id === userId 
+            chat.otherUser.id.toString() === userId 
               ? { ...chat, otherUser: { ...chat.otherUser, isOnline: true } }
               : chat
           )
         );
       },
       
-      onUserOffline: (userId: number) => {
+      onUserOffline: (userId: string) => {
         console.log('🔴 [CHAT CONTEXT] Kullanıcı offline:', userId);
         // Private chat listesinde kullanıcıyı offline yap
         setPrivateChatList(prev => 
           prev.map(chat => 
-            chat.otherUser.id === userId 
+            chat.otherUser.id.toString() === userId 
               ? { ...chat, otherUser: { ...chat.otherUser, isOnline: false } }
               : chat
           )
@@ -638,10 +638,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // Kullanıcı bilgisini al
+      let userId: string;
+      try {
+        const userProfile = await userApi.getProfile();
+        userId = userProfile.id.toString();
+        console.log('👤 [CHAT CONTEXT] Kullanıcı ID alındı:', userId);
+      } catch (error) {
+        console.error('❌ [CHAT CONTEXT] Kullanıcı bilgisi alınamadı:', error);
+        setError('Kullanıcı bilgisi alınamadı');
+        return;
+      }
+
       console.log('🔌 [CHAT CONTEXT] WebSocket bağlantısı başlatılıyor...');
       setWsStatus(WebSocketStatus.CONNECTING);
       
-      const client = await initializeWebSocket(token, 'ws://localhost:8080');
+      const client = await initializeWebSocket(token, userId);
       wsClientRef.current = client;
       setWsClient(client);
       

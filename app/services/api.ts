@@ -16,6 +16,13 @@ const FALLBACK_URLS: string[] = [
 // Aktif API URL
 let API_URL = NGROK_URL;
 
+// WebSocket URL'i (API URL'inden türetilir)
+export const getWebSocketUrl = (): string => {
+  const baseUrl = API_URL.replace('https://', 'wss://').replace('http://', 'ws://');
+  console.log('🔗 [API] WebSocket URL oluşturuldu:', baseUrl, 'API URL:', API_URL);
+  return baseUrl;
+};
+
 console.log('🔗 [API CONFIG] Base URL:', API_URL);
 
 // Network durumunu kontrol eden fonksiyon

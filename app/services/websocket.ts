@@ -1,8 +1,9 @@
+import { Client, StompSubscription } from '@stomp/stompjs';
 
-// WebSocket mesaj tipleri
+// WebSocket mesaj tipleri (Backend ile uyumlu)
 export enum WebSocketMessageType {
   // Mesaj işlemleri
-  SEND_MESSAGE = 'SEND_MESSAGE',
+  MESSAGE_SENT = 'MESSAGE_SENT',
   MESSAGE_RECEIVED = 'MESSAGE_RECEIVED',
   MESSAGE_DELIVERED = 'MESSAGE_DELIVERED',
   MESSAGE_READ = 'MESSAGE_READ',
@@ -16,8 +17,8 @@ export enum WebSocketMessageType {
   USER_OFFLINE = 'USER_OFFLINE',
   
   // Chat odası yönetimi
-  JOIN_CHAT = 'JOIN_CHAT',
-  LEAVE_CHAT = 'LEAVE_CHAT',
+  CHAT_ROOM_CREATED = 'CHAT_ROOM_CREATED',
+  CHAT_ROOM_DELETED = 'CHAT_ROOM_DELETED',
   USER_JOINED = 'USER_JOINED',
   USER_LEFT = 'USER_LEFT',
   
@@ -26,34 +27,50 @@ export enum WebSocketMessageType {
   DISCONNECTED = 'DISCONNECTED',
   ERROR = 'ERROR',
   PING = 'PING',
-  PONG = 'PONG',
-  
-  // Bildirimler
-  NOTIFICATION = 'NOTIFICATION',
-  MESSAGE_UPDATE = 'MESSAGE_UPDATE'
+  PONG = 'PONG'
 }
 
-// WebSocket mesaj interface'i
+// WebSocket mesaj interface'i (Backend DTO ile uyumlu)
 export interface WebSocketMessage {
-  type: WebSocketMessageType;
-  data: any;
-  timestamp: string;
-  chatRoomId?: number;
-  senderId?: number;
-  receiverId?: number;
+  action?: WebSocketMessageType;
+  chatRoomId?: string;
+  senderId?: string;
+  receiverId?: string;
+  content?: string;
+  messageType?: string;
+  timestamp?: string;
+  messageId?: string;
+  data?: any;
+  error?: string;
+  
+  // Typing indicator için
+  isTyping?: boolean;
+  typingUserId?: string;
+  
+  // Online/offline durumu için
+  isOnline?: boolean;
+  userId?: string;
+  lastSeen?: string;
+  
+  // Message status için
+  messageStatus?: string; // SENT, DELIVERED, READ
+  
+  // Chat room bilgileri için
+  chatRoomName?: string;
+  chatRoomType?: string; // GLOBAL, PRIVATE
 }
 
 // WebSocket event handler'ları
 export interface WebSocketEventHandlers {
   onMessageReceived?: (message: WebSocketMessage) => void;
-  onMessageDelivered?: (messageId: number, chatRoomId: number) => void;
-  onMessageRead?: (messageId: number, chatRoomId: number) => void;
-  onTypingStart?: (userId: number, chatRoomId: number, userName: string) => void;
-  onTypingStop?: (userId: number, chatRoomId: number) => void;
-  onUserOnline?: (userId: number) => void;
-  onUserOffline?: (userId: number) => void;
-  onUserJoined?: (userId: number, chatRoomId: number, userName: string) => void;
-  onUserLeft?: (userId: number, chatRoomId: number, userName: string) => void;
+  onMessageDelivered?: (messageId: string, chatRoomId: string) => void;
+  onMessageRead?: (messageId: string, chatRoomId: string) => void;
+  onTypingStart?: (userId: string, chatRoomId: string, userName: string) => void;
+  onTypingStop?: (userId: string, chatRoomId: string) => void;
+  onUserOnline?: (userId: string) => void;
+  onUserOffline?: (userId: string) => void;
+  onUserJoined?: (userId: string, chatRoomId: string, userName: string) => void;
+  onUserLeft?: (userId: string, chatRoomId: string, userName: string) => void;
   onConnected?: () => void;
   onDisconnected?: () => void;
   onError?: (error: string) => void;
@@ -71,24 +88,35 @@ export enum WebSocketStatus {
 
 // VybeWebSocketClient sınıfı
 export class VybeWebSocketClient {
-  private ws: WebSocket | null = null;
+  private stompClient: Client | null = null;
   private url: string;
   private token: string;
+  private userId: string | null = null;
   private status: WebSocketStatus = WebSocketStatus.DISCONNECTED;
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 5;
   private reconnectDelay: number = 1000; // 1 saniye
-  private pingInterval: ReturnType<typeof setInterval> | null = null;
-  private pongTimeout: ReturnType<typeof setTimeout> | null = null;
   private eventHandlers: WebSocketEventHandlers = {};
-  private joinedChats: Set<number> = new Set();
+  private joinedChats: Set<string> = new Set();
   private typingTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private messageQueue: WebSocketMessage[] = [];
   private isProcessingQueue: boolean = false;
+  private subscriptions: Map<string, StompSubscription> = new Map();
 
-  constructor(token: string, baseUrl: string = 'ws://localhost:8080') {
+  constructor(token: string, userId: string, baseUrl?: string) {
     this.token = token;
-    this.url = `${baseUrl}/ws?token=${token}`;
+    this.userId = userId;
+    
+    // Eğer baseUrl verilmemişse, API servisinden al
+    if (!baseUrl) {
+      // API servisinden URL'i al (circular dependency'yi önlemek için dinamik import)
+      const apiModule = require('./api');
+      baseUrl = apiModule.getWebSocketUrl();
+    }
+    
+    // Native WebSocket endpoint'i kullan
+    this.url = `${baseUrl}/ws-native`;
+    console.log('🔗 [WEBSOCKET] Native WebSocket URL oluşturuldu:', this.url);
   }
 
   // Event handler'ları ayarla
@@ -106,42 +134,50 @@ export class VybeWebSocketClient {
 
       try {
         this.status = WebSocketStatus.CONNECTING;
-        console.log('🔌 [WEBSOCKET] Bağlantı kuruluyor:', this.url);
+        console.log('🔌 [WEBSOCKET] Native WebSocket bağlantısı kuruluyor:', this.url);
 
-        this.ws = new WebSocket(this.url);
+        // STOMP Client oluştur
+        this.stompClient = new Client({
+          brokerURL: this.url,
+          connectHeaders: {
+            'Authorization': `Bearer ${this.token}`
+          },
+          reconnectDelay: this.reconnectDelay,
+          heartbeatIncoming: 10000,
+          heartbeatOutgoing: 10000,
+          debug: (str) => {
+            console.log('🔍 [STOMP DEBUG]', str);
+          }
+        });
 
-        this.ws.onopen = () => {
-          console.log('✅ [WEBSOCKET] Bağlantı başarılı');
+        // Bağlantı başarılı olduğunda
+        this.stompClient.onConnect = (frame) => {
+          console.log('✅ [WEBSOCKET] STOMP bağlantısı başarılı:', frame);
           this.status = WebSocketStatus.CONNECTED;
           this.reconnectAttempts = 0;
-          this.startPingPong();
           this.processMessageQueue();
+          this.setupSubscriptions();
           this.eventHandlers.onConnected?.();
           resolve();
         };
 
-        this.ws.onmessage = (event) => {
-          this.handleMessage(event.data);
-        };
-
-        this.ws.onclose = (event) => {
-          console.log('🔌 [WEBSOCKET] Bağlantı kapandı:', event.code, event.reason);
-          this.status = WebSocketStatus.DISCONNECTED;
-          this.stopPingPong();
-          this.eventHandlers.onDisconnected?.();
-          
-          // Otomatik yeniden bağlanma
-          if (this.reconnectAttempts < this.maxReconnectAttempts) {
-            this.scheduleReconnect();
-          }
-        };
-
-        this.ws.onerror = (error) => {
-          console.error('❌ [WEBSOCKET] Bağlantı hatası:', error);
+        // Bağlantı hatası
+        this.stompClient.onStompError = (frame) => {
+          console.error('❌ [WEBSOCKET] STOMP bağlantı hatası:', frame);
           this.status = WebSocketStatus.ERROR;
-          this.eventHandlers.onError?.(error.toString());
-          reject(error);
+          this.eventHandlers.onError?.(frame.headers.message || 'Bağlantı hatası');
+          reject(new Error(frame.headers.message || 'Bağlantı hatası'));
         };
+
+        // Bağlantı kesildiğinde
+        this.stompClient.onDisconnect = () => {
+          console.log('🔌 [WEBSOCKET] STOMP bağlantısı kesildi');
+          this.status = WebSocketStatus.DISCONNECTED;
+          this.eventHandlers.onDisconnected?.();
+        };
+
+        // WebSocket bağlantısı
+        this.stompClient.activate();
 
       } catch (error) {
         console.error('❌ [WEBSOCKET] Bağlantı kurma hatası:', error);
@@ -153,32 +189,34 @@ export class VybeWebSocketClient {
 
   // WebSocket'ten çık
   public disconnect(): void {
-    console.log('🔌 [WEBSOCKET] Bağlantı kapatılıyor');
-    this.status = WebSocketStatus.DISCONNECTED;
-    this.stopPingPong();
-    this.clearTypingTimeouts();
+    console.log('🔌 [WEBSOCKET] STOMP bağlantısı kapatılıyor');
     
-    if (this.ws) {
-      this.ws.close(1000, 'Client disconnect');
-      this.ws = null;
+    if (this.status === WebSocketStatus.CONNECTED && this.stompClient) {
+      this.stompClient.deactivate();
     }
+    
+    this.status = WebSocketStatus.DISCONNECTED;
+    this.clearTypingTimeouts();
+    this.clearSubscriptions();
+    this.stompClient = null;
   }
 
   // Chat odasına katıl
-  public joinChat(chatRoomId: number): void {
+  public joinChat(chatRoomId: string): void {
     if (this.status !== WebSocketStatus.CONNECTED) {
       console.warn('⚠️ [WEBSOCKET] Bağlantı yok, chat katılımı erteleniyor');
       this.messageQueue.push({
-        type: WebSocketMessageType.JOIN_CHAT,
-        data: { chatRoomId },
+        action: WebSocketMessageType.USER_JOINED,
+        chatRoomId: chatRoomId,
         timestamp: new Date().toISOString()
       });
       return;
     }
 
+    // Backend'e join mesajı gönder
     this.sendMessage({
-      type: WebSocketMessageType.JOIN_CHAT,
-      data: { chatRoomId },
+      action: WebSocketMessageType.USER_JOINED,
+      chatRoomId: chatRoomId,
       timestamp: new Date().toISOString()
     });
 
@@ -187,14 +225,15 @@ export class VybeWebSocketClient {
   }
 
   // Chat odasından çık
-  public leaveChat(chatRoomId: number): void {
+  public leaveChat(chatRoomId: string): void {
     if (this.status !== WebSocketStatus.CONNECTED) {
       return;
     }
 
+    // Backend'e leave mesajı gönder
     this.sendMessage({
-      type: WebSocketMessageType.LEAVE_CHAT,
-      data: { chatRoomId },
+      action: WebSocketMessageType.USER_LEFT,
+      chatRoomId: chatRoomId,
       timestamp: new Date().toISOString()
     });
 
@@ -211,8 +250,27 @@ export class VybeWebSocketClient {
     }
 
     try {
-      this.ws?.send(JSON.stringify(message));
-      console.log('📤 [WEBSOCKET] Mesaj gönderildi:', message.type);
+      // Backend destination'larına göre gönder
+      let destination = '/app/chat/message';
+      
+      if (message.action === WebSocketMessageType.TYPING_START || message.action === WebSocketMessageType.TYPING_STOP) {
+        destination = '/app/chat/typing';
+      } else if (message.action === WebSocketMessageType.MESSAGE_READ) {
+        destination = '/app/chat/message/read';
+      } else if (message.action === WebSocketMessageType.USER_JOINED) {
+        destination = '/app/chat/join';
+      } else if (message.action === WebSocketMessageType.USER_LEFT) {
+        destination = '/app/chat/leave';
+      } else if (message.action === WebSocketMessageType.PING) {
+        destination = '/app/ping';
+      }
+
+      this.stompClient?.publish({
+        destination: destination,
+        body: JSON.stringify(message)
+      });
+      
+      console.log('📤 [WEBSOCKET] Mesaj gönderildi:', message.action, 'to', destination);
     } catch (error) {
       console.error('❌ [WEBSOCKET] Mesaj gönderme hatası:', error);
       this.messageQueue.push(message);
@@ -220,8 +278,7 @@ export class VybeWebSocketClient {
   }
 
   // Typing indicator gönder
-  public sendTypingIndicator(chatRoomId: number, isTyping: boolean): void {
-    const messageType = isTyping ? WebSocketMessageType.TYPING_START : WebSocketMessageType.TYPING_STOP;
+  public sendTypingIndicator(chatRoomId: string, isTyping: boolean): void {
     const key = `${chatRoomId}-${this.token}`;
 
     // Önceki typing timeout'u temizle
@@ -241,51 +298,182 @@ export class VybeWebSocketClient {
     }
 
     this.sendMessage({
-      type: messageType,
-      data: { chatRoomId },
+      action: isTyping ? WebSocketMessageType.TYPING_START : WebSocketMessageType.TYPING_STOP,
+      chatRoomId: chatRoomId,
+      isTyping: isTyping,
       timestamp: new Date().toISOString()
     });
   }
 
   // Mesaj durumu güncelle
-  public updateMessageStatus(messageId: number, chatRoomId: number, status: 'DELIVERED' | 'READ'): void {
-    const messageType = status === 'DELIVERED' ? WebSocketMessageType.MESSAGE_DELIVERED : WebSocketMessageType.MESSAGE_READ;
-    
+  public updateMessageStatus(messageId: string, chatRoomId: string, status: 'DELIVERED' | 'READ'): void {
     this.sendMessage({
-      type: messageType,
-      data: { messageId, chatRoomId },
+      action: status === 'DELIVERED' ? WebSocketMessageType.MESSAGE_DELIVERED : WebSocketMessageType.MESSAGE_READ,
+      messageId: messageId,
+      chatRoomId: chatRoomId,
+      messageStatus: status,
       timestamp: new Date().toISOString()
     });
   }
 
-  // Ping-pong mekanizması başlat
-  private startPingPong(): void {
-    this.pingInterval = setInterval(() => {
-      if (this.status === WebSocketStatus.CONNECTED) {
-        this.sendMessage({
-          type: WebSocketMessageType.PING,
-          data: { timestamp: Date.now() },
-          timestamp: new Date().toISOString()
-        });
+  // Subscription'ları kur
+  private setupSubscriptions(): void {
+    if (!this.userId || !this.stompClient) {
+      console.warn('⚠️ [WEBSOCKET] User ID veya STOMP client yok, subscription kurulamıyor');
+      return;
+    }
 
-        // Pong timeout'u kur
-        this.pongTimeout = setTimeout(() => {
-          console.warn('⚠️ [WEBSOCKET] Pong timeout, bağlantı yeniden kuruluyor');
-          this.reconnect();
-        }, 10000); // 10 saniye
-      }
-    }, 30000); // 30 saniyede bir ping
+    try {
+      // Private chat mesajları için
+      const privateChatSubscription = this.stompClient.subscribe(
+        `/user/${this.userId}/queue/chat/private`,
+        (message) => {
+          this.handleMessage(message);
+        }
+      );
+      this.subscriptions.set('private-chat', privateChatSubscription);
+
+      // Mesaj durumu güncellemeleri için
+      const messageStatusSubscription = this.stompClient.subscribe(
+        `/user/${this.userId}/queue/message/status`,
+        (message) => {
+          this.handleMessage(message);
+        }
+      );
+      this.subscriptions.set('message-status', messageStatusSubscription);
+
+      // Kullanıcı durumu güncellemeleri için
+      const userStatusSubscription = this.stompClient.subscribe(
+        '/topic/user/status',
+        (message) => {
+          this.handleMessage(message);
+        }
+      );
+      this.subscriptions.set('user-status', userStatusSubscription);
+
+      // Global chat için
+      const globalChatSubscription = this.stompClient.subscribe(
+        '/topic/chat/global',
+        (message) => {
+          this.handleMessage(message);
+        }
+      );
+      this.subscriptions.set('global-chat', globalChatSubscription);
+
+      // Aktif kullanıcı sayısı için
+      const userCountSubscription = this.stompClient.subscribe(
+        '/topic/chat/global/users',
+        (message) => {
+          this.handleMessage(message);
+        }
+      );
+      this.subscriptions.set('user-count', userCountSubscription);
+
+      console.log('📡 [WEBSOCKET] Subscription\'lar kuruldu');
+    } catch (error) {
+      console.error('❌ [WEBSOCKET] Subscription kurma hatası:', error);
+    }
   }
 
-  // Ping-pong mekanizması durdur
-  private stopPingPong(): void {
-    if (this.pingInterval) {
-      clearInterval(this.pingInterval);
-      this.pingInterval = null;
+  // Chat odasına typing subscription ekle
+  public subscribeToChatTyping(chatRoomId: string): void {
+    if (!this.stompClient || this.subscriptions.has(`${chatRoomId}-typing`)) {
+      return;
     }
-    if (this.pongTimeout) {
-      clearTimeout(this.pongTimeout);
-      this.pongTimeout = null;
+
+    try {
+      const typingSubscription = this.stompClient.subscribe(
+        `/topic/chat/${chatRoomId}/typing`,
+        (message) => {
+          this.handleMessage(message);
+        }
+      );
+      
+      this.subscriptions.set(`${chatRoomId}-typing`, typingSubscription);
+      console.log('📡 [WEBSOCKET] Chat typing subscription eklendi:', chatRoomId);
+    } catch (error) {
+      console.error('❌ [WEBSOCKET] Typing subscription hatası:', error);
+    }
+  }
+
+  // Chat odasından typing subscription kaldır
+  public unsubscribeFromChatTyping(chatRoomId: string): void {
+    const subscription = this.subscriptions.get(`${chatRoomId}-typing`);
+    if (subscription) {
+      subscription.unsubscribe();
+      this.subscriptions.delete(`${chatRoomId}-typing`);
+      console.log('📡 [WEBSOCKET] Chat typing subscription kaldırıldı:', chatRoomId);
+    }
+  }
+
+  // Tüm subscription'ları temizle
+  private clearSubscriptions(): void {
+    this.subscriptions.forEach((subscription) => {
+      subscription.unsubscribe();
+    });
+    this.subscriptions.clear();
+  }
+
+  // Mesaj işleme
+  private handleMessage(message: any): void {
+    try {
+      const wsMessage: WebSocketMessage = JSON.parse(message.body);
+      console.log('📥 [WEBSOCKET] Mesaj alındı:', wsMessage.action);
+
+      switch (wsMessage.action) {
+        case WebSocketMessageType.MESSAGE_RECEIVED:
+          this.eventHandlers.onMessageReceived?.(wsMessage);
+          break;
+
+        case WebSocketMessageType.MESSAGE_DELIVERED:
+          this.eventHandlers.onMessageDelivered?.(wsMessage.messageId!, wsMessage.chatRoomId!);
+          break;
+
+        case WebSocketMessageType.MESSAGE_READ:
+          this.eventHandlers.onMessageRead?.(wsMessage.messageId!, wsMessage.chatRoomId!);
+          break;
+
+        case WebSocketMessageType.TYPING_START:
+          this.eventHandlers.onTypingStart?.(
+            wsMessage.typingUserId!,
+            wsMessage.chatRoomId!,
+            wsMessage.data?.userName || 'Birisi'
+          );
+          break;
+
+        case WebSocketMessageType.TYPING_STOP:
+          this.eventHandlers.onTypingStop?.(wsMessage.typingUserId!, wsMessage.chatRoomId!);
+          break;
+
+        case WebSocketMessageType.USER_ONLINE:
+          this.eventHandlers.onUserOnline?.(wsMessage.userId!);
+          break;
+
+        case WebSocketMessageType.USER_OFFLINE:
+          this.eventHandlers.onUserOffline?.(wsMessage.userId!);
+          break;
+
+        case WebSocketMessageType.USER_JOINED:
+          this.eventHandlers.onUserJoined?.(
+            wsMessage.userId!,
+            wsMessage.chatRoomId!,
+            wsMessage.data?.userName || 'Birisi'
+          );
+          break;
+
+        case WebSocketMessageType.USER_LEFT:
+          this.eventHandlers.onUserLeft?.(
+            wsMessage.userId!,
+            wsMessage.chatRoomId!,
+            wsMessage.data?.userName || 'Birisi'
+          );
+          break;
+
+        default:
+          console.log('ℹ️ [WEBSOCKET] Bilinmeyen mesaj tipi:', wsMessage.action);
+      }
+    } catch (error) {
+      console.error('❌ [WEBSOCKET] Mesaj işleme hatası:', error);
     }
   }
 
@@ -293,85 +481,6 @@ export class VybeWebSocketClient {
   private clearTypingTimeouts(): void {
     this.typingTimeouts.forEach(timeout => clearTimeout(timeout));
     this.typingTimeouts.clear();
-  }
-
-  // Mesaj işleme
-  private handleMessage(data: string): void {
-    try {
-      const message: WebSocketMessage = JSON.parse(data);
-      console.log('📥 [WEBSOCKET] Mesaj alındı:', message.type);
-
-      switch (message.type) {
-        case WebSocketMessageType.MESSAGE_RECEIVED:
-          this.eventHandlers.onMessageReceived?.(message);
-          break;
-
-        case WebSocketMessageType.MESSAGE_DELIVERED:
-          this.eventHandlers.onMessageDelivered?.(message.data.messageId, message.data.chatRoomId);
-          break;
-
-        case WebSocketMessageType.MESSAGE_READ:
-          this.eventHandlers.onMessageRead?.(message.data.messageId, message.data.chatRoomId);
-          break;
-
-        case WebSocketMessageType.TYPING_START:
-          this.eventHandlers.onTypingStart?.(
-            message.senderId!,
-            message.chatRoomId!,
-            message.data.userName || 'Birisi'
-          );
-          break;
-
-        case WebSocketMessageType.TYPING_STOP:
-          this.eventHandlers.onTypingStop?.(message.senderId!, message.chatRoomId!);
-          break;
-
-        case WebSocketMessageType.USER_ONLINE:
-          this.eventHandlers.onUserOnline?.(message.senderId!);
-          break;
-
-        case WebSocketMessageType.USER_OFFLINE:
-          this.eventHandlers.onUserOffline?.(message.senderId!);
-          break;
-
-        case WebSocketMessageType.USER_JOINED:
-          this.eventHandlers.onUserJoined?.(
-            message.senderId!,
-            message.chatRoomId!,
-            message.data.userName || 'Birisi'
-          );
-          break;
-
-        case WebSocketMessageType.USER_LEFT:
-          this.eventHandlers.onUserLeft?.(
-            message.senderId!,
-            message.chatRoomId!,
-            message.data.userName || 'Birisi'
-          );
-          break;
-
-        case WebSocketMessageType.PONG:
-          if (this.pongTimeout) {
-            clearTimeout(this.pongTimeout);
-            this.pongTimeout = null;
-          }
-          break;
-
-        case WebSocketMessageType.NOTIFICATION:
-          this.eventHandlers.onNotification?.(message.data);
-          break;
-
-        case WebSocketMessageType.ERROR:
-          console.error('❌ [WEBSOCKET] Sunucu hatası:', message.data);
-          this.eventHandlers.onError?.(message.data.error || 'Bilinmeyen hata');
-          break;
-
-        default:
-          console.log('ℹ️ [WEBSOCKET] Bilinmeyen mesaj tipi:', message.type);
-      }
-    } catch (error) {
-      console.error('❌ [WEBSOCKET] Mesaj işleme hatası:', error);
-    }
   }
 
   // Mesaj kuyruğunu işle
@@ -386,8 +495,8 @@ export class VybeWebSocketClient {
       const message = this.messageQueue.shift();
       if (message) {
         try {
-          this.ws?.send(JSON.stringify(message));
-          console.log('📤 [WEBSOCKET] Kuyruk mesajı gönderildi:', message.type);
+          this.sendMessage(message);
+          console.log('📤 [WEBSOCKET] Kuyruk mesajı gönderildi:', message.action);
         } catch (error) {
           console.error('❌ [WEBSOCKET] Kuyruk mesajı gönderme hatası:', error);
           // Mesajı tekrar kuyruğa ekle
@@ -443,7 +552,7 @@ export class VybeWebSocketClient {
   }
 
   // Katılılan chat odalarını al
-  public getJoinedChats(): number[] {
+  public getJoinedChats(): string[] {
     return Array.from(this.joinedChats);
   }
 }
@@ -452,12 +561,12 @@ export class VybeWebSocketClient {
 let wsClientInstance: VybeWebSocketClient | null = null;
 
 // WebSocket client'ı başlat
-export const initializeWebSocket = async (token: string, baseUrl?: string): Promise<VybeWebSocketClient> => {
+export const initializeWebSocket = async (token: string, userId: string, baseUrl?: string): Promise<VybeWebSocketClient> => {
   if (wsClientInstance) {
     wsClientInstance.disconnect();
   }
 
-  wsClientInstance = new VybeWebSocketClient(token, baseUrl);
+  wsClientInstance = new VybeWebSocketClient(token, userId, baseUrl);
   await wsClientInstance.connect();
   
   return wsClientInstance;

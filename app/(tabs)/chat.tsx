@@ -405,11 +405,6 @@ export default function ChatScreen() {
   const getZodiacEmoji = (zodiacSign?: string) => {
     if (!zodiacSign) return '⭐';
     
-    console.log('🔍 [ZODIAC] getZodiacEmoji çağrısı:', {
-      zodiacSign,
-      upperCase: zodiacSign.toUpperCase()
-    });
-    
     // Emoji yerine text kullan (daha güvenilir)
     const zodiacEmojis: { [key: string]: string } = {
       'ARIES': '♈',
@@ -443,7 +438,6 @@ export default function ChatScreen() {
     };
     
     const result = zodiacEmojis[zodiacSign.toUpperCase()] || zodiacNames[zodiacSign.toUpperCase()] || '⭐';
-    console.log('🔍 [ZODIAC] Sonuç:', result);
     
     return result;
   };
@@ -472,16 +466,6 @@ export default function ChatScreen() {
   // Chat item render
   const renderChatItem = ({ item, index }: { item: ChatListItem; index: number }) => {
     const isGlobalChat = item.chatType === 'GLOBAL';
-    
-    // Debug: teo için değerleri kontrol et
-    if (item.otherUser?.displayName === 'teo') {
-      console.log('🔍 [CHAT] teo debug:', {
-        matchType: item.matchType,
-        zodiacSign: item.otherUser?.zodiacSign,
-        zodiacSignDisplay: item.otherUser?.zodiacSignDisplay,
-        otherUser: item.otherUser
-      });
-    }
     
     const matchIcon = getMatchTypeIcon(item.matchType, item.otherUser?.zodiacSign || undefined, item.otherUser?.zodiacSignDisplay || undefined);
     const lastMessage = item.lastMessage;

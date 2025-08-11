@@ -50,16 +50,6 @@ const AstrologyMatchScreen: React.FC<AstrologyMatchScreenProps> = ({
   onClose, 
   onStartChat 
 }) => {
-  // Debug: Component'in render edildiğini log'la
-  console.log('🎭 [ASTROLOGY_MATCH_SCREEN] Component render edildi', {
-    currentUserId: currentUser?.id,
-    currentUserName: currentUser?.firstName,
-    matchedUserId: matchedUser?.id,
-    matchedUserName: matchedUser?.firstName,
-    currentUserZodiac: currentUser?.zodiacSign,
-    matchedUserZodiac: matchedUser?.zodiacSign,
-    timestamp: new Date().toLocaleTimeString()
-  });
   const router = useRouter();
   const { refreshPrivateChats } = useChat();
   const [isClosing, setIsClosing] = React.useState(false);
@@ -128,7 +118,6 @@ const AstrologyMatchScreen: React.FC<AstrologyMatchScreenProps> = ({
     
     // Cleanup function
     return () => {
-      console.log('🧹 [ASTRO_MATCH] Component unmounting, cleanup...');
       // Animasyonları durdur
       backgroundOpacity.value = 0;
       textOpacity.value = 0;
@@ -171,9 +160,6 @@ const AstrologyMatchScreen: React.FC<AstrologyMatchScreenProps> = ({
   const handleClose = () => {
     if (isClosing) return; // Çift tıklama koruması
     
-    console.log('🔴 [ASTRO_MATCH] Kapanma işlemi başlatılıyor');
-    setIsClosing(true);
-    
     // Kapanma animasyonu
     backgroundOpacity.value = withTiming(0, { duration: 300 });
     textOpacity.value = withTiming(0, { duration: 200 });
@@ -182,9 +168,7 @@ const AstrologyMatchScreen: React.FC<AstrologyMatchScreenProps> = ({
     // Animasyon tamamlandıktan sonra kapat
     setTimeout(() => {
       try {
-        console.log('🔴 [ASTRO_MATCH] onClose çağrılıyor...');
         onClose();
-        console.log('✅ [ASTRO_MATCH] Kapanma tamamlandı');
       } catch (error) {
         console.error('❌ [ASTRO_MATCH] Kapanma hatası:', error);
         // Hata durumunda state'i sıfırla
@@ -196,9 +180,6 @@ const AstrologyMatchScreen: React.FC<AstrologyMatchScreenProps> = ({
     const handleStartChat = () => {
     if (isClosing) return; // Çift tıklama koruması
     
-    console.log('💬 [ASTRO_MATCH] Sohbet başlatılıyor');
-    setIsClosing(true);
-    
     // Kapanma animasyonu
     backgroundOpacity.value = withTiming(0, { duration: 300 });
     textOpacity.value = withTiming(0, { duration: 200 });
@@ -207,12 +188,9 @@ const AstrologyMatchScreen: React.FC<AstrologyMatchScreenProps> = ({
     setTimeout(async () => {
       try {
         // Private chat listesini yenile (yeni match için chat odası oluştu)
-        console.log('🔄 [ASTRO_MATCH] Private chat listesi yenileniyor...');
         await refreshPrivateChats();
         
-        console.log('🔴 [ASTRO_MATCH] onStartChat çağrılıyor...');
         onStartChat();
-        console.log('✅ [ASTRO_MATCH] Sohbet başlatıldı');
       } catch (error) {
         console.error('❌ [ASTRO_MATCH] Sohbet başlatma hatası:', error);
         // Hata durumunda state'i sıfırla ve tekrar dene

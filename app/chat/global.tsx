@@ -39,7 +39,8 @@ export default function GlobalChatScreen() {
     leaveChatRoom,
     sendTypingIndicator,
     typingUsers,
-    wsStatus
+    wsStatus,
+    wsClient
   } = useChat();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
@@ -124,7 +125,12 @@ export default function GlobalChatScreen() {
       refreshMessageLimit();
       
       // WebSocket'e global chat odasına katıl
-      joinChatRoom(1);
+      joinChatRoom('1');
+      
+      // Typing subscription ekle
+      if (wsClient) {
+        wsClient.subscribeToChatTyping('1');
+      }
       
       // Focus olduğunda polling'i hızlandır (3 saniye)
       setFastPolling(true);
@@ -133,7 +139,13 @@ export default function GlobalChatScreen() {
       return () => {
         // Sayfa kapatıldığında normal polling'e dön ve chat odasından çık
         setFastPolling(false);
-        leaveChatRoom(1);
+        leaveChatRoom('1');
+        
+        // Typing subscription'ı kaldır
+        if (wsClient) {
+          wsClient.unsubscribeFromChatTyping('1');
+        }
+        
         console.log('⏸️ [GLOBAL CHAT] Screen blurred - normal polling (10 saniye)');
       };
     }, [])
@@ -277,7 +289,7 @@ export default function GlobalChatScreen() {
             onRefresh={handleRefresh}
             isRefreshing={refreshing}
             emptyMessage="Genel sohbete hoş geldiniz! İlk mesajı sen gönder! 🌍"
-            typingUsers={typingUsers.get(1)}
+            typingUsers={typingUsers.get('1')}
             otherUserName="Birisi"
           />
         </View>
@@ -289,7 +301,7 @@ export default function GlobalChatScreen() {
           placeholder="Herkesle sohbet et..."
           disabled={isLoadingMessages || !activeChat}
           chatRoomId={1}
-          onTypingChange={(isTyping) => sendTypingIndicator(1, isTyping)}
+          onTypingChange={(isTyping) => sendTypingIndicator('1', isTyping)}
         />
 
         {/* Hoş geldin mesajı (sadece ilk yükleme) */}

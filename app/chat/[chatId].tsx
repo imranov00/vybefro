@@ -38,7 +38,8 @@ export default function PrivateChatScreen() {
     leaveChatRoom,
     sendTypingIndicator,
     typingUsers,
-    wsStatus
+    wsStatus,
+    wsClient
   } = useChat();
   const router = useRouter();
   const { chatId } = useLocalSearchParams();
@@ -128,13 +129,23 @@ export default function PrivateChatScreen() {
         markMessagesAsRead(chatRoomId);
         
         // WebSocket'e chat odasına katıl
-        joinChatRoom(chatRoomId);
+        joinChatRoom(chatRoomId.toString());
+        
+        // Typing subscription ekle
+        if (wsClient) {
+          wsClient.subscribeToChatTyping(chatRoomId.toString());
+        }
       }
       
       // Cleanup: Chat odasından çık
       return () => {
         if (!isNaN(chatRoomId)) {
-          leaveChatRoom(chatRoomId);
+          leaveChatRoom(chatRoomId.toString());
+          
+          // Typing subscription'ı kaldır
+          if (wsClient) {
+            wsClient.unsubscribeFromChatTyping(chatRoomId.toString());
+          }
         }
       };
     }, [chatRoomId])
@@ -239,7 +250,6 @@ export default function PrivateChatScreen() {
   const handleViewProfile = () => {
     if (activeChat && !('chatType' in activeChat)) {
       // TODO: Kullanıcı profil ekranına yönlendir
-      console.log('👤 [PRIVATE CHAT] Profil görüntüle:', activeChat.otherUser.id);
       Alert.alert(
         'Profil',
         'Profil görüntüleme özelliği yakında eklenecek!',
@@ -258,8 +268,6 @@ export default function PrivateChatScreen() {
         matchDate: null
       };
     }
-
-    // Debug log'u kaldırıldı
 
     return {
       otherUser: activeChat.otherUser,
@@ -296,8 +304,6 @@ export default function PrivateChatScreen() {
   // Match type ikonunu belirle
   const getMatchTypeIcon = (matchType: 'ZODIAC' | 'MUSIC' | null) => {
     if (!matchType) return '';
-    
-    // Debug log'u kaldırıldı
     
     switch (matchType) {
       case 'ZODIAC':
@@ -387,7 +393,7 @@ export default function PrivateChatScreen() {
                 )}
               </View>
               
-              <Text style={styles.userStatus}>
+                            <Text style={styles.userStatus}>
                 {chatInfo.otherUser?.activityStatus || 'Bilinmeyen'}
               </Text>
               {/* WebSocket durumu */}
@@ -435,7 +441,7 @@ export default function PrivateChatScreen() {
               onRefresh={handleRefresh}
               isRefreshing={refreshing}
               emptyMessage={`${chatInfo.otherUser?.displayName || 'Bu kişi'} ile sohbet başlasın! 💬`}
-              typingUsers={typingUsers.get(chatRoomId)}
+              typingUsers={typingUsers.get(chatRoomId.toString())}
               otherUserName={chatInfo.otherUser?.displayName}
             />
           )}
@@ -448,7 +454,7 @@ export default function PrivateChatScreen() {
           placeholder={`${chatInfo.otherUser?.displayName || 'Kullanıcı'}'ya mesaj yaz...`}
           disabled={isLoadingMessages}
           chatRoomId={chatRoomId}
-          onTypingChange={(isTyping) => sendTypingIndicator(chatRoomId, isTyping)}
+          onTypingChange={(isTyping) => sendTypingIndicator(chatRoomId.toString(), isTyping)}
         />
       </KeyboardAvoidingView>
     </SafeAreaView>
