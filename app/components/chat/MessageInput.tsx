@@ -3,15 +3,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated,
-  Keyboard,
-  KeyboardEvent,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    Animated,
+    Keyboard,
+    KeyboardEvent,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { MessageLimitInfo } from '../../services/api';
@@ -138,12 +138,12 @@ export default function MessageInput({
       clearTimeout(typingTimeoutRef.current);
     }
     
-    // 3 saniye sonra typing'i durdur
+    // 1.5 saniye sonra typing'i durdur
     typingTimeoutRef.current = setTimeout(() => {
       if (message.length === 0) {
         handleTypingChange(false);
       }
-    }, 3000);
+    }, 1500);
   };
 
   // Component unmount'ta timeout'u temizle

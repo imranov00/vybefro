@@ -2,11 +2,11 @@ import React, { createContext, ReactNode, useContext, useEffect, useRef, useStat
 import { Alert } from 'react-native';
 import { chatApi, ChatListItem, ChatMessage, GlobalChatResponse, MessageLimitInfo, PrivateChatResponse, PrivateChatRoom, userApi } from '../services/api';
 import {
-    initializeWebSocket,
-    VybeWebSocketClient,
-    WebSocketMessage,
-    WebSocketMessageType,
-    WebSocketStatus
+  initializeWebSocket,
+  VybeWebSocketClient,
+  WebSocketMessage,
+  WebSocketMessageType,
+  WebSocketStatus
 } from '../services/websocket';
 import { getToken } from '../utils/tokenStorage';
 
@@ -39,6 +39,7 @@ type ChatContextType = {
   
   // Real-time güncelleme
   addNewMessage: (message: ChatMessage) => void;
+  replaceMessage: (oldId: number, newMessage: ChatMessage) => void;
   markMessagesAsRead: (chatRoomId: number) => void;
   
   // UI durumu
@@ -257,7 +258,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Genel chat'e mesaj gönder - Hybrid yaklaşım
+  // Genel chat'e mesaj gönder - Gerçek Optimistic Update
   const sendGlobalMessage = async (content: string): Promise<boolean> => {
     console.log('🔄 [CHAT CONTEXT] sendGlobalMessage başlatıldı:', {
       content: content.substring(0, 50),
@@ -269,38 +270,110 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
       
-      // 1. API'ye mesajı gönder
+      // 1. OPTIMISTIC UPDATE - Mesajı hemen UI'da göster
+      const optimisticMessage: ChatMessage = {
+        id: Date.now(), // Geçici ID
+        chatRoomId: 1,
+        content: content,
+        type: 'TEXT',
+        sentAt: new Date().toISOString(),
+        editedAt: null,
+        isEdited: false,
+        status: 'SENT',
+        sender: {
+          id: 24, // Geçici sender ID
+          username: 'teo',
+          firstName: 'Teo',
+          lastName: 'User',
+          fullName: 'Teo User',
+          profileImageUrl: null,
+          zodiacSign: 'GEMINI',
+          zodiacSignDisplay: '♊ İkizler',
+          isPremium: false,
+          gender: 'MALE',
+          lastActiveTime: new Date().toISOString(),
+          activityStatus: 'ONLINE',
+          isOnline: true,
+          displayName: 'Teo User'
+        },
+        timeAgo: 'Şimdi',
+        canEdit: false,
+        canDelete: false
+      };
+      
+      if (activeChat && 'chatType' in activeChat && activeChat.chatType === 'GLOBAL') {
+        console.log('⚡ [CHAT CONTEXT] Optimistic mesaj UI\'da gösteriliyor');
+        addNewMessage(optimisticMessage);
+      }
+      
+      // 2. API'ye mesajı gönder
       const response = await chatApi.sendGlobalMessage({ content });
       const messageId = response.message.id.toString();
       
       console.log('✅ [CHAT CONTEXT] API yanıtı alındı:', messageId);
       
-      // 2. Pending mesajlara ekle (WebSocket'ten gelene kadar)
+      // 3. Optimistic mesajı gerçek mesajla değiştir
+      if (activeChat && 'chatType' in activeChat && activeChat.chatType === 'GLOBAL') {
+        console.log('🔄 [CHAT CONTEXT] Optimistic mesaj gerçek mesajla değiştiriliyor');
+        replaceMessage(optimisticMessage.id, response.message);
+      }
+      
+      // 4. Pending mesajlara ekle (WebSocket'ten gelene kadar)
       setPendingMessages(prev => new Set([...prev, messageId]));
       pendingMessagesRef.current.add(messageId);
       
-      // 3. Optimistic UI güncellemesi - mesajı hemen ekle
-      if (activeChat && 'chatType' in activeChat && activeChat.chatType === 'GLOBAL') {
-        console.log('✅ [CHAT CONTEXT] Optimistic UI güncellemesi yapılıyor');
-        addNewMessage(response.message);
-      }
+      // 4. Mesaj gönderimi sonrası kısa süreli polling (sayfa yenileme sorununu çözer)
+      console.log('🔄 [CHAT CONTEXT] Mesaj gönderimi sonrası polling başlatılıyor...');
       
-      // 4. WebSocket bağlantısı varsa mesajı bekle, yoksa polling yap
-      if (isWebSocketConnected) {
-        console.log('🔌 [CHAT CONTEXT] WebSocket bağlı, mesaj bekleniyor...');
-        
-        // 3 saniye içinde WebSocket'ten mesaj gelmezse polling yap
-        setTimeout(() => {
-          if (pendingMessagesRef.current.has(messageId)) {
-            console.log('⏰ [CHAT CONTEXT] WebSocket mesajı gelmedi, polling yapılıyor...');
-            forceRefreshMessages();
+      // İlk polling: 2 saniye sonra
+      setTimeout(async () => {
+        try {
+          if (activeChat && 'chatType' in activeChat && activeChat.chatType === 'GLOBAL') {
+            console.log('🔄 [CHAT CONTEXT] İlk polling yapılıyor...');
+            const newChatData = await chatApi.getGlobalMessages(0, 20);
+            
+            // Yeni mesajları kontrol et ve ekle
+            const currentMessageIds = activeChat.messages.map(m => m.id);
+            const newMessages = newChatData.messages.filter(m => !currentMessageIds.includes(m.id));
+            
+            if (newMessages.length > 0) {
+              console.log(`🆕 [CHAT CONTEXT] İlk polling'de ${newMessages.length} yeni mesaj bulundu`);
+              newMessages.reverse().forEach(message => {
+                addNewMessage(message);
+                // Pending mesajlardan çıkar
+                pendingMessagesRef.current.delete(message.id.toString());
+              });
+            }
           }
-        }, 3000);
-      } else {
-        console.log('🔌 [CHAT CONTEXT] WebSocket bağlı değil, polling yapılıyor...');
-        // WebSocket bağlı değilse hemen polling yap
-        setTimeout(() => forceRefreshMessages(), 1000);
-      }
+        } catch (error) {
+          console.warn('⚠️ [CHAT CONTEXT] İlk polling hatası:', error);
+        }
+      }, 2000);
+      
+      // İkinci polling: 5 saniye sonra (güvenlik için)
+      setTimeout(async () => {
+        try {
+          if (activeChat && 'chatType' in activeChat && activeChat.chatType === 'GLOBAL') {
+            console.log('🔄 [CHAT CONTEXT] İkinci polling yapılıyor...');
+            const newChatData = await chatApi.getGlobalMessages(0, 20);
+            
+            // Yeni mesajları kontrol et ve ekle
+            const currentMessageIds = activeChat.messages.map(m => m.id);
+            const newMessages = newChatData.messages.filter(m => !currentMessageIds.includes(m.id));
+            
+            if (newMessages.length > 0) {
+              console.log(`🆕 [CHAT CONTEXT] İkinci polling'de ${newMessages.length} yeni mesaj bulundu`);
+              newMessages.reverse().forEach(message => {
+                addNewMessage(message);
+                // Pending mesajlardan çıkar
+                pendingMessagesRef.current.delete(message.id.toString());
+              });
+            }
+          }
+        } catch (error) {
+          console.warn('⚠️ [CHAT CONTEXT] İkinci polling hatası:', error);
+        }
+      }, 5000);
       
       // 5. Chat listesini güncelle (sadece mesaj eklenmediğinde)
       if (!activeChat || !('chatType' in activeChat) || activeChat.chatType !== 'GLOBAL') {
@@ -369,6 +442,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     } catch (error: any) {
       console.error('❌ [CHAT CONTEXT] Mesaj limiti güncellenemedi:', error);
     }
+  };
+
+  // Mesajı değiştir (optimistic update için)
+  const replaceMessage = (oldId: number, newMessage: ChatMessage) => {
+    setActiveChat(prevChat => {
+      if (!prevChat) return prevChat;
+      
+      return {
+        ...prevChat,
+        messages: prevChat.messages.map(msg => 
+          msg.id === oldId ? newMessage : msg
+        )
+      };
+    });
+    
+    console.log('🔄 [CHAT CONTEXT] Mesaj değiştirildi:', oldId, '->', newMessage.id);
   };
 
   // Yeni mesaj ekle - Hybrid yaklaşım ile iyileştirildi
@@ -574,6 +663,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         if (message.action === WebSocketMessageType.MESSAGE_RECEIVED && message.data) {
           const chatMessage = message.data as ChatMessage;
           addNewMessage(chatMessage);
+          
+          // Pending mesajlardan çıkar (eğer varsa)
+          if (pendingMessagesRef.current.has(chatMessage.id.toString())) {
+            console.log('✅ [CHAT CONTEXT] Pending mesaj WebSocket ile alındı:', chatMessage.id);
+            pendingMessagesRef.current.delete(chatMessage.id.toString());
+          }
         }
       },
       
@@ -825,6 +920,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         messageLimitInfo,
         refreshMessageLimit,
         addNewMessage,
+        replaceMessage,
         markMessagesAsRead,
         isTyping,
         setIsTyping,
