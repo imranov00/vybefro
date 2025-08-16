@@ -2,11 +2,11 @@ import React, { createContext, ReactNode, useContext, useEffect, useRef, useStat
 import { Alert } from 'react-native';
 import { chatApi, ChatListItem, ChatMessage, GlobalChatResponse, MessageLimitInfo, PrivateChatResponse, PrivateChatRoom, userApi } from '../services/api';
 import {
-  initializeWebSocket,
-  VybeWebSocketClient,
-  WebSocketMessage,
-  WebSocketMessageType,
-  WebSocketStatus
+    initializeWebSocket,
+    VybeWebSocketClient,
+    WebSocketMessage,
+    WebSocketMessageType,
+    WebSocketStatus
 } from '../services/websocket';
 import { getToken } from '../utils/tokenStorage';
 
@@ -713,8 +713,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         userId = userProfile.id.toString();
         console.log('👤 [CHAT CONTEXT] Kullanıcı ID alındı:', userId);
       } catch (error) {
-        console.error('❌ [CHAT CONTEXT] Kullanıcı bilgisi alınamadı:', error);
-        setError('Kullanıcı bilgisi alınamadı');
+        console.warn('⚠️ [CHAT CONTEXT] Kullanıcı bilgisi alınamadı, token yenileme bekleniyor:', error);
+        // Token yenileme sürecinde olduğu için 3 saniye sonra tekrar dene
+        setTimeout(() => {
+          console.log('🔄 [CHAT CONTEXT] WebSocket başlatma tekrar deneniyor...');
+          initializeWebSocketConnection();
+        }, 3000);
         return;
       }
 

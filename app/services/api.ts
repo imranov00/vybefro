@@ -4,7 +4,7 @@ import { ZodiacSign } from '../types/zodiac';
 import { getRefreshToken, getToken, removeAllTokens, saveRefreshToken, saveToken } from '../utils/tokenStorage';
 
 // NGROK URL'i - değişebilir
-const NGROK_URL = 'https://e8512bc164cb.ngrok-free.app';
+const NGROK_URL = 'https://c6bccbed9c4c.ngrok-free.app';
 
 // Alternative endpoints (gerektiğinde eklenebilir)
 const FALLBACK_URLS: string[] = [
@@ -136,8 +136,8 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     
-    // 401 hatası ve henüz retry yapılmamışsa
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // 401 veya 403 hatası ve henüz retry yapılmamışsa
+    if ((error.response?.status === 401 || error.response?.status === 403) && !originalRequest._retry) {
       if (isRefreshing) {
         // Zaten yenileme yapılıyorsa, kuyruğa ekle
         return new Promise((resolve, reject) => {
