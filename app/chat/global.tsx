@@ -305,7 +305,7 @@ export default function GlobalChatScreen() {
           <MessageList
             ref={messageListRef}
             messages={activeChat?.messages || []}
-            currentUserId={24} // Token'dan gelen ID'yi direkt kullan
+            currentUserId={userProfile?.id || 0}
             isLoading={isLoadingMessages}
             hasMore={activeChat?.hasMore || false}
             onLoadMore={loadMoreMessages}
@@ -316,6 +316,18 @@ export default function GlobalChatScreen() {
             otherUserName="Birisi"
           />
         </View>
+        
+        {/* Debug bilgisi */}
+        {__DEV__ && (
+          <View style={{ position: 'absolute', top: 100, right: 10, backgroundColor: 'rgba(0,0,0,0.8)', padding: 10, borderRadius: 5 }}>
+            <Text style={{ color: 'white', fontSize: 10 }}>
+              User ID: {userProfile?.id || 'null'}
+            </Text>
+            <Text style={{ color: 'white', fontSize: 10 }}>
+              Username: {userProfile?.username || 'null'}
+            </Text>
+          </View>
+        )}
         
 
 

@@ -455,7 +455,7 @@ export default function PrivateChatScreen() {
             <MessageList
               ref={messageListRef}
               messages={activeChat.messages || []}
-              currentUserId={24} // Token'dan gelen ID'yi direkt kullan
+              currentUserId={userProfile?.id || 0}
               isLoading={isLoadingMessages}
               hasMore={activeChat.hasMore}
               onLoadMore={loadMoreMessages}

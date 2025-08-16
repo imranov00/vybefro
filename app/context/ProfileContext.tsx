@@ -97,10 +97,20 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       
       if (response) {
         const mappedProfile = mapApiResponseToUserProfile(response);
+        
+        // Token'dan ID'yi kontrol et ve set et
+        const tokenUserId = await getCurrentUserId();
+        if (tokenUserId && mappedProfile.id !== parseInt(tokenUserId)) {
+          console.log('🔄 [PROFILE CONTEXT] Token ID ile API ID uyumsuz, token ID kullanılıyor:', {
+            apiId: mappedProfile.id,
+            tokenId: tokenUserId
+          });
+          mappedProfile.id = parseInt(tokenUserId);
+        }
 
         setUserProfile(mappedProfile);
         lastFetchTime.current = now;
-        console.log('Profil başarıyla güncellendi:', mappedProfile.name);
+        console.log('Profil başarıyla güncellendi:', mappedProfile.name, 'ID:', mappedProfile.id);
       } else {
         setError('Profil bilgileri alınamadı');
         console.warn('API yanıtı boş');
