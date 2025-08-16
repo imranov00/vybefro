@@ -89,15 +89,7 @@ const MessageList = forwardRef<MessageListRef, MessageListProps>(({
     // Mesajın kimden geldiğini doğru tespit et (tip uyuşmazlığına dayanıklı)
     const isCurrentUser = Number(item.sender.id) === Number(currentUserId);
     
-    // Debug için log (sadece ilk mesajda)
-    if (index === 0) {
-      console.log('🔍 [MESSAGE LIST] User ID Debug:', {
-        currentUserId,
-        senderId: item.sender.id,
-        isCurrentUser,
-        senderName: item.sender.displayName
-      });
-    }
+
     
     const previousMessage = index < messages.length - 1 ? messages[index + 1] : null;
     

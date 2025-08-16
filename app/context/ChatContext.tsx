@@ -70,6 +70,7 @@ type ChatContextType = {
   isWebSocketConnected: boolean;
   pendingMessages: Set<string>; // Gönderilen ama henüz WebSocket'ten gelmeyen mesajlar
   forceRefreshMessages: () => Promise<void>;
+  updateMessageStatuses: () => Promise<void>;
 };
 
 // Context oluştur
@@ -316,6 +317,33 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (activeChat && 'chatType' in activeChat && activeChat.chatType === 'GLOBAL') {
         console.log('🔄 [CHAT CONTEXT] Optimistic mesaj gerçek mesajla değiştiriliyor');
         replaceMessage(optimisticMessage.id, response.message);
+        
+        // Mesaj durumunu otomatik olarak SENT'ten DELIVERED'a güncelle (2 saniye sonra)
+        setTimeout(() => {
+          setActiveChat(prevChat => {
+            if (!prevChat) return prevChat;
+            
+            return {
+              ...prevChat,
+              messages: prevChat.messages.map(msg => 
+                msg.id === response.message.id ? { ...msg, status: 'DELIVERED' as const } : msg
+              )
+            };
+          });
+          
+          // Chat listesinde de güncelle
+          setChatList(prevList => 
+            prevList.map(chat => {
+              if (chat.chatRoomId === response.message.chatRoomId && chat.lastMessage?.id === response.message.id) {
+                return {
+                  ...chat,
+                  lastMessage: chat.lastMessage ? { ...chat.lastMessage, status: 'DELIVERED' as const } : chat.lastMessage
+                };
+              }
+              return chat;
+            })
+          );
+        }, 2000);
       }
       
       // 4. Pending mesajlara ekle (WebSocket'ten gelene kadar)
@@ -405,6 +433,33 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       // Yeni mesajı aktif chat'e ekle
       if (activeChat && !('chatType' in activeChat)) {
         addNewMessage(response.message);
+        
+        // Mesaj durumunu otomatik olarak SENT'ten DELIVERED'a güncelle (2 saniye sonra)
+        setTimeout(() => {
+          setActiveChat(prevChat => {
+            if (!prevChat) return prevChat;
+            
+            return {
+              ...prevChat,
+              messages: prevChat.messages.map(msg => 
+                msg.id === response.message.id ? { ...msg, status: 'DELIVERED' as const } : msg
+              )
+            };
+          });
+          
+          // Private chat listesinde de güncelle
+          setPrivateChatList(prevList => 
+            prevList.map(chat => {
+              if (chat.id === response.message.chatRoomId && chat.lastMessage?.id === response.message.id) {
+                return {
+                  ...chat,
+                  lastMessage: chat.lastMessage ? { ...chat.lastMessage, status: 'DELIVERED' as const } : chat.lastMessage
+                };
+              }
+              return chat;
+            })
+          );
+        }, 2000);
       }
       
       // Özel chat listesini güncelle
@@ -654,6 +709,48 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Mesaj durumlarını hızlı güncelleme fonksiyonu (yeni endpoint ile)
+  const updateMessageStatuses = async () => {
+    if (!activeChat || !activeChatId) return;
+    
+    try {
+      // Sadece SENT durumundaki mesajların ID'lerini al
+      const sentMessageIds = activeChat.messages
+        .filter(msg => msg.status === 'SENT')
+        .map(msg => msg.id);
+      
+      if (sentMessageIds.length === 0) {
+        return; // Güncellenecek mesaj yok
+      }
+      
+      // Yeni endpoint ile sadece durumları kontrol et
+      const statusUpdates = await chatApi.updateMessageStatuses(activeChatId, sentMessageIds);
+      
+      // Durum güncellemelerini uygula
+      const hasChanges = Object.keys(statusUpdates).length > 0;
+      
+      if (hasChanges) {
+        setActiveChat(prevChat => {
+          if (!prevChat) return prevChat;
+          
+          return {
+            ...prevChat,
+            messages: prevChat.messages.map(msg => {
+              const newStatus = statusUpdates[msg.id];
+              if (newStatus && newStatus !== msg.status) {
+                console.log(`🔄 [CHAT CONTEXT] Durum güncellendi: ${msg.id} ${msg.status} -> ${newStatus}`);
+                return { ...msg, status: newStatus as any };
+              }
+              return msg;
+            })
+          };
+        });
+      }
+    } catch (error) {
+      console.warn('⚠️ [CHAT CONTEXT] Durum güncelleme hatası:', error);
+    }
+  };
+
   // WebSocket event handler'ları - Hybrid yaklaşım ile güncellendi
   const setupWebSocketHandlers = (client: VybeWebSocketClient) => {
     client.setEventHandlers({
@@ -674,7 +771,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       
       onMessageDelivered: (messageId: string, chatRoomId: string) => {
         console.log('✅ [CHAT CONTEXT] Mesaj iletildi:', messageId, chatRoomId);
-        // Mesaj durumunu güncelle
+        // Mesaj durumunu güncelle - hem aktif chat hem de chat listesinde
         setActiveChat(prevChat => {
           if (!prevChat) return prevChat;
           
@@ -685,11 +782,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             )
           };
         });
+        
+        // Chat listesinde de güncelle (eğer bu mesaj son mesajsa)
+        setChatList(prevList => 
+          prevList.map(chat => {
+            if (chat.chatRoomId.toString() === chatRoomId && chat.lastMessage?.id.toString() === messageId) {
+              return {
+                ...chat,
+                lastMessage: chat.lastMessage ? { ...chat.lastMessage, status: 'DELIVERED' as const } : chat.lastMessage
+              };
+            }
+            return chat;
+          })
+        );
       },
       
       onMessageRead: (messageId: string, chatRoomId: string) => {
         console.log('👁️ [CHAT CONTEXT] Mesaj okundu:', messageId, chatRoomId);
-        // Mesaj durumunu güncelle
+        // Mesaj durumunu güncelle - hem aktif chat hem de chat listesinde
         setActiveChat(prevChat => {
           if (!prevChat) return prevChat;
           
@@ -700,6 +810,32 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             )
           };
         });
+        
+        // Chat listesinde de güncelle (eğer bu mesaj son mesajsa)
+        setChatList(prevList => 
+          prevList.map(chat => {
+            if (chat.chatRoomId.toString() === chatRoomId && chat.lastMessage?.id.toString() === messageId) {
+              return {
+                ...chat,
+                lastMessage: chat.lastMessage ? { ...chat.lastMessage, status: 'READ' as const } : chat.lastMessage
+              };
+            }
+            return chat;
+          })
+        );
+        
+        // Private chat listesinde de güncelle
+        setPrivateChatList(prevList => 
+          prevList.map(chat => {
+            if (chat.id.toString() === chatRoomId && chat.lastMessage?.id.toString() === messageId) {
+              return {
+                ...chat,
+                lastMessage: chat.lastMessage ? { ...chat.lastMessage, status: 'READ' as const } : chat.lastMessage
+              };
+            }
+            return chat;
+          })
+        );
       },
       
       onTypingStart: (userId: string, chatRoomId: string, userName: string) => {
@@ -764,6 +900,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           console.log('🔄 [CHAT CONTEXT] WebSocket bağlandı, pending mesajlar kontrol ediliyor...');
           setTimeout(() => forceRefreshMessages(), 2000);
         }
+        
+        // WebSocket bağlandığında aktif chat'e otomatik katıl
+        if (activeChatId) {
+          console.log('👥 [CHAT CONTEXT] WebSocket bağlandı, aktif chat\'e katılım:', activeChatId);
+          joinChatRoom(activeChatId.toString());
+        }
       },
       
       onDisconnected: () => {
@@ -827,10 +969,27 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setupWebSocketHandlers(client);
       
       console.log('✅ [CHAT CONTEXT] WebSocket bağlantısı başarılı');
+      
+      // WebSocket başarıyla bağlandıktan sonra 5 saniye bekleyip bağlantı durumunu kontrol et
+      setTimeout(() => {
+        if (client.getStatus() === WebSocketStatus.CONNECTED) {
+          console.log('✅ [CHAT CONTEXT] WebSocket bağlantısı stabil');
+        } else {
+          console.warn('⚠️ [CHAT CONTEXT] WebSocket bağlantısı stabil değil, yeniden başlatılıyor...');
+          initializeWebSocketConnection();
+        }
+      }, 5000);
+      
     } catch (error) {
       console.error('❌ [CHAT CONTEXT] WebSocket başlatma hatası:', error);
       setWsStatus(WebSocketStatus.ERROR);
       setError('WebSocket bağlantısı kurulamadı');
+      
+      // Hata durumunda 10 saniye sonra tekrar dene
+      setTimeout(() => {
+        console.log('🔄 [CHAT CONTEXT] WebSocket başlatma hatası sonrası tekrar deneniyor...');
+        initializeWebSocketConnection();
+      }, 10000);
     }
   };
 
@@ -851,19 +1010,27 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Acil çözüm: WebSocket çalışmadığı için polling geri eklendi
+  // Akıllı polling: WebSocket çalışmadığında sadece fallback olarak kullan
   useEffect(() => {
     let interval: any;
     
-    const startPolling = () => {
+    // WebSocket bağlıysa polling yapma
+    if (isWebSocketConnected) {
+      console.log('✅ [CHAT CONTEXT] WebSocket bağlı, polling devre dışı');
+      return;
+    }
+    
+    const startSmartPolling = () => {
       const chatType = activeChat && 'chatType' in activeChat ? 'GLOBAL' : 'PRIVATE';
-      const pollingInterval = chatType === 'GLOBAL' ? 3000 : 5000; // 3-5 saniye
+      
+      // WebSocket çalışmadığında daha uzun aralıklarla polling (10-15 saniye)
+      const pollingInterval = chatType === 'GLOBAL' ? 10000 : 15000;
+      
+      console.log(`🔄 [CHAT CONTEXT] Akıllı polling başlatıldı - ${chatType} (${pollingInterval}ms) - WebSocket çalışmıyor`);
       
       interval = setInterval(async () => {
         try {
           if (activeChatId && !isLoadingMessages && activeChat) {
-            console.log(`🔄 [CHAT CONTEXT] Acil polling - ${chatType} (${pollingInterval}ms)`);
-            
             let newChatData: GlobalChatResponse | PrivateChatResponse;
             
             if (chatType === 'GLOBAL') {
@@ -877,21 +1044,47 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             const newMessages = newChatData.messages.filter(m => !currentMessageIds.includes(m.id));
             
             if (newMessages.length > 0) {
-              console.log(`🆕 [CHAT CONTEXT] Acil polling'de ${newMessages.length} yeni mesaj bulundu`);
+              console.log(`🆕 [CHAT CONTEXT] Akıllı polling'de ${newMessages.length} yeni mesaj bulundu`);
               newMessages.reverse().forEach(message => {
                 addNewMessage(message);
               });
             }
+            
+            // Mevcut mesajların durumlarını da güncelle
+            const currentMessages = activeChat.messages;
+            const updatedMessages = newChatData.messages.map(newMsg => {
+              const currentMsg = currentMessages.find(m => m.id === newMsg.id);
+              if (currentMsg && currentMsg.status !== newMsg.status) {
+                console.log(`🔄 [CHAT CONTEXT] Mesaj durumu güncellendi: ${currentMsg.id} ${currentMsg.status} -> ${newMsg.status}`);
+                return newMsg;
+              }
+              return currentMsg || newMsg;
+            });
+            
+            // Eğer durum güncellemeleri varsa aktif chat'i güncelle
+            const hasStatusUpdates = updatedMessages.some((msg, index) => 
+              currentMessages[index]?.status !== msg.status
+            );
+            
+            if (hasStatusUpdates) {
+              setActiveChat(prevChat => {
+                if (!prevChat) return prevChat;
+                return {
+                  ...prevChat,
+                  messages: updatedMessages
+                };
+              });
+            }
           }
         } catch (error) {
-          console.warn('⚠️ [CHAT CONTEXT] Acil polling hatası:', error);
+          console.warn('⚠️ [CHAT CONTEXT] Akıllı polling hatası:', error);
         }
       }, pollingInterval);
     };
 
-    // Aktif chat varsa polling başlat
-    if (activeChatId && activeChat) {
-      startPolling();
+    // Aktif chat varsa ve WebSocket çalışmıyorsa polling başlat
+    if (activeChatId && activeChat && !isWebSocketConnected) {
+      startSmartPolling();
     }
 
     return () => {
@@ -899,7 +1092,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         clearInterval(interval);
       }
     };
-  }, [activeChatId, isLoadingMessages, activeChat]);
+  }, [activeChatId, isLoadingMessages, activeChat, isWebSocketConnected]);
 
   // Mesaj limiti countdown'u için interval
   useEffect(() => {
@@ -982,7 +1175,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // Hybrid yaklaşım için yeni özellikler
         isWebSocketConnected,
         pendingMessages,
-        forceRefreshMessages
+        forceRefreshMessages,
+        updateMessageStatuses
       }}
     >
       {children}

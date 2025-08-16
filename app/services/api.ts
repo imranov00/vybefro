@@ -4,7 +4,7 @@ import { ZodiacSign } from '../types/zodiac';
 import { getRefreshToken, getToken, removeAllTokens, saveRefreshToken, saveToken } from '../utils/tokenStorage';
 
 // NGROK URL'i - değişebilir
-const NGROK_URL = 'https://c6bccbed9c4c.ngrok-free.app';
+const NGROK_URL = 'https://ab17a6b051dc.ngrok-free.app';
 
 // Alternative endpoints (gerektiğinde eklenebilir)
 const FALLBACK_URLS: string[] = [
@@ -1512,6 +1512,26 @@ export const chatApi = {
       return response.data;
     } catch (error: any) {
       console.error('❌ [API] getMessageLimitInfo hatası:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Mesaj durumlarını güncelle (sadece durum kontrolü için)
+  updateMessageStatuses: async (chatRoomId: number, messageIds: number[]): Promise<{ [key: number]: string }> => {
+    console.log('🔄 [API] updateMessageStatuses çağrısı:', { chatRoomId, messageCount: messageIds.length });
+    const authHeader = await createAuthHeader();
+    try {
+      const response = await api.post('/api/chat/message-statuses', {
+        chatRoomId,
+        messageIds
+      }, authHeader);
+      
+      console.log('✅ [API] updateMessageStatuses yanıtı:', {
+        updatedCount: Object.keys(response.data).length
+      });
+      return response.data; // { messageId: status } formatında
+    } catch (error: any) {
+      console.error('❌ [API] updateMessageStatuses hatası:', error.response?.data || error.message);
       throw error;
     }
   },

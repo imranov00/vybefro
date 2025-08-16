@@ -19,6 +19,8 @@ export default function MessageBubble({
   onPress 
 }: MessageBubbleProps) {
   const { currentMode } = useAuth();
+  
+
 
   // Tema renklerini belirle
   const theme = {
@@ -66,29 +68,40 @@ export default function MessageBubble({
 
     let icon = 'checkmark';
     let color = '#666';
+    let tooltip = '';
 
     switch (message.status) {
       case 'SENT':
         icon = 'checkmark';
         color = '#999';
+        tooltip = 'Gönderildi';
         break;
       case 'DELIVERED':
         icon = 'checkmark-done';
         color = '#666';
+        tooltip = 'İletildi';
         break;
       case 'READ':
         icon = 'checkmark-done';
         color = currentTheme.primary;
+        tooltip = 'Görüldü';
         break;
     }
 
     return (
-      <Ionicons 
-        name={icon as any} 
-        size={12} 
-        color={color} 
-        style={styles.statusIcon} 
-      />
+      <View style={styles.statusContainer}>
+        <Ionicons 
+          name={icon as any} 
+          size={12} 
+          color={color} 
+          style={styles.statusIcon} 
+        />
+        {message.status === 'READ' && (
+          <Text style={[styles.statusText, { color: currentTheme.primary }]}>
+            Görüldü
+          </Text>
+        )}
+      </View>
     );
   };
 
@@ -327,8 +340,17 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#999',
   },
-  statusIcon: {
+  statusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginLeft: 4,
+  },
+  statusIcon: {
+    marginRight: 2,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '500',
   },
   editedText: {
     fontSize: 11,

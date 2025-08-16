@@ -97,6 +97,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       
       if (response) {
         const mappedProfile = mapApiResponseToUserProfile(response);
+
         setUserProfile(mappedProfile);
         lastFetchTime.current = now;
         console.log('Profil başarıyla güncellendi:', mappedProfile.name);

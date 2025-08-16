@@ -40,7 +40,8 @@ export default function GlobalChatScreen() {
     sendTypingIndicator,
     typingUsers,
     wsStatus,
-    wsClient
+    wsClient,
+    updateMessageStatuses
   } = useChat();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
@@ -121,6 +122,8 @@ export default function GlobalChatScreen() {
   useFocusEffect(
     useCallback(() => {
       console.log('🌍 [GLOBAL CHAT] Screen focused - loading global messages');
+
+      
       loadMessages(1, 'GLOBAL'); // Global chat room ID genellikle 1
       refreshMessageLimit();
       
@@ -148,8 +151,28 @@ export default function GlobalChatScreen() {
         
         console.log('⏸️ [GLOBAL CHAT] Screen blurred - normal polling (10 saniye)');
       };
-    }, [])
+    }, [userProfile])
   );
+
+  // Mesaj durumlarını akıllı güncelleme (WebSocket çalışmıyorsa 10 saniyede bir)
+  useEffect(() => {
+    if (!activeChat) return;
+    
+    // WebSocket bağlıysa durum güncellemesi yapma (WebSocket zaten yapıyor)
+    if (wsStatus === 'CONNECTED') {
+      console.log('✅ [GLOBAL CHAT] WebSocket bağlı, durum güncellemesi devre dışı');
+      return;
+    }
+    
+    console.log('🔄 [GLOBAL CHAT] WebSocket çalışmıyor, durum güncellemesi başlatıldı (10s)');
+    const statusInterval = setInterval(() => {
+      updateMessageStatuses();
+    }, 10000); // 10 saniye
+    
+    return () => {
+      clearInterval(statusInterval);
+    };
+  }, [activeChat, wsStatus]);
 
   // Pull-to-refresh
   const handleRefresh = async () => {
@@ -282,7 +305,7 @@ export default function GlobalChatScreen() {
           <MessageList
             ref={messageListRef}
             messages={activeChat?.messages || []}
-            currentUserId={userProfile?.id || 0}
+            currentUserId={24} // Token'dan gelen ID'yi direkt kullan
             isLoading={isLoadingMessages}
             hasMore={activeChat?.hasMore || false}
             onLoadMore={loadMoreMessages}
@@ -293,6 +316,8 @@ export default function GlobalChatScreen() {
             otherUserName="Birisi"
           />
         </View>
+        
+
 
         {/* Mesaj input */}
         <MessageInput

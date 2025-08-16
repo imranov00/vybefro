@@ -4,18 +4,18 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert,
-  Image,
-  Keyboard,
-  KeyboardAvoidingView,
-  KeyboardEvent,
-  Platform,
-  SafeAreaView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Alert,
+    Image,
+    Keyboard,
+    KeyboardAvoidingView,
+    KeyboardEvent,
+    Platform,
+    SafeAreaView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 
 import MessageInput from '../components/chat/MessageInput';
@@ -39,7 +39,8 @@ export default function PrivateChatScreen() {
     sendTypingIndicator,
     typingUsers,
     wsStatus,
-    wsClient
+    wsClient,
+    updateMessageStatuses
   } = useChat();
   const router = useRouter();
   const { chatId } = useLocalSearchParams();
@@ -150,6 +151,26 @@ export default function PrivateChatScreen() {
       };
     }, [chatRoomId])
   );
+
+  // Mesaj durumlarını akıllı güncelleme (WebSocket çalışmıyorsa 10 saniyede bir)
+  useEffect(() => {
+    if (!activeChat || !chatRoomId) return;
+    
+    // WebSocket bağlıysa durum güncellemesi yapma (WebSocket zaten yapıyor)
+    if (wsStatus === 'CONNECTED') {
+      console.log('✅ [PRIVATE CHAT] WebSocket bağlı, durum güncellemesi devre dışı');
+      return;
+    }
+    
+    console.log('🔄 [PRIVATE CHAT] WebSocket çalışmıyor, durum güncellemesi başlatıldı (10s)');
+    const statusInterval = setInterval(() => {
+      updateMessageStatuses();
+    }, 10000); // 10 saniye
+    
+    return () => {
+      clearInterval(statusInterval);
+    };
+  }, [activeChat, chatRoomId, wsStatus]);
 
   // Pull-to-refresh
   const handleRefresh = async () => {
@@ -434,7 +455,7 @@ export default function PrivateChatScreen() {
             <MessageList
               ref={messageListRef}
               messages={activeChat.messages || []}
-              currentUserId={userProfile?.id || 0}
+              currentUserId={24} // Token'dan gelen ID'yi direkt kullan
               isLoading={isLoadingMessages}
               hasMore={activeChat.hasMore}
               onLoadMore={loadMoreMessages}
