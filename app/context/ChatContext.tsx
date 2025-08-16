@@ -851,10 +851,55 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Polling'i tamamen devre dışı bırak - sadece WebSocket kullan
-  // useEffect(() => {
-  //   console.log('🔌 [CHAT CONTEXT] Polling devre dışı - sadece WebSocket kullanılıyor');
-  // }, []);
+  // Acil çözüm: WebSocket çalışmadığı için polling geri eklendi
+  useEffect(() => {
+    let interval: any;
+    
+    const startPolling = () => {
+      const chatType = activeChat && 'chatType' in activeChat ? 'GLOBAL' : 'PRIVATE';
+      const pollingInterval = chatType === 'GLOBAL' ? 3000 : 5000; // 3-5 saniye
+      
+      interval = setInterval(async () => {
+        try {
+          if (activeChatId && !isLoadingMessages && activeChat) {
+            console.log(`🔄 [CHAT CONTEXT] Acil polling - ${chatType} (${pollingInterval}ms)`);
+            
+            let newChatData: GlobalChatResponse | PrivateChatResponse;
+            
+            if (chatType === 'GLOBAL') {
+              newChatData = await chatApi.getGlobalMessages(0, 20);
+            } else {
+              newChatData = await chatApi.getPrivateMessages(activeChatId, 0, 20);
+            }
+            
+            // Yeni mesajları kontrol et ve ekle
+            const currentMessageIds = activeChat.messages.map(m => m.id);
+            const newMessages = newChatData.messages.filter(m => !currentMessageIds.includes(m.id));
+            
+            if (newMessages.length > 0) {
+              console.log(`🆕 [CHAT CONTEXT] Acil polling'de ${newMessages.length} yeni mesaj bulundu`);
+              newMessages.reverse().forEach(message => {
+                addNewMessage(message);
+              });
+            }
+          }
+        } catch (error) {
+          console.warn('⚠️ [CHAT CONTEXT] Acil polling hatası:', error);
+        }
+      }, pollingInterval);
+    };
+
+    // Aktif chat varsa polling başlat
+    if (activeChatId && activeChat) {
+      startPolling();
+    }
+
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [activeChatId, isLoadingMessages, activeChat]);
 
   // Mesaj limiti countdown'u için interval
   useEffect(() => {

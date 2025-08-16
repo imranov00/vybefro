@@ -3,15 +3,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-    Animated,
-    Keyboard,
-    KeyboardEvent,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Animated,
+  Keyboard,
+  KeyboardEvent,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { MessageLimitInfo } from '../../services/api';
@@ -129,7 +129,7 @@ export default function MessageInput({
     setMessage(text);
     
     // Typing indicator'ı başlat
-    if (text.length > 0 && !isTyping) {
+    if (text.length > 0) {
       handleTypingChange(true);
     }
     
@@ -140,7 +140,7 @@ export default function MessageInput({
     
     // 1.5 saniye sonra typing'i durdur
     typingTimeoutRef.current = setTimeout(() => {
-      if (message.length === 0) {
+      if (text.length === 0) {
         handleTypingChange(false);
       }
     }, 1500);
