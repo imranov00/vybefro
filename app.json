@@ -8,31 +8,16 @@
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "statusBar": {
-      "style": "light",
-      "backgroundColor": "transparent",
-      "translucent": true
-    },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.imranow.vybefro",
-      "statusBar": {
-        "style": "light"
-      }
+      "bundleIdentifier": "com.imranow.vybefro"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.imranow.vybefro",
-      "statusBar": {
-        "backgroundColor": "transparent",
-        "translucent": true
-      },
-      "navigationBar": {
-        "backgroundColor": "transparent"
-      }
+      "package": "com.imranow.vybefro"
     },
     "web": {
       "bundler": "metro",
