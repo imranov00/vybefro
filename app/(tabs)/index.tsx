@@ -11,22 +11,28 @@ export default function HomeScreen() {
   
   // CurrentMode'a göre doğru tab'a yönlendir
   useEffect(() => {
+    console.log('🏠 [HOME] State değişikliği:', { isLoading, isLoggedIn, currentMode });
+    
     if (!isLoading) {
       if (!isLoggedIn) {
         // Giriş yapılmamışsa login ekranına yönlendir
+        console.log('🏠 [HOME] Login ekranına yönlendiriliyor');
         router.replace('/(auth)/login');
         return;
       }
       
       if (currentMode === 'music') {
+        console.log('🏠 [HOME] Music tab\'ına yönlendiriliyor');
         router.replace('/(tabs)/music');
       } else {
+        console.log('🏠 [HOME] Astrology tab\'ına yönlendiriliyor');
         router.replace('/(tabs)/astrology');
       }
     }
   }, [isLoading, currentMode, isLoggedIn]);
   
   if (isLoading) {
+    console.log('🏠 [HOME] Loading durumunda...');
     return (
       <View style={[styles.loadingContainer, { backgroundColor: colorScheme === 'dark' ? '#000000' : '#ffffff' }]}>
         <ActivityIndicator 

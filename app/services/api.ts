@@ -72,7 +72,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 5000, // 5 saniye timeout (daha da azaltıldı)
+  timeout: 3000, // 3 saniye timeout (çok agresif)
 });
 
 // Dynamic base URL güncelleme
@@ -166,7 +166,7 @@ api.interceptors.response.use(
         
         // Refresh token endpoint'ini çağır
         const response = await api.post('/api/auth/refresh', { refreshToken }, {
-          timeout: 3000 // 3 saniye timeout
+          timeout: 2000 // 2 saniye timeout (çok agresif)
         });
         
         // Yeni token'ları kaydet
@@ -699,7 +699,7 @@ export const authApi = {
       }
       
       const response = await api.post('/api/auth/refresh', { refreshToken }, {
-        timeout: 3000 // 3 saniye timeout
+        timeout: 2000 // 2 saniye timeout (çok agresif)
       });
       
       // Yeni token'ları kaydet
@@ -736,7 +736,7 @@ export const authApi = {
       const response = await api.post('/api/auth/persistent-login', {
         refreshToken: refreshToken
       }, {
-        timeout: 3000 // 3 saniye timeout
+        timeout: 2000 // 2 saniye timeout (çok agresif)
       });
       
       if (response.data?.success && response.data?.token) {

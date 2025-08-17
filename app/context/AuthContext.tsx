@@ -143,6 +143,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const attemptAutoLogin = async () => {
       setIsLoading(true);
       
+      // 5 saniye timeout ile loading'i zorla sonlandır
+      const timeoutId = setTimeout(() => {
+        console.log('⏰ [AUTH] 5 saniye timeout - loading zorla sonlandırılıyor');
+        setIsLoading(false);
+        setIsLoggedIn(false);
+      }, 5000);
+      
       try {
         // Logout alert flag'ini kontrol et
         const logoutAlertNeeded = await AsyncStorage.getItem('logout_alert_needed');
@@ -150,6 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log('🚨 [AUTH] Logout alert flag found - showing alert');
           setShouldShowLogoutAlert(true);
           await AsyncStorage.removeItem('logout_alert_needed'); // Flag'i temizle
+          clearTimeout(timeoutId);
           setIsLoading(false);
           return; // Alert göster ve login deneme
         }
@@ -159,6 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!hasStoredRefreshToken) {
           console.log('❌ [AUTH] Refresh token yok, manuel login gerekli');
           setIsLoggedIn(false);
+          clearTimeout(timeoutId);
           setIsLoading(false);
           return;
         }
@@ -166,10 +175,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           // Persistent login dene
           console.log('🔄 [AUTH] Otomatik giriş deneniyor...');
+          
+          // 401/403 hatalarını beklemeden direkt temizle
           const loginResponse = await authApi.persistentLogin();
           
           if (loginResponse.success) {
             console.log('✅ [AUTH] Otomatik giriş başarılı!');
+            clearTimeout(timeoutId);
             setIsLoggedIn(true);
             
             // Kaydedilmiş mod'u kontrol et
@@ -215,6 +227,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             
             // Alert flag'ini set et ve loading'i durdur
             setShouldShowLogoutAlert(true);
+            clearTimeout(timeoutId);
             setIsLoading(false);
             return;
           }
@@ -237,6 +250,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('❌ [AUTH] Otomatik giriş kontrolü sırasında hata:', error);
         setIsLoggedIn(false);
       } finally {
+        clearTimeout(timeoutId);
         setIsLoading(false);
       }
     };
