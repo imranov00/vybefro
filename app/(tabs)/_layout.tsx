@@ -239,6 +239,14 @@ export default function TabLayout() {
           }}
         />
 
+        {/* Astro Map - Gizli route, sadece programatik erişim */}
+        <Tabs.Screen
+          name="astro-map"
+          options={{
+            href: null, // Tab bar'da görünmez
+          }}
+        />
+
         {/* Index sayfasını gizle */}
         <Tabs.Screen
           name="index"

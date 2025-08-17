@@ -1,23 +1,25 @@
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Dimensions,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Dimensions,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import Animated, {
-    Easing,
-    useAnimatedStyle,
-    useSharedValue,
-    withRepeat,
-    withSpring,
-    withTiming
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSpring,
+  withTiming
 } from 'react-native-reanimated';
 import { useProfile } from '../context/ProfileContext';
 import { ZodiacSign, getZodiacInfo } from '../types/zodiac';
@@ -75,6 +77,7 @@ const DAILY_HOROSCOPE: Record<ZodiacSign, string> = {
 export default function AstrologyScreen() {
   const colorScheme = useColorScheme();
   const { userProfile } = useProfile();
+  const router = useRouter();
   const [selectedZodiac, setSelectedZodiac] = useState<ZodiacSign | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   
@@ -83,6 +86,7 @@ export default function AstrologyScreen() {
   const starPulse = useSharedValue(1);
   const cardScale = useSharedValue(1);
   const selectedScale = useSharedValue(1);
+  const mapButtonScale = useSharedValue(1);
   
   // Kullanıcının burcu
   const userZodiac = userProfile?.zodiacSign as ZodiacSign;
@@ -131,6 +135,10 @@ export default function AstrologyScreen() {
     transform: [{ scale: selectedScale.value }],
   }));
 
+  const mapButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: mapButtonScale.value }],
+  }));
+
   const handleZodiacSelect = (zodiac: ZodiacSign) => {
     setSelectedZodiac(zodiac);
     setShowDetails(true);
@@ -139,6 +147,16 @@ export default function AstrologyScreen() {
     selectedScale.value = withSpring(1.1, { damping: 15 }, () => {
       selectedScale.value = withSpring(1);
     });
+  };
+
+  const handleMapPress = () => {
+    // Butona basınca animasyon
+    mapButtonScale.value = withSpring(0.9, { damping: 15 }, () => {
+      mapButtonScale.value = withSpring(1);
+    });
+    
+    // Astro harita ekranına git
+    router.push('/(tabs)/astro-map');
   };
 
   const selectedZodiacInfo = selectedZodiac ? getZodiacInfo(selectedZodiac) : null;
@@ -242,6 +260,19 @@ export default function AstrologyScreen() {
                 </Animated.View>
               );
             })}
+
+            {/* Merkez Harita Butonu */}
+            <Animated.View style={[styles.mapButtonContainer, mapButtonStyle]}>
+              <TouchableOpacity style={styles.mapButton} onPress={handleMapPress}>
+                <LinearGradient
+                  colors={['#8A2BE2', '#9370DB', '#BA55D3']}
+                  style={styles.mapButtonGradient}
+                >
+                  <Ionicons name="map" size={28} color="white" />
+                  <Text style={styles.mapButtonText}>Astro{'\n'}Harita</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
           </Animated.View>
         </View>
 
@@ -630,5 +661,44 @@ const styles = StyleSheet.create({
   },
   spacer: {
     height: 40,
+  },
+  // Harita butonu stilleri
+  mapButtonContainer: {
+    position: 'absolute',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  mapButton: {
+    borderRadius: 50,
+    overflow: 'hidden',
+    shadowColor: '#8A2BE2',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.6,
+    shadowRadius: 15,
+    elevation: 20,
+  },
+  mapButtonGradient: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  mapButtonText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginTop: 4,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+    lineHeight: 13,
   },
 }); 
