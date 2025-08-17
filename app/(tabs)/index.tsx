@@ -6,23 +6,29 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
-  const { isLoading, currentMode } = useAuth();
+  const { isLoading, currentMode, isLoggedIn } = useAuth();
   const router = useRouter();
   
   // CurrentMode'a göre doğru tab'a yönlendir
   useEffect(() => {
     if (!isLoading) {
+      if (!isLoggedIn) {
+        // Giriş yapılmamışsa login ekranına yönlendir
+        router.replace('/(auth)/login');
+        return;
+      }
+      
       if (currentMode === 'music') {
         router.replace('/(tabs)/music');
       } else {
         router.replace('/(tabs)/astrology');
       }
     }
-  }, [isLoading, currentMode]);
+  }, [isLoading, currentMode, isLoggedIn]);
   
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: colorScheme === 'dark' ? '#000000' : '#ffffff' }]}>
         <ActivityIndicator 
           size="large" 
           color={colorScheme === 'dark' ? '#ffffff' : '#000000'} 
@@ -31,8 +37,9 @@ export default function HomeScreen() {
     );
   }
   
+  // Loading bittiyse ama hala bu ekrandaysak, yönlendirme yap
   return (
-    <View style={styles.loadingContainer}>
+    <View style={[styles.loadingContainer, { backgroundColor: colorScheme === 'dark' ? '#000000' : '#ffffff' }]}>
       <ActivityIndicator 
         size="large" 
         color={colorScheme === 'dark' ? '#ffffff' : '#000000'} 
@@ -46,6 +53,5 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
   },
 });

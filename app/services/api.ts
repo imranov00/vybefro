@@ -29,7 +29,7 @@ console.log('🔗 [API CONFIG] Base URL:', API_URL);
 const checkNetworkHealth = async (url: string): Promise<boolean> => {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 saniye timeout
+    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 saniye timeout
     
     const response = await fetch(`${url}/health`, { 
       method: 'GET',
@@ -72,7 +72,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 15000, // 15 saniye timeout (artırıldı)
+  timeout: 8000, // 8 saniye timeout (azaltıldı)
 });
 
 // Dynamic base URL güncelleme
@@ -685,7 +685,9 @@ export const authApi = {
         throw new Error('Refresh token bulunamadı');
       }
       
-      const response = await api.post('/api/auth/refresh', { refreshToken });
+      const response = await api.post('/api/auth/refresh', { refreshToken }, {
+        timeout: 5000 // 5 saniye timeout
+      });
       
       // Yeni token'ları kaydet
       if (response.data?.token) {
@@ -717,8 +719,11 @@ export const authApi = {
       
       console.log('🔄 [API] Persistent login deneniyor...');
       
+      // Daha hızlı timeout için özel config
       const response = await api.post('/api/auth/persistent-login', {
         refreshToken: refreshToken
+      }, {
+        timeout: 5000 // 5 saniye timeout
       });
       
       if (response.data?.success && response.data?.token) {

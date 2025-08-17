@@ -142,6 +142,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const attemptAutoLogin = async () => {
       setIsLoading(true);
+      
+      // Timeout ile loading'i sınırla (10 saniye)
+      const timeoutId = setTimeout(() => {
+        console.log('⏰ [AUTH] Auto login timeout - loading durumu sonlandırılıyor');
+        setIsLoading(false);
+        setIsLoggedIn(false);
+      }, 10000);
+      
       try {
         // Logout alert flag'ini kontrol et
         const logoutAlertNeeded = await AsyncStorage.getItem('logout_alert_needed');
@@ -155,6 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!hasStoredRefreshToken) {
           console.log('❌ [AUTH] Refresh token yok, manuel login gerekli');
           setIsLoggedIn(false);
+          clearTimeout(timeoutId);
           return;
         }
         
@@ -179,7 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setIsPremium(true);
             }
 
-            // Sunucudan premium durumunu da kontrol et
+            // Sunucudan premium durumunu da kontrol et (opsiyonel)
             try {
               const premiumStatus = await premiumApi.getFeatures();
               setIsPremium(premiumStatus.isPremium);
@@ -192,8 +201,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           } else {
             throw new Error('Persistent login response başarısız');
           }
-        } catch (error) {
-          console.log('❌ [AUTH] Otomatik giriş başarısız:', error);
+        } catch (error: any) {
+          console.log('❌ [AUTH] Otomatik giriş başarısız:', error.message);
+          
+          // Hata türüne göre farklı davran
+          if (error.message?.includes('timeout') || error.message?.includes('Network Error')) {
+            console.log('🌐 [AUTH] Network hatası - offline moda geçiliyor');
+            // Network hatası varsa, local token'ları temizle ve login ekranına yönlendir
+          }
           
           // Geçersiz refresh token'ı temizle
           await removeAllTokens();
@@ -208,6 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('❌ [AUTH] Otomatik giriş kontrolü sırasında hata:', error);
         setIsLoggedIn(false);
       } finally {
+        clearTimeout(timeoutId);
         setIsLoading(false);
       }
     };
