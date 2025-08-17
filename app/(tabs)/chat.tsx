@@ -522,13 +522,13 @@ export default function ChatScreen() {
                 </LinearGradient>
               ) : item.otherUser?.profileImageUrl ? (
                 <View style={styles.avatarWrapper}>
-                  {/* Avatar border gradient (arka planda) */}
+                  {/* Avatar border gradient - arkada */}
                   <LinearGradient
-                    colors={currentTheme.gradient as any}
-                    style={styles.avatarBorder}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  />
+                     colors={currentTheme.gradient as any}
+                     style={styles.avatarBorder}
+                     start={{ x: 0, y: 0 }}
+                     end={{ x: 1, y: 1 }}
+                   />
                   <Image 
                     source={{ uri: item.otherUser.profileImageUrl }}
                     style={styles.avatar}
@@ -1073,13 +1073,12 @@ const styles = StyleSheet.create({
   },
   avatarBorder: {
     position: 'absolute',
-    top: -2,
-    left: -2,
-    right: -2,
-    bottom: -2,
-    borderRadius: 30,
-    opacity: 0.3,
-    zIndex: -1, // Avatar'ın arkasında kalması için
+    top: -3,
+    left: -3,
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    zIndex: 0, // Avatar'ın arkasında kalması için
   },
   avatarPlaceholder: {
     width: 56,
@@ -1115,6 +1114,7 @@ const styles = StyleSheet.create({
     borderColor: 'white',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 2, // En üstte kalması için
   },
   onlinePulse: {
     width: 6,

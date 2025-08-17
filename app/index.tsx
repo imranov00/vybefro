@@ -1,47 +1,36 @@
 import { Redirect } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { useAuth } from './context/AuthContext';
+import { hasRefreshToken } from './utils/tokenStorage';
 
 export default function Index() {
-  const { isLoggedIn, isLoading } = useAuth();
-  const [forceRedirect, setForceRedirect] = useState(false);
+  const [hasToken, setHasToken] = useState<boolean | null>(null);
   
-  // 5 saniye sonra zorla yönlendir (iOS için güvenlik)
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (isLoading) {
-        console.log('⚠️ Loading timeout - zorla yönlendiriliyor');
-        setForceRedirect(true);
+    const checkAuth = async () => {
+      try {
+        console.log('🔍 [INDEX] Token kontrolü yapılıyor...');
+        const tokenExists = await hasRefreshToken();
+        setHasToken(tokenExists);
+        
+        if (tokenExists) {
+          console.log('✅ [INDEX] Token var - ana sayfaya yönlendiriliyor');
+        } else {
+          console.log('❌ [INDEX] Token yok - login sayfasına yönlendiriliyor');
+        }
+      } catch (error) {
+        console.error('❌ [INDEX] Token kontrol hatası:', error);
+        setHasToken(false);
       }
-    }, 5000);
+    };
     
-    return () => clearTimeout(timeout);
-  }, [isLoading]);
+    checkAuth();
+  }, []);
   
-  // Zorla yönlendirme veya loading tamamlandıysa
-  if (!isLoading || forceRedirect) {
-    // Token varsa ana sayfaya, yoksa splash sayfasına yönlendir
-    if (isLoggedIn) {
-      return <Redirect href="/(tabs)" />;
-    } else {
-      return <Redirect href="/(auth)/splash" />;
-    }
+  // Token kontrolü tamamlanana kadar bekle
+  if (hasToken === null) {
+    return null; // Çok kısa süre, kullanıcı fark etmez
   }
   
-  // AuthContext yükleniyor durumunda loading göster
-  return (
-    <View style={styles.loadingContainer}>
-      <ActivityIndicator size="large" color="#9733EE" />
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#000',
-  },
-}); 
+  // Token durumuna göre yönlendir
+  return hasToken ? <Redirect href="/(tabs)" /> : <Redirect href="/(auth)/login" />;
+} 

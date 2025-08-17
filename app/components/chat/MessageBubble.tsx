@@ -262,6 +262,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#00FF7F',
     borderWidth: 2,
     borderColor: 'white',
+    zIndex: 1, // Avatar'ın üstünde kalması için
   },
 
   // Mesaj içeriği

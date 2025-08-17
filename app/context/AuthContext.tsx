@@ -142,14 +142,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const attemptAutoLogin = async () => {
       setIsLoading(true);
-      
-      // iOS için güvenlik timeout'u
-      const timeout = setTimeout(() => {
-        console.log('⚠️ [AUTH] Loading timeout - iOS güvenlik önlemi');
-        setIsLoading(false);
-        setIsLoggedIn(false);
-      }, 10000); // 10 saniye
-      
       try {
         // Logout alert flag'ini kontrol et
         const logoutAlertNeeded = await AsyncStorage.getItem('logout_alert_needed');
@@ -216,7 +208,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('❌ [AUTH] Otomatik giriş kontrolü sırasında hata:', error);
         setIsLoggedIn(false);
       } finally {
-        clearTimeout(timeout); // Timeout'u temizle
         setIsLoading(false);
       }
     };
