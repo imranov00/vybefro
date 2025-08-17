@@ -72,7 +72,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 8000, // 8 saniye timeout (azaltıldı)
+  timeout: 5000, // 5 saniye timeout (daha da azaltıldı)
 });
 
 // Dynamic base URL güncelleme
@@ -165,7 +165,9 @@ api.interceptors.response.use(
         }
         
         // Refresh token endpoint'ini çağır
-        const response = await api.post('/api/auth/refresh', { refreshToken });
+        const response = await api.post('/api/auth/refresh', { refreshToken }, {
+          timeout: 3000 // 3 saniye timeout
+        });
         
         // Yeni token'ları kaydet
         if (response.data?.token) {
@@ -211,6 +213,16 @@ api.interceptors.response.use(
     // Diğer hatalar için mevcut logic
     if (error.response) {
       console.error(`[API RESPONSE ERROR] ${error.response.status}`, error.response.data);
+      
+      // 401/403 hatalarında anında logout tetikle
+      if (error.response.status === 401 || error.response.status === 403) {
+        console.log('🔒 [API] Yetkilendirme hatası - logout tetikleniyor');
+        try {
+          await AsyncStorage.setItem('logout_alert_needed', 'true');
+        } catch (alertError) {
+          console.error('❌ [API] Logout alert flag set hatası:', alertError);
+        }
+      }
     } else if (error.request) {
       console.error('[API REQUEST FAILED]', error.request);
       
@@ -686,7 +698,7 @@ export const authApi = {
       }
       
       const response = await api.post('/api/auth/refresh', { refreshToken }, {
-        timeout: 5000 // 5 saniye timeout
+        timeout: 3000 // 3 saniye timeout
       });
       
       // Yeni token'ları kaydet
@@ -723,7 +735,7 @@ export const authApi = {
       const response = await api.post('/api/auth/persistent-login', {
         refreshToken: refreshToken
       }, {
-        timeout: 5000 // 5 saniye timeout
+        timeout: 3000 // 3 saniye timeout
       });
       
       if (response.data?.success && response.data?.token) {

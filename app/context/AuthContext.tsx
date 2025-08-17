@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useSegments } from 'expo-router';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
-import { Alert } from 'react-native';
+import VybeAlert from '../components/VybeAlert';
 import { authApi, premiumApi } from '../services/api';
 import { hasRefreshToken, removeAllTokens } from '../utils/tokenStorage';
 
@@ -143,13 +143,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const attemptAutoLogin = async () => {
       setIsLoading(true);
       
-      // Timeout ile loading'i sınırla (10 saniye)
-      const timeoutId = setTimeout(() => {
-        console.log('⏰ [AUTH] Auto login timeout - loading durumu sonlandırılıyor');
-        setIsLoading(false);
-        setIsLoggedIn(false);
-      }, 10000);
-      
       try {
         // Logout alert flag'ini kontrol et
         const logoutAlertNeeded = await AsyncStorage.getItem('logout_alert_needed');
@@ -163,7 +156,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!hasStoredRefreshToken) {
           console.log('❌ [AUTH] Refresh token yok, manuel login gerekli');
           setIsLoggedIn(false);
-          clearTimeout(timeoutId);
           return;
         }
         
@@ -204,10 +196,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (error: any) {
           console.log('❌ [AUTH] Otomatik giriş başarısız:', error.message);
           
-          // Hata türüne göre farklı davran
+          // 401/403 hatalarında anında logout ve alert göster
+          if (error.response?.status === 401 || error.response?.status === 403) {
+            console.log('🔒 [AUTH] Yetkilendirme hatası - anında logout');
+            
+            // Geçersiz token'ları temizle
+            await removeAllTokens();
+            await AsyncStorage.removeItem('user_mode');
+            await AsyncStorage.removeItem('user_premium');
+            
+            setIsLoggedIn(false);
+            setCurrentMode('astrology');
+            setIsPremium(false);
+            
+            // Alert flag'ini set et
+            setShouldShowLogoutAlert(true);
+            return;
+          }
+          
+          // Diğer hatalar için normal flow
           if (error.message?.includes('timeout') || error.message?.includes('Network Error')) {
             console.log('🌐 [AUTH] Network hatası - offline moda geçiliyor');
-            // Network hatası varsa, local token'ları temizle ve login ekranına yönlendir
           }
           
           // Geçersiz refresh token'ı temizle
@@ -223,7 +232,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('❌ [AUTH] Otomatik giriş kontrolü sırasında hata:', error);
         setIsLoggedIn(false);
       } finally {
-        clearTimeout(timeoutId);
         setIsLoading(false);
       }
     };
@@ -234,22 +242,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Çıkış uyarısını göstermek için ayrı useEffect
   useEffect(() => {
     if (shouldShowLogoutAlert && !isLoading) {
-      Alert.alert(
-        'Oturum Sonlandı',
-        'Güvenlik nedeniyle oturumunuz sonlandırıldı. Lütfen tekrar giriş yapın.',
-        [
-          {
-            text: 'Tamam',
-            onPress: () => {
-              setShouldShowLogoutAlert(false);
-              router.replace('/(auth)/login');
-            }
-          }
-        ],
-        { cancelable: false }
-      );
+      setShouldShowLogoutAlert(false);
     }
-  }, [shouldShowLogoutAlert, isLoading, router]);
+  }, [shouldShowLogoutAlert, isLoading]);
 
   return (
     <AuthContext.Provider
@@ -267,6 +262,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }}
     >
       {children}
+      
+      {/* VYBE Alert for session timeout */}
+      <VybeAlert
+        visible={shouldShowLogoutAlert}
+        title="Oturum Sonlandı"
+        message="Hesabınız zaman aşımına uğradı. Güvenlik nedeniyle oturumunuz sonlandırıldı. Lütfen tekrar giriş yapınız."
+        onConfirm={() => {
+          setShouldShowLogoutAlert(false);
+          router.replace('/(auth)/login');
+        }}
+        confirmText="Giriş Yap"
+        type="warning"
+      />
     </AuthContext.Provider>
   );
 }
