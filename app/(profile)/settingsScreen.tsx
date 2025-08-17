@@ -13,6 +13,8 @@ import {
     View
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
+import { useChat } from '../context/ChatContext';
+import { useProfile } from '../context/ProfileContext';
 import { authApi } from '../services/api';
 
 export default function SettingsScreen() {
@@ -21,6 +23,8 @@ export default function SettingsScreen() {
   const isDark = colorScheme === 'dark';
   const [loading, setLoading] = useState(false);
   const { logout, currentMode } = useAuth();
+  const { clearAllCache } = useChat();
+  const { clearCache } = useProfile();
   
   const handleLogout = async () => {
     Alert.alert(
@@ -42,14 +46,26 @@ export default function SettingsScreen() {
               const response = await authApi.logout();
               console.log('Çıkış yanıtı:', response);
               
-              // AuthContext üzerinden çıkış yap
-              await logout();
+              // Cache temizleme fonksiyonunu hazırla
+              const clearAllCaches = () => {
+                clearAllCache(); // Chat cache'ini temizle
+                clearCache();    // Profile cache'ini temizle
+              };
+              
+              // AuthContext üzerinden çıkış yap ve cache'leri temizle
+              await logout(clearAllCaches);
               
             } catch (error: any) {
               console.error('Çıkış yapma hatası:', error);
               
+              // Hata olsa bile cache'leri temizle ve çıkış yap
+              const clearAllCaches = () => {
+                clearAllCache(); // Chat cache'ini temizle
+                clearCache();    // Profile cache'ini temizle
+              };
+              
               // Hata olsa bile AuthContext üzerinden çıkış yap
-              await logout();
+              await logout(clearAllCaches);
               
               // Kullanıcıya bilgi ver
               Alert.alert(

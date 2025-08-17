@@ -2,13 +2,14 @@ import React, { createContext, ReactNode, useContext, useEffect, useRef, useStat
 import { Alert } from 'react-native';
 import { chatApi, ChatListItem, ChatMessage, GlobalChatResponse, MessageLimitInfo, PrivateChatResponse, PrivateChatRoom, userApi } from '../services/api';
 import {
-  initializeWebSocket,
-  VybeWebSocketClient,
-  WebSocketMessage,
-  WebSocketMessageType,
-  WebSocketStatus
+    initializeWebSocket,
+    VybeWebSocketClient,
+    WebSocketMessage,
+    WebSocketMessageType,
+    WebSocketStatus
 } from '../services/websocket';
 import { getToken } from '../utils/tokenStorage';
+import { useAuth } from './AuthContext';
 
 // Context değer tipi
 type ChatContextType = {
@@ -71,6 +72,9 @@ type ChatContextType = {
   pendingMessages: Set<string>; // Gönderilen ama henüz WebSocket'ten gelmeyen mesajlar
   forceRefreshMessages: () => Promise<void>;
   updateMessageStatuses: () => Promise<void>;
+  
+  // Cache temizleme
+  clearAllCache: () => void;
 };
 
 // Context oluştur
@@ -78,6 +82,8 @@ const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 // Context Provider bileşeni
 export function ChatProvider({ children }: { children: ReactNode }) {
+  const { isLoggedIn } = useAuth(); // Login durumunu kontrol et
+  
   // State'ler
   const [chatList, setChatList] = useState<ChatListItem[]>([]);
   const [isLoadingChatList, setIsLoadingChatList] = useState(false);
@@ -110,6 +116,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Chat listesini yükle
   const refreshChatList = async () => {
+    // Login olmadıysa API çağrısı yapma
+    if (!isLoggedIn) {
+      console.log('ℹ️ [CHAT CONTEXT] Kullanıcı login olmadığı için chat listesi yüklenmeyecek');
+      return;
+    }
+    
     try {
       setIsLoadingChatList(true);
       setError(null);
@@ -120,7 +132,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       console.log('✅ [CHAT CONTEXT] Chat listesi yüklendi:', chatListData.length);
     } catch (error: any) {
       console.error('❌ [CHAT CONTEXT] Chat listesi yüklenemedi:', error);
-      setError('Chat listesi yüklenemedi');
+      // Login olmadığında hata gösterme
+      if (isLoggedIn) {
+        setError('Chat listesi yüklenemedi');
+      }
     } finally {
       setIsLoadingChatList(false);
     }
@@ -128,6 +143,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Private chat listesini yenile
   const refreshPrivateChats = async () => {
+    // Login olmadıysa API çağrısı yapma
+    if (!isLoggedIn) {
+      console.log('ℹ️ [CHAT CONTEXT] Kullanıcı login olmadığı için private chat listesi yüklenmeyecek');
+      return;
+    }
+    
     try {
       setIsLoadingPrivateChats(true);
       console.log('🔄 [CHAT CONTEXT] Private chat listesi yenileniyor...');
@@ -138,6 +159,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       console.log('✅ [CHAT CONTEXT] Private chat listesi yüklendi:', privateChatData.privateChatRooms.length);
     } catch (error: any) {
       console.error('❌ [CHAT CONTEXT] Private chat listesi yüklenemedi:', error);
+      
+      // Login olmadığında hata gösterme
+      if (!isLoggedIn) {
+        console.log('ℹ️ [CHAT CONTEXT] Private chat hatası görmezden geliniyor (logout)');
+        return;
+      }
       
       // Oturum problemi varsa kullanıcıyı bilgilendir
       if (error.message?.includes('Oturum bilgilerinizde bir sorun var') || 
@@ -486,6 +513,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Mesaj limiti bilgisini yenile
   const refreshMessageLimit = async () => {
+    // Login olmadıysa API çağrısı yapma
+    if (!isLoggedIn) {
+      console.log('ℹ️ [CHAT CONTEXT] Kullanıcı login olmadığı için mesaj limiti yüklenmeyecek');
+      return;
+    }
+    
     try {
       const limitInfo = await chatApi.getMessageLimitInfo();
       setMessageLimitInfo(limitInfo);
@@ -496,6 +529,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       });
     } catch (error: any) {
       console.error('❌ [CHAT CONTEXT] Mesaj limiti güncellenemedi:', error);
+      // Login olmadığında hata gösterme
+      if (isLoggedIn) {
+        setError('Mesaj limiti bilgisi alınamadı');
+      }
     }
   };
 
@@ -993,13 +1030,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Component mount olduğunda chat listesini ve limit bilgisini yükle
+  // Login durumuna göre chat listesini ve limit bilgisini yükle
   useEffect(() => {
-    refreshChatList();
-    refreshPrivateChats();
-    refreshMessageLimit();
-    initializeWebSocketConnection();
-  }, []);
+    if (isLoggedIn) {
+      console.log('🔄 [CHAT CONTEXT] Kullanıcı login, chat verileri yükleniyor...');
+      refreshChatList();
+      refreshPrivateChats();
+      refreshMessageLimit();
+      initializeWebSocketConnection();
+    } else {
+      console.log('ℹ️ [CHAT CONTEXT] Kullanıcı logout, chat verileri yüklenmiyor');
+    }
+  }, [isLoggedIn]);
 
   // Component unmount olduğunda WebSocket'i kapat
   useEffect(() => {
@@ -1013,6 +1055,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // Akıllı polling: WebSocket çalışmadığında sadece fallback olarak kullan
   useEffect(() => {
     let interval: any;
+    
+    // Login olmadıysa polling yapma
+    if (!isLoggedIn) {
+      console.log('ℹ️ [CHAT CONTEXT] Kullanıcı login olmadığı için polling yapılmayacak');
+      return;
+    }
     
     // WebSocket bağlıysa polling yapma
     if (isWebSocketConnected) {
@@ -1092,7 +1140,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         clearInterval(interval);
       }
     };
-  }, [activeChatId, isLoadingMessages, activeChat, isWebSocketConnected]);
+  }, [activeChatId, isLoadingMessages, activeChat, isWebSocketConnected, isLoggedIn]);
 
   // Mesaj limiti countdown'u için interval
   useEffect(() => {
@@ -1134,10 +1182,48 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (error) {
       Alert.alert('Hata', error, [
-        { text: 'Tamam', onPress: clearError }
+        { text: 'Tamam', onPress: () => setError(null) }
       ]);
     }
   }, [error]);
+
+  // Cache temizleme fonksiyonu
+  const clearAllCache = () => {
+    console.log('🗑️ [CHAT CONTEXT] Tüm cache temizleniyor...');
+    
+    // Chat listesi
+    setChatList([]);
+    setPrivateChatList([]);
+    
+    // Aktif chat
+    setActiveChat(null);
+    setActiveChatId(null);
+    
+    // Mesaj limiti
+    setMessageLimitInfo(null);
+    
+    // Typing durumu
+    setIsTyping(false);
+    setTypingUsers(new Map());
+    
+    // Hata durumu
+    setError(null);
+    
+    // WebSocket bağlantısını tamamen kapat (reconnection'u durdur)
+    if (wsClient) {
+      wsClient.disconnect();
+      setWsClient(null);
+    }
+    setWsStatus(WebSocketStatus.DISCONNECTED);
+    
+    // WebSocket instance'ını da temizle
+    wsClientRef.current = null;
+    
+    // Pending mesajları temizle
+    setPendingMessages(new Set());
+    
+    console.log('✅ [CHAT CONTEXT] Cache temizlendi');
+  };
 
   return (
     <ChatContext.Provider
@@ -1171,12 +1257,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         updateMessageStatus,
         typingUsers,
         error,
-        clearError,
+        clearError: () => setError(null),
         // Hybrid yaklaşım için yeni özellikler
         isWebSocketConnected,
         pendingMessages,
         forceRefreshMessages,
-        updateMessageStatuses
+        updateMessageStatuses,
+        // Cache temizleme
+        clearAllCache
       }}
     >
       {children}

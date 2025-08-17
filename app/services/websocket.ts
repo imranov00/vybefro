@@ -102,6 +102,7 @@ export class VybeWebSocketClient {
   private messageQueue: WebSocketMessage[] = [];
   private isProcessingQueue: boolean = false;
   private subscriptions: Map<string, StompSubscription> = new Map();
+  private shouldReconnect: boolean = true; // Reconnection kontrolü için flag
 
   constructor(token: string, userId: string, baseUrl?: string) {
     this.token = token;
@@ -174,6 +175,11 @@ export class VybeWebSocketClient {
           console.log('🔌 [WEBSOCKET] STOMP bağlantısı kesildi');
           this.status = WebSocketStatus.DISCONNECTED;
           this.eventHandlers.onDisconnected?.();
+          
+          // Sadece shouldReconnect true ise yeniden bağlanmaya çalış
+          if (this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
+            this.scheduleReconnect();
+          }
         };
 
         // WebSocket bağlantısı
@@ -190,6 +196,9 @@ export class VybeWebSocketClient {
   // WebSocket'ten çık
   public disconnect(): void {
     console.log('🔌 [WEBSOCKET] STOMP bağlantısı kapatılıyor');
+    
+    // Reconnection'u durdur
+    this.shouldReconnect = false;
     
     if (this.status === WebSocketStatus.CONNECTED && this.stompClient) {
       this.stompClient.deactivate();
@@ -511,13 +520,19 @@ export class VybeWebSocketClient {
 
   // Yeniden bağlanma zamanla
   private scheduleReconnect(): void {
+    // Eğer reconnection durdurulduysa, çık
+    if (!this.shouldReconnect) {
+      console.log('🚫 [WEBSOCKET] Reconnection durduruldu, yeniden bağlanma yapılmayacak');
+      return;
+    }
+    
     this.reconnectAttempts++;
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1); // Exponential backoff
     
     console.log(`🔄 [WEBSOCKET] ${delay}ms sonra yeniden bağlanma denemesi ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
     
     setTimeout(() => {
-      if (this.status === WebSocketStatus.DISCONNECTED) {
+      if (this.shouldReconnect && this.status === WebSocketStatus.DISCONNECTED) {
         this.reconnect();
       }
     }, delay);
@@ -525,7 +540,7 @@ export class VybeWebSocketClient {
 
   // Yeniden bağlan
   private async reconnect(): Promise<void> {
-    if (this.status === WebSocketStatus.CONNECTING || this.status === WebSocketStatus.CONNECTED) {
+    if (!this.shouldReconnect || this.status === WebSocketStatus.CONNECTING || this.status === WebSocketStatus.CONNECTED) {
       return;
     }
 
@@ -583,4 +598,5 @@ export const closeWebSocket = (): void => {
     wsClientInstance.disconnect();
     wsClientInstance = null;
   }
+  console.log('🔌 [WEBSOCKET] WebSocket instance tamamen kapatıldı');
 };

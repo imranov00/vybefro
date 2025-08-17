@@ -4,17 +4,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    Alert,
-    Keyboard,
-    KeyboardAvoidingView,
-    KeyboardEvent,
-    Platform,
-    SafeAreaView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  KeyboardEvent,
+  Platform,
+  SafeAreaView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 import MessageInput from '../components/chat/MessageInput';
@@ -25,7 +25,7 @@ import { useProfile } from '../context/ProfileContext';
 
 export default function GlobalChatScreen() {
   const { currentMode } = useAuth();
-  const { userProfile } = useProfile();
+  const { userProfile, currentUserId, refreshProfile } = useProfile();
   const { 
     activeChat, 
     isLoadingMessages, 
@@ -123,6 +123,8 @@ export default function GlobalChatScreen() {
     useCallback(() => {
       console.log('🌍 [GLOBAL CHAT] Screen focused - loading global messages');
 
+      // Profil güncellemesi yap (token değişmiş olabilir)
+      refreshProfile();
       
       loadMessages(1, 'GLOBAL'); // Global chat room ID genellikle 1
       refreshMessageLimit();
@@ -305,7 +307,7 @@ export default function GlobalChatScreen() {
           <MessageList
             ref={messageListRef}
             messages={activeChat?.messages || []}
-            currentUserId={userProfile?.id || 0}
+            currentUserId={userProfile?.id || parseInt(currentUserId || '0')}
             isLoading={isLoadingMessages}
             hasMore={activeChat?.hasMore || false}
             onLoadMore={loadMoreMessages}
@@ -317,17 +319,7 @@ export default function GlobalChatScreen() {
           />
         </View>
         
-        {/* Debug bilgisi */}
-        {__DEV__ && (
-          <View style={{ position: 'absolute', top: 100, right: 10, backgroundColor: 'rgba(0,0,0,0.8)', padding: 10, borderRadius: 5 }}>
-            <Text style={{ color: 'white', fontSize: 10 }}>
-              User ID: {userProfile?.id || 'null'}
-            </Text>
-            <Text style={{ color: 'white', fontSize: 10 }}>
-              Username: {userProfile?.username || 'null'}
-            </Text>
-          </View>
-        )}
+
         
 
 

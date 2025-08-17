@@ -22,6 +22,7 @@ export default function MessageBubble({
   
 
 
+
   // Tema renklerini belirle
   const theme = {
     astrology: {

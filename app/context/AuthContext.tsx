@@ -9,8 +9,8 @@ import { hasRefreshToken, removeAllTokens } from '../utils/tokenStorage';
 type AuthContextType = {
   isLoggedIn: boolean;
   login: (mode?: 'astrology' | 'music') => void;
-  logout: () => void;
-  forceLogout: (reason?: string) => void;
+  logout: (clearCacheCallback?: () => void) => void;
+  forceLogout: (reason?: string, clearCacheCallback?: () => void) => void;
   isLoading: boolean;
   currentMode: 'astrology' | 'music';
   switchMode: (mode: 'astrology' | 'music') => void;
@@ -54,9 +54,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   // Zorunlu çıkış fonksiyonu (token geçersizse)
-  const forceLogout = async (reason?: string) => {
+  const forceLogout = async (reason?: string, clearCacheCallback?: () => void) => {
     try {
       console.log('🔓 [AUTH] Force logout:', reason || 'Token geçersiz');
+      
+      // Cache temizleme callback'ini çağır (eğer verilmişse)
+      if (clearCacheCallback) {
+        console.log('🗑️ [AUTH] Context cacheleri temizleniyor...');
+        clearCacheCallback();
+      }
       
       // Local storage'ı temizle
       await removeAllTokens();
@@ -101,7 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Normal çıkış yapma fonksiyonu
-  const logout = async () => {
+  const logout = async (clearCacheCallback?: () => void) => {
     try {
       // Backend'e logout isteği gönder
       await authApi.logout();
@@ -109,6 +115,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('❌ [AUTH] Backend logout hatası:', error);
       // Hata olsa bile devam et
+    }
+    
+    // Cache temizleme callback'ini çağır (eğer verilmişse)
+    if (clearCacheCallback) {
+      console.log('🗑️ [AUTH] Context cacheleri temizleniyor...');
+      clearCacheCallback();
     }
     
     // Local storage'ı temizle

@@ -4,23 +4,23 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  FlatList,
-  Image,
-  Platform,
-  RefreshControl,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    FlatList,
+    Image,
+    Platform,
+    RefreshControl,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withTiming
+    Easing,
+    useAnimatedStyle,
+    useSharedValue,
+    withRepeat,
+    withTiming
 } from 'react-native-reanimated';
 
 import { useAuth } from '../context/AuthContext';
@@ -522,17 +522,17 @@ export default function ChatScreen() {
                 </LinearGradient>
               ) : item.otherUser?.profileImageUrl ? (
                 <View style={styles.avatarWrapper}>
+                  {/* Avatar border gradient (arka planda) */}
+                  <LinearGradient
+                    colors={currentTheme.gradient as any}
+                    style={styles.avatarBorder}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  />
                   <Image 
                     source={{ uri: item.otherUser.profileImageUrl }}
                     style={styles.avatar}
                   />
-                  {/* Avatar border gradient */}
-                                     <LinearGradient
-                     colors={currentTheme.gradient as any}
-                     style={styles.avatarBorder}
-                     start={{ x: 0, y: 0 }}
-                     end={{ x: 1, y: 1 }}
-                   />
                 </View>
               ) : (
                 <View style={styles.avatarWrapper}>
@@ -1069,6 +1069,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
+    zIndex: 1, // Border'ın üstünde kalması için
   },
   avatarBorder: {
     position: 'absolute',
@@ -1078,6 +1079,7 @@ const styles = StyleSheet.create({
     bottom: -2,
     borderRadius: 30,
     opacity: 0.3,
+    zIndex: -1, // Avatar'ın arkasında kalması için
   },
   avatarPlaceholder: {
     width: 56,

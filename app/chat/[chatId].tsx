@@ -4,18 +4,18 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    Alert,
-    Image,
-    Keyboard,
-    KeyboardAvoidingView,
-    KeyboardEvent,
-    Platform,
-    SafeAreaView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Alert,
+  Image,
+  Keyboard,
+  KeyboardAvoidingView,
+  KeyboardEvent,
+  Platform,
+  SafeAreaView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 import MessageInput from '../components/chat/MessageInput';
@@ -26,7 +26,7 @@ import { useProfile } from '../context/ProfileContext';
 
 export default function PrivateChatScreen() {
   const { currentMode } = useAuth();
-  const { userProfile } = useProfile();
+  const { userProfile, currentUserId, refreshProfile } = useProfile();
   const { 
     activeChat, 
     isLoadingMessages, 
@@ -126,6 +126,10 @@ export default function PrivateChatScreen() {
     useCallback(() => {
       if (!isNaN(chatRoomId)) {
         console.log('💬 [PRIVATE CHAT] Screen focused - loading private messages:', chatRoomId);
+        
+        // Profil güncellemesi yap (token değişmiş olabilir)
+        refreshProfile();
+        
         loadMessages(chatRoomId, 'PRIVATE');
         markMessagesAsRead(chatRoomId);
         
@@ -455,7 +459,7 @@ export default function PrivateChatScreen() {
             <MessageList
               ref={messageListRef}
               messages={activeChat.messages || []}
-              currentUserId={userProfile?.id || 0}
+              currentUserId={userProfile?.id || parseInt(currentUserId || '0')}
               isLoading={isLoadingMessages}
               hasMore={activeChat.hasMore}
               onLoadMore={loadMoreMessages}

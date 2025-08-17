@@ -32,6 +32,7 @@ type ProfileContextType = {
   isLoading: boolean;
   error: string | null;
   currentUserId: string | null;
+  clearCache: () => void;
 };
 
 // Varsayılan değerler
@@ -82,6 +83,16 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const fetchProfile = async (force = false) => {
     const now = Date.now();
     
+    // Her seferinde token'dan currentUserId'yi kontrol et
+    const tokenUserId = await getCurrentUserId();
+    if (tokenUserId !== currentUserId) {
+      console.log('🔄 [PROFILE CONTEXT] Token değişimi tespit edildi:', {
+        oldUserId: currentUserId,
+        newUserId: tokenUserId
+      });
+      setCurrentUserId(tokenUserId);
+    }
+    
     // Cache kontrolü - son 5 dakika içinde güncelleme yapıldıysa ve force false ise güncelleme yapma
     if (!force && now - lastFetchTime.current < CACHE_DURATION) {
       console.log('Cache\'den profil bilgileri kullanılıyor');
@@ -99,7 +110,6 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         const mappedProfile = mapApiResponseToUserProfile(response);
         
         // Token'dan ID'yi kontrol et ve set et
-        const tokenUserId = await getCurrentUserId();
         if (tokenUserId && mappedProfile.id !== parseInt(tokenUserId)) {
           console.log('🔄 [PROFILE CONTEXT] Token ID ile API ID uyumsuz, token ID kullanılıyor:', {
             apiId: mappedProfile.id,
@@ -144,7 +154,10 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       // JWT token'dan kullanıcı ID'sini parse et (basit yöntem)
       // Gerçek uygulamada daha güvenli bir yöntem kullanılmalı
       const payload = JSON.parse(atob(token.split('.')[1]));
-      return payload.sub || payload.userId || payload.id || null;
+      // Tüm olası field'ları kontrol et (log'da userId: 24 görüldü)
+      const userId = payload.userId || payload.sub || payload.id || payload.user_id || null;
+      
+      return userId ? String(userId) : null;
     } catch (error) {
       console.error('Token parse hatası:', error);
       return null;
@@ -153,6 +166,31 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = async () => {
     await fetchProfile(true); // Force ile güncelleme
+  };
+
+  // Cache temizleme fonksiyonu
+  const clearCache = () => {
+    console.log('🗑️ [PROFILE CONTEXT] Cache temizleniyor...');
+    
+    // Profil bilgilerini varsayılana döndür
+    setUserProfile(defaultUserProfile);
+    
+    // CurrentUserId'yi temizle
+    setCurrentUserId(null);
+    
+    // Hata durumunu temizle
+    setError(null);
+    
+    // Loading durumunu sıfırla
+    setIsLoading(false);
+    
+    // Profile drawer'ı kapat
+    setIsProfileVisible(false);
+    
+    // Cache zamanını sıfırla
+    lastFetchTime.current = 0;
+    
+    console.log('✅ [PROFILE CONTEXT] Cache temizlendi');
   };
 
   useEffect(() => {
@@ -187,6 +225,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         isLoading,
         error,
         currentUserId,
+        clearCache,
       }}
     >
       {children}
