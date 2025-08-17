@@ -1,57 +1,43 @@
 import { useAuth } from '@/app/context/AuthContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRouter } from 'expo-router';
-import React, { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { useEffect } from 'react';
+import { StyleSheet } from 'react-native';
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const { isLoading, currentMode, isLoggedIn } = useAuth();
   const router = useRouter();
   
-  // CurrentMode'a göre doğru tab'a yönlendir
+  // Direkt yönlendirme - loading bekleme
   useEffect(() => {
     console.log('🏠 [HOME] State değişikliği:', { isLoading, isLoggedIn, currentMode });
     
-    if (!isLoading) {
-      if (!isLoggedIn) {
-        // Giriş yapılmamışsa login ekranına yönlendir
-        console.log('🏠 [HOME] Login ekranına yönlendiriliyor');
-        router.replace('/(auth)/login');
-        return;
-      }
-      
-      if (currentMode === 'music') {
-        console.log('🏠 [HOME] Music tab\'ına yönlendiriliyor');
-        router.replace('/(tabs)/music');
-      } else {
-        console.log('🏠 [HOME] Astrology tab\'ına yönlendiriliyor');
-        router.replace('/(tabs)/astrology');
-      }
+    // Loading durumunda bile direkt yönlendir
+    if (!isLoggedIn) {
+      // Giriş yapılmamışsa login ekranına yönlendir
+      console.log('🏠 [HOME] Login ekranına yönlendiriliyor');
+      router.replace('/(auth)/login');
+      return;
+    }
+    
+    if (currentMode === 'music') {
+      console.log('🏠 [HOME] Music tab\'ına yönlendiriliyor');
+      router.replace('/(tabs)/music');
+    } else {
+      console.log('🏠 [HOME] Astrology tab\'ına yönlendiriliyor');
+      router.replace('/(tabs)/astrology');
     }
   }, [isLoading, currentMode, isLoggedIn]);
   
+  // Loading durumunda bile boş ekran gösterme
   if (isLoading) {
-    console.log('🏠 [HOME] Loading durumunda...');
-    return (
-      <View style={[styles.loadingContainer, { backgroundColor: colorScheme === 'dark' ? '#000000' : '#ffffff' }]}>
-        <ActivityIndicator 
-          size="large" 
-          color={colorScheme === 'dark' ? '#ffffff' : '#000000'} 
-        />
-      </View>
-    );
+    console.log('🏠 [HOME] Loading durumunda - boş ekran');
+    return null; // Hiçbir şey gösterme
   }
   
-  // Loading bittiyse ama hala bu ekrandaysak, yönlendirme yap
-  return (
-    <View style={[styles.loadingContainer, { backgroundColor: colorScheme === 'dark' ? '#000000' : '#ffffff' }]}>
-      <ActivityIndicator 
-        size="large" 
-        color={colorScheme === 'dark' ? '#ffffff' : '#000000'} 
-      />
-    </View>
-  );
+  // Bu noktaya gelirse bir sorun var, boş ekran göster
+  return null;
 }
 
 const styles = StyleSheet.create({

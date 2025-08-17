@@ -2,8 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useSegments } from 'expo-router';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import VybeAlert from '../components/VybeAlert';
-import { authApi, premiumApi } from '../services/api';
-import { hasRefreshToken, removeAllTokens } from '../utils/tokenStorage';
+import { authApi } from '../services/api';
+import { removeAllTokens } from '../utils/tokenStorage';
 
 // Context değer tipi
 type AuthContextType = {
@@ -47,7 +47,7 @@ function useProtectedRoute(isLoggedIn: boolean) {
 // Context Provider bileşeni
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false); // Başlangıçta false
   const [currentMode, setCurrentMode] = useState<'astrology' | 'music'>('astrology');
   const [isPremium, setIsPremium] = useState<boolean>(false);
   const [shouldShowLogoutAlert, setShouldShowLogoutAlert] = useState<boolean>(false);
@@ -138,18 +138,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.replace('/(auth)/login');
   };
 
-  // Uygulama başlangıcında otomatik giriş denemesi
+  // Uygulama başlangıcında direkt login ekranına yönlendir
   useEffect(() => {
-    const attemptAutoLogin = async () => {
-      setIsLoading(true);
-      
-      // 5 saniye timeout ile loading'i zorla sonlandır
-      const timeoutId = setTimeout(() => {
-        console.log('⏰ [AUTH] 5 saniye timeout - loading zorla sonlandırılıyor');
-        setIsLoading(false);
-        setIsLoggedIn(false);
-      }, 5000);
-      
+    const initializeApp = async () => {
       try {
         // Logout alert flag'ini kontrol et
         const logoutAlertNeeded = await AsyncStorage.getItem('logout_alert_needed');
@@ -157,105 +148,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log('🚨 [AUTH] Logout alert flag found - showing alert');
           setShouldShowLogoutAlert(true);
           await AsyncStorage.removeItem('logout_alert_needed'); // Flag'i temizle
-          clearTimeout(timeoutId);
-          setIsLoading(false);
-          return; // Alert göster ve login deneme
+          return; // Alert göster
         }
         
-        const hasStoredRefreshToken = await hasRefreshToken();
-        
-        if (!hasStoredRefreshToken) {
-          console.log('❌ [AUTH] Refresh token yok, manuel login gerekli');
-          setIsLoggedIn(false);
-          clearTimeout(timeoutId);
-          setIsLoading(false);
-          return;
-        }
-        
-        try {
-          // Persistent login dene
-          console.log('🔄 [AUTH] Otomatik giriş deneniyor...');
-          
-          // 401/403 hatalarını beklemeden direkt temizle
-          const loginResponse = await authApi.persistentLogin();
-          
-          if (loginResponse.success) {
-            console.log('✅ [AUTH] Otomatik giriş başarılı!');
-            clearTimeout(timeoutId);
-            setIsLoggedIn(true);
-            
-            // Kaydedilmiş mod'u kontrol et
-            const savedMode = await AsyncStorage.getItem('user_mode');
-            if (savedMode === 'music' || savedMode === 'astrology') {
-              setCurrentMode(savedMode);
-            }
-
-            // Premium durumunu kontrol et
-            const savedPremium = await AsyncStorage.getItem('user_premium');
-            if (savedPremium === 'true') {
-              setIsPremium(true);
-            }
-
-            // Sunucudan premium durumunu da kontrol et (opsiyonel)
-            try {
-              const premiumStatus = await premiumApi.getFeatures();
-              setIsPremium(premiumStatus.isPremium);
-              // Güncel durumu storage'a kaydet
-              await AsyncStorage.setItem('user_premium', premiumStatus.isPremium.toString());
-            } catch (error) {
-              console.error('Premium durum kontrolü sırasında hata:', error);
-              // API hatası varsa, local storage'daki değeri kullan
-            }
-          } else {
-            throw new Error('Persistent login response başarısız');
-          }
-        } catch (error: any) {
-          console.log('❌ [AUTH] Otomatik giriş başarısız:', error.message);
-          
-          // 401/403 hatalarında anında logout ve alert göster
-          if (error.response?.status === 401 || error.response?.status === 403) {
-            console.log('🔒 [AUTH] Yetkilendirme hatası - anında logout');
-            
-            // Geçersiz token'ları temizle
-            await removeAllTokens();
-            await AsyncStorage.removeItem('user_mode');
-            await AsyncStorage.removeItem('user_premium');
-            
-            setIsLoggedIn(false);
-            setCurrentMode('astrology');
-            setIsPremium(false);
-            
-            // Alert flag'ini set et ve loading'i durdur
-            setShouldShowLogoutAlert(true);
-            clearTimeout(timeoutId);
-            setIsLoading(false);
-            return;
-          }
-          
-          // Diğer hatalar için normal flow
-          if (error.message?.includes('timeout') || error.message?.includes('Network Error')) {
-            console.log('🌐 [AUTH] Network hatası - offline moda geçiliyor');
-          }
-          
-          // Geçersiz refresh token'ı temizle
-          await removeAllTokens();
-          await AsyncStorage.removeItem('user_mode');
-          await AsyncStorage.removeItem('user_premium');
-          
-          setIsLoggedIn(false);
-          setCurrentMode('astrology');
-          setIsPremium(false);
-        }
-      } catch (error) {
-        console.error('❌ [AUTH] Otomatik giriş kontrolü sırasında hata:', error);
+        // Hiç persistent login deneme, direkt login ekranına git
+        console.log('🚀 [AUTH] Direkt login ekranına yönlendiriliyor');
         setIsLoggedIn(false);
-      } finally {
-        clearTimeout(timeoutId);
-        setIsLoading(false);
+        
+      } catch (error) {
+        console.error('❌ [AUTH] App initialization hatası:', error);
+        setIsLoggedIn(false);
       }
     };
 
-    attemptAutoLogin();
+    initializeApp();
   }, []);
 
   // Çıkış uyarısını göstermek için ayrı useEffect

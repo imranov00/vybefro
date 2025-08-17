@@ -220,6 +220,11 @@ api.interceptors.response.use(
         console.log('🔒 [API] Yetkilendirme hatası - logout tetikleniyor');
         try {
           await AsyncStorage.setItem('logout_alert_needed', 'true');
+          console.log('🚨 [API] Logout alert flag set edildi');
+          
+          // Tüm token'ları hemen temizle
+          await removeAllTokens();
+          console.log('🗑️ [API] Tüm token\'lar temizlendi');
         } catch (alertError) {
           console.error('❌ [API] Logout alert flag set hatası:', alertError);
         }
