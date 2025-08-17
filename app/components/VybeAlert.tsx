@@ -26,6 +26,7 @@ export default function VybeAlert({
   onCancel,
   type = 'info'
 }: VybeAlertProps) {
+  console.log('🎨 [VYBE ALERT] Render:', { visible, title, type });
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 

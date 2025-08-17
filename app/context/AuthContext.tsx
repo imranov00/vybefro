@@ -147,8 +147,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Logout alert flag'ini kontrol et
         const logoutAlertNeeded = await AsyncStorage.getItem('logout_alert_needed');
         if (logoutAlertNeeded === 'true') {
+          console.log('🚨 [AUTH] Logout alert flag found - showing alert');
           setShouldShowLogoutAlert(true);
           await AsyncStorage.removeItem('logout_alert_needed'); // Flag'i temizle
+          setIsLoading(false);
+          return; // Alert göster ve login deneme
         }
         
         const hasStoredRefreshToken = await hasRefreshToken();
@@ -156,6 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!hasStoredRefreshToken) {
           console.log('❌ [AUTH] Refresh token yok, manuel login gerekli');
           setIsLoggedIn(false);
+          setIsLoading(false);
           return;
         }
         
@@ -209,8 +213,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setCurrentMode('astrology');
             setIsPremium(false);
             
-            // Alert flag'ini set et
+            // Alert flag'ini set et ve loading'i durdur
             setShouldShowLogoutAlert(true);
+            setIsLoading(false);
             return;
           }
           
@@ -242,7 +247,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Çıkış uyarısını göstermek için ayrı useEffect
   useEffect(() => {
     if (shouldShowLogoutAlert && !isLoading) {
-      setShouldShowLogoutAlert(false);
+      // Alert'i göstermek için flag'i true bırakıyoruz
+      console.log('🚨 [AUTH] Alert should be visible now');
     }
   }, [shouldShowLogoutAlert, isLoading]);
 
@@ -265,10 +271,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       {/* VYBE Alert for session timeout */}
       <VybeAlert
-        visible={shouldShowLogoutAlert}
+        visible={shouldShowLogoutAlert && !isLoading}
         title="Oturum Sonlandı"
         message="Hesabınız zaman aşımına uğradı. Güvenlik nedeniyle oturumunuz sonlandırıldı. Lütfen tekrar giriş yapınız."
         onConfirm={() => {
+          console.log('🚨 [AUTH] Alert confirmed - navigating to login');
           setShouldShowLogoutAlert(false);
           router.replace('/(auth)/login');
         }}

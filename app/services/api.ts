@@ -200,6 +200,7 @@ api.interceptors.response.use(
         // Logout alert flag'i set et
         try {
           await AsyncStorage.setItem('logout_alert_needed', 'true');
+          console.log('🚨 [API] Logout alert flag set edildi');
         } catch (error) {
           console.error('❌ [API] Logout alert flag set hatası:', error);
         }
