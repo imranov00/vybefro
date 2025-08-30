@@ -3,7 +3,8 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Alert, Dimensions, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Dimensions, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { showRegisterError, showRegisterSuccess } from '../components/CustomAlert';
 import { authApi } from '../services/api';
 import { calculateZodiacSign } from '../utils/zodiacUtils';
 
@@ -50,6 +51,7 @@ export default function RegisterScreen() {
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [passwordMatch, setPasswordMatch] = useState(true);
   const [loading, setLoading] = useState(false);
+
   
   // Tarih seçici state
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -124,27 +126,27 @@ export default function RegisterScreen() {
   const handleRegister = async () => {
     try {
       if (!firstName || !lastName || !email || !username || !password || !confirmPassword || !gender || !birthDate) {
-        Alert.alert('Hata', 'Lütfen tüm alanları doldurun.');
+        showRegisterError('Lütfen tüm alanları doldurun.');
         return;
       }
 
       if (!birthDate || isNaN(birthDate.getTime())) {
-        Alert.alert('Hata', 'Geçerli bir doğum tarihi seçmelisiniz.');
+        showRegisterError('Geçerli bir doğum tarihi seçmelisiniz.');
         return;
       }
 
       if (!emailRegex.test(email)) {
-        Alert.alert('Hata', 'Geçerli bir e-posta adresi girin.');
+        showRegisterError('Geçerli bir e-posta adresi girin.');
         return;
       }
 
       if (!usernameRegex.test(username)) {
-        Alert.alert('Hata', 'Kullanıcı adı 3-15 karakter arasında olmalı ve yalnızca harf, rakam, alt çizgi içermelidir.');
+        showRegisterError('Kullanıcı adı 3-15 karakter arasında olmalı ve yalnızca harf, rakam, alt çizgi içermelidir.');
         return;
       }
 
       if (!passwordMatch) {
-        Alert.alert('Hata', 'Şifreler eşleşmiyor.');
+        showRegisterError('Şifreler eşleşmiyor.');
         return;
       }
 
@@ -164,17 +166,18 @@ export default function RegisterScreen() {
       };
 
       await authApi.register(registerData);
-      Alert.alert('Başarılı', 'Kaydınız başarıyla tamamlandı. Giriş yapabilirsiniz.');
-      router.replace({
-        pathname: '/(auth)/login',
-        params: { email: email }
+      showRegisterSuccess(() => {
+        router.replace({
+          pathname: '/(auth)/login',
+          params: { email: email }
+        });
       });
       
     } catch (error: any) {
       if (error.response?.data?.error) {
-        Alert.alert('Hata', error.response.data.error);
+        showRegisterError(error.response.data.error);
       } else {
-        Alert.alert('Hata', 'Kayıt işlemi sırasında bir hata oluştu.');
+        showRegisterError('Kayıt işlemi sırasında bir hata oluştu.');
       }
     } finally {
       setLoading(false);
@@ -671,6 +674,147 @@ export default function RegisterScreen() {
       </>
     );
   }
+  
+  return (
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      {/* Arka plan gradyan */}
+      <LinearGradient
+        colors={['#9733EE', '#DA22FF', '#9733EE']}
+        style={styles.background}
+      />
+
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={styles.headerContainer}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="arrow-back" size={24} color="white" />
+          </TouchableOpacity>
+          <Text style={styles.headerText}>VYBE</Text>
+          <Text style={styles.headerSubText}>Burç Uyumluluğu</Text>
+        </View>
+
+        {/* Form */}
+        <View style={styles.formContainer}>
+          {renderForm()}
+        </View>
+      </ScrollView>
+
+      {/* Tarih Seçici Modal */}
+      <Modal
+        visible={showDatePicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDatePicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Doğum Tarihinizi Seçin</Text>
+            
+            <View style={styles.dateSelectors}>
+              {/* Gün Seçici */}
+              <View style={styles.datePickerColumn}>
+                <Text style={styles.datePickerLabel}>Gün</Text>
+                <ScrollView style={styles.datePickerScroll} showsVerticalScrollIndicator={false}>
+                  {daysInMonth.map((day) => (
+                    <TouchableOpacity
+                      key={day}
+                      style={[
+                        styles.datePickerItem,
+                        selectedDay === day && styles.datePickerItemSelected
+                      ]}
+                      onPress={() => setSelectedDay(day)}
+                    >
+                      <Text style={[
+                        styles.datePickerItemText,
+                        selectedDay === day && styles.datePickerItemTextSelected
+                      ]}>
+                        {day}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+
+              {/* Ay Seçici */}
+              <View style={styles.datePickerColumn}>
+                <Text style={styles.datePickerLabel}>Ay</Text>
+                <ScrollView style={styles.datePickerScroll} showsVerticalScrollIndicator={false}>
+                  {MONTHS.map((month) => (
+                    <TouchableOpacity
+                      key={month.value}
+                      style={[
+                        styles.datePickerItem,
+                        selectedMonth === month.value && styles.datePickerItemSelected
+                      ]}
+                      onPress={() => setSelectedMonth(month.value)}
+                    >
+                      <Text style={[
+                        styles.datePickerItemText,
+                        selectedMonth === month.value && styles.datePickerItemTextSelected
+                      ]}>
+                        {month.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+
+              {/* Yıl Seçici */}
+              <View style={styles.datePickerColumn}>
+                <Text style={styles.datePickerLabel}>Yıl</Text>
+                <ScrollView style={styles.datePickerScroll} showsVerticalScrollIndicator={false}>
+                  {YEARS.map((year) => (
+                    <TouchableOpacity
+                      key={year}
+                      style={[
+                        styles.datePickerItem,
+                        selectedYear === year && styles.datePickerItemSelected
+                      ]}
+                      onPress={() => setSelectedYear(year)}
+                    >
+                      <Text style={[
+                        styles.datePickerItemText,
+                        selectedYear === year && styles.datePickerItemTextSelected
+                      ]}>
+                        {year}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => setShowDatePicker(false)}
+              >
+                <Text style={styles.modalButtonText}>İptal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonConfirm]}
+                onPress={handleDateConfirm}
+              >
+                <Text style={[styles.modalButtonText, { color: 'white' }]}>Onayla</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+    </KeyboardAvoidingView>
+  );
 }
 
 const styles = StyleSheet.create({

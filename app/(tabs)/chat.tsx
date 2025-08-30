@@ -246,6 +246,7 @@ export default function ChatScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<'matches' | 'global'>('matches');
 
+
   // Tema renklerini belirle
   const theme = {
     astrology: {
@@ -760,6 +761,7 @@ export default function ChatScreen() {
           ItemSeparatorComponent={() => <View style={styles.separator} />}
         />
       </View>
+      
     </View>
   );
 }

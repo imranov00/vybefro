@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useSegments } from 'expo-router';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
-import VybeAlert from '../components/VybeAlert';
+import { showSessionTimeoutAlert } from '../components/CustomAlert';
 import { authApi } from '../services/api';
 import { removeAllTokens } from '../utils/tokenStorage';
 
@@ -167,10 +167,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Çıkış uyarısını göstermek için ayrı useEffect
   useEffect(() => {
     if (shouldShowLogoutAlert && !isLoading) {
-      // Alert'i göstermek için flag'i true bırakıyoruz
-      console.log('🚨 [AUTH] Alert should be visible now');
+      console.log('🚨 [AUTH] Session timeout alert showing');
+      showSessionTimeoutAlert(() => {
+        setShouldShowLogoutAlert(false);
+        router.replace('/(auth)/login');
+      });
+      setShouldShowLogoutAlert(false);
     }
-  }, [shouldShowLogoutAlert, isLoading]);
+  }, [shouldShowLogoutAlert, isLoading, router]);
 
   return (
     <AuthContext.Provider
@@ -188,20 +192,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }}
     >
       {children}
-      
-      {/* VYBE Alert for session timeout */}
-      <VybeAlert
-        visible={shouldShowLogoutAlert && !isLoading}
-        title="Oturum Sonlandı"
-        message="Hesabınız zaman aşımına uğradı. Güvenlik nedeniyle oturumunuz sonlandırıldı. Lütfen tekrar giriş yapınız."
-        onConfirm={() => {
-          console.log('🚨 [AUTH] Alert confirmed - navigating to login');
-          setShouldShowLogoutAlert(false);
-          router.replace('/(auth)/login');
-        }}
-        confirmText="Giriş Yap"
-        type="warning"
-      />
     </AuthContext.Provider>
   );
 }

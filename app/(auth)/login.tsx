@@ -4,14 +4,15 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Alert, Dimensions, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Dimensions, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withTiming
+    Easing,
+    useAnimatedStyle,
+    useSharedValue,
+    withRepeat,
+    withTiming
 } from 'react-native-reanimated';
+import { showLoginError } from '../components/CustomAlert';
 import { useAuth } from '../context/AuthContext';
 import { authApi } from '../services/api';
 
@@ -92,12 +93,12 @@ export default function LoginScreen() {
       
       // Form validasyonu
       if (!formData.emailOrUsername.trim()) {
-        Alert.alert('Hata', 'E-posta veya kullanıcı adı gereklidir');
+        showLoginError('E-posta veya kullanıcı adı gereklidir');
         setLoading(false);
         return;
       }
       if (!formData.password.trim()) {
-        Alert.alert('Hata', 'Şifre gereklidir');
+        showLoginError('Şifre gereklidir');
         setLoading(false);
         return;
       }
@@ -124,7 +125,7 @@ export default function LoginScreen() {
         router.replace('/(tabs)' as any);
       } else {
         console.error('[LOGIN PAGE] Login successful but no token received');
-        Alert.alert('Hata', 'Giriş başarılı ancak oturum açılamadı');
+        showLoginError('Giriş başarılı ancak oturum açılamadı');
       }
       
     } catch (error: any) {
@@ -136,18 +137,26 @@ export default function LoginScreen() {
         
         // HTTP durum koduna göre hata mesajı
         if (statusCode === 401) {
-          Alert.alert('Hata', 'Kullanıcı adı veya şifre hatalı');
+          showLoginError('Kullanıcı adı veya şifre hatalı');
         } else if (statusCode === 403) {
-          Alert.alert('Hata', 'Bu hesaba erişim izniniz yok');
+          showLoginError('Bu hesaba erişim izniniz yok');
         } else if (error.response?.data?.message) {
-          Alert.alert('Hata', error.response.data.message);
+          showLoginError(error.response.data.message);
         } else {
-          Alert.alert('Hata', 'Giriş yapılırken bir hata oluştu');
+          showLoginError('Giriş yapılırken bir hata oluştu');
         }
       } else if (error.message) {
-        Alert.alert('Hata', error.message);
+        // Teknik hata mesajlarını kullanıcı dostu hale getir
+        if (error.message.includes('Oturum süresi dolmuş') || 
+            error.message.includes('refresh') ||
+            error.message.includes('token') ||
+            error.message.includes('Refresh token bulunamadı')) {
+          showLoginError('E-posta, kullanıcı adı veya şifre hatalı');
+        } else {
+          showLoginError('E-posta, kullanıcı adı veya şifre hatalı');
+        }
       } else {
-        Alert.alert('Hata', 'Giriş yapılamadı');
+        showLoginError('E-posta, kullanıcı adı veya şifre hatalı');
       }
     } finally {
       setLoading(false);

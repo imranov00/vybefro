@@ -6,27 +6,27 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  Image,
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    Image,
+    Platform,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import Animated, {
-  interpolate,
-  runOnJS,
-  useAnimatedGestureHandler,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming
+    interpolate,
+    runOnJS,
+    useAnimatedGestureHandler,
+    useAnimatedStyle,
+    useSharedValue,
+    withSpring,
+    withTiming
 } from 'react-native-reanimated';
 import AstrologyMatchScreen from '../components/match/AstrologyMatchScreen';
 import { useAuth } from '../context/AuthContext';
@@ -634,7 +634,7 @@ export default function AstrologyMatchesScreen() {
     // Eğer swipe edilmemiş kullanıcı kalmadıysa, yeni kullanıcılar getir
     if (nextUnswipedIndex >= unswipedUsers.length) {
       console.log('🔄 [NEXT] Swipe edilmemiş kullanıcı kalmadı, yeni kullanıcılar getiriliyor');
-      fetchUsers();
+      refreshUsers(); // fetchUsers yerine refreshUsers kullan
       return;
     }
     
@@ -656,7 +656,7 @@ export default function AstrologyMatchesScreen() {
     
     // Son 2 kullanıcı kaldığında yeni kullanıcılar getir
     if (nextIndex >= users.length - 2) {
-      fetchUsers();
+      refreshUsers(); // fetchUsers yerine refreshUsers kullan
     }
   };
 
@@ -845,7 +845,7 @@ export default function AstrologyMatchesScreen() {
   useFocusEffect(
     useCallback(() => {
       console.log('AstrologyMatches screen focused - refreshing data');
-      fetchUsers();
+      refreshUsers(); // fetchUsers yerine refreshUsers kullan
       fetchSwipeLimitInfo();
     }, [])
   );

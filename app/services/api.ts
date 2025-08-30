@@ -3,8 +3,8 @@ import axios from 'axios';
 import { ZodiacSign } from '../types/zodiac';
 import { getRefreshToken, getToken, removeAllTokens, saveRefreshToken, saveToken } from '../utils/tokenStorage';
 
-// NGROK URL'i - değişebilir
-const NGROK_URL = 'https://a48ecb6f5eb5.ngrok-free.app';
+// CLOUDFLARE TUNNEL URL'i - değişebilir
+const CLOUDFLARE_URL = 'https://jason-colleagues-capable-opened.trycloudflare.com';
 
 // Alternative endpoints (gerektiğinde eklenebilir)
 const FALLBACK_URLS: string[] = [
@@ -14,7 +14,7 @@ const FALLBACK_URLS: string[] = [
 ];
 
 // Aktif API URL
-let API_URL = NGROK_URL;
+let API_URL = CLOUDFLARE_URL;
 
 // WebSocket URL'i (API URL'inden türetilir)
 export const getWebSocketUrl = (): string => {
@@ -47,9 +47,9 @@ const checkNetworkHealth = async (url: string): Promise<boolean> => {
 // En iyi URL'i bulan fonksiyon
 const findBestApiUrl = async (): Promise<string> => {
   // Önce ana URL'i dene
-  const mainUrlWorks = await checkNetworkHealth(NGROK_URL);
+  const mainUrlWorks = await checkNetworkHealth(CLOUDFLARE_URL);
   if (mainUrlWorks) {
-    return NGROK_URL;
+    return CLOUDFLARE_URL;
   }
 
   // Fallback URL'leri dene
@@ -63,7 +63,7 @@ const findBestApiUrl = async (): Promise<string> => {
 
   // Hiçbiri çalışmıyorsa ana URL'i döndür (hata mesajı için)
   console.error('[API FAILOVER] Hiçbir endpoint erişilebilir değil');
-  return NGROK_URL;
+  return CLOUDFLARE_URL;
 };
 
 // API isteği için bir axios örneği oluşturuluyor
@@ -161,7 +161,7 @@ api.interceptors.response.use(
         const refreshToken = await getRefreshToken();
         
         if (!refreshToken) {
-          throw new Error('Refresh token bulunamadı');
+          throw new Error('Oturum süresi dolmuş');
         }
         
         // Refresh token endpoint'ini çağır
@@ -700,7 +700,7 @@ export const authApi = {
       const refreshToken = await getRefreshToken();
       
       if (!refreshToken) {
-        throw new Error('Refresh token bulunamadı');
+        throw new Error('Oturum süresi dolmuş');
       }
       
       const response = await api.post('/api/auth/refresh', { refreshToken }, {
@@ -732,7 +732,7 @@ export const authApi = {
       const refreshToken = await getRefreshToken();
       
       if (!refreshToken) {
-        throw new Error('Refresh token bulunamadı');
+        throw new Error('Oturum süresi dolmuş');
       }
       
       console.log('🔄 [API] Persistent login deneniyor...');
