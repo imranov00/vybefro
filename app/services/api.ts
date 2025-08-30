@@ -322,6 +322,7 @@ export interface UserProfileResponse {
   zodiacSignDisplayName?: string;
   profileImageUrl: string | null;
   bio: string | null;
+  isPremium?: boolean; // Premium durumu
 }
 
 export interface AccountUpdateRequest {

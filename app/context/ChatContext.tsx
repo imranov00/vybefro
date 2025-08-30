@@ -2,11 +2,11 @@ import React, { createContext, ReactNode, useContext, useEffect, useRef, useStat
 import { Alert } from 'react-native';
 import { chatApi, ChatListItem, ChatMessage, GlobalChatResponse, MessageLimitInfo, PrivateChatResponse, PrivateChatRoom, userApi } from '../services/api';
 import {
-    initializeWebSocket,
-    VybeWebSocketClient,
-    WebSocketMessage,
-    WebSocketMessageType,
-    WebSocketStatus
+  initializeWebSocket,
+  VybeWebSocketClient,
+  WebSocketMessage,
+  WebSocketMessageType,
+  WebSocketStatus
 } from '../services/websocket';
 import { getToken } from '../utils/tokenStorage';
 import { useAuth } from './AuthContext';
@@ -86,6 +86,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   
   // State'ler
   const [chatList, setChatList] = useState<ChatListItem[]>([]);
+  const [userProfile, setUserProfile] = useState<any>(null);
   const [isLoadingChatList, setIsLoadingChatList] = useState(false);
   const [privateChatList, setPrivateChatList] = useState<PrivateChatRoom[]>([]);
   const [isLoadingPrivateChats, setIsLoadingPrivateChats] = useState(false);
@@ -450,16 +451,64 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Özel mesaj gönder
+  // Özel mesaj gönder - Optimistic Update ile
   const sendPrivateMessage = async (content: string, receiverId: number): Promise<boolean> => {
+    console.log('🔄 [CHAT CONTEXT] sendPrivateMessage başlatıldı:', {
+      content: content.substring(0, 50),
+      receiverId,
+      activeChat: activeChat ? 'var' : 'yok',
+      chatType: activeChat && !('chatType' in activeChat) ? 'PRIVATE' : 'bilinmiyor'
+    });
+    
     try {
       setError(null);
       
-      const response = await chatApi.sendPrivateMessage({ content, receiverId });
+      // 1. OPTIMISTIC UPDATE - Mesajı hemen UI'da göster
+      const optimisticMessage: ChatMessage = {
+        id: Date.now(), // Geçici ID
+        chatRoomId: activeChatId || 0,
+        content: content,
+        type: 'TEXT',
+        sentAt: new Date().toISOString(),
+        editedAt: null,
+        isEdited: false,
+        status: 'SENT',
+        sender: {
+          id: userProfile?.id || 0,
+          username: userProfile?.username || 'user',
+          firstName: userProfile?.firstName || 'User',
+          lastName: userProfile?.lastName || '',
+          fullName: `${userProfile?.firstName || 'User'} ${userProfile?.lastName || ''}`,
+          profileImageUrl: userProfile?.profileImageUrl || null,
+          zodiacSign: userProfile?.zodiacSign || 'ARIES',
+          zodiacSignDisplay: userProfile?.zodiacSignDisplay || '♈ Koç',
+          isPremium: userProfile?.isPremium || false,
+          gender: userProfile?.gender || 'UNKNOWN',
+          lastActiveTime: new Date().toISOString(),
+          activityStatus: 'ONLINE',
+          isOnline: true,
+          displayName: `${userProfile?.firstName || 'User'} ${userProfile?.lastName || ''}`
+        },
+        timeAgo: 'Şimdi',
+        canEdit: false,
+        canDelete: false
+      };
       
-      // Yeni mesajı aktif chat'e ekle
       if (activeChat && !('chatType' in activeChat)) {
-        addNewMessage(response.message);
+        console.log('⚡ [CHAT CONTEXT] Optimistic özel mesaj UI\'da gösteriliyor');
+        addNewMessage(optimisticMessage);
+      }
+      
+      // 2. API'ye mesajı gönder
+      const response = await chatApi.sendPrivateMessage({ content, receiverId });
+      const messageId = response.message.id.toString();
+      
+      console.log('✅ [CHAT CONTEXT] Özel mesaj API yanıtı alındı:', messageId);
+      
+      // 3. Optimistic mesajı gerçek mesajla değiştir
+      if (activeChat && !('chatType' in activeChat)) {
+        console.log('🔄 [CHAT CONTEXT] Optimistic özel mesaj gerçek mesajla değiştiriliyor');
+        replaceMessage(optimisticMessage.id, response.message);
         
         // Mesaj durumunu otomatik olarak SENT'ten DELIVERED'a güncelle (2 saniye sonra)
         setTimeout(() => {
@@ -489,13 +538,30 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }, 2000);
       }
       
-      // Özel chat listesini güncelle
+      // 4. Pending mesajlara ekle (WebSocket'ten gelene kadar)
+      setPendingMessages(prev => new Set([...prev, messageId]));
+      pendingMessagesRef.current.add(messageId);
+      
+      // 5. Özel chat listesini güncelle
       await refreshPrivateChats();
       
       console.log('✅ [CHAT CONTEXT] Özel mesaj gönderildi');
       return true;
     } catch (error: any) {
       console.error('❌ [CHAT CONTEXT] Özel mesaj gönderilemedi:', error);
+      
+      // 6. Hata durumunda optimistic mesajı kaldır
+      if (activeChat && !('chatType' in activeChat)) {
+        console.log('❌ [CHAT CONTEXT] Optimistic özel mesaj kaldırılıyor (hata)');
+        setActiveChat(prevChat => {
+          if (!prevChat) return prevChat;
+          
+          return {
+            ...prevChat,
+            messages: prevChat.messages.filter(msg => msg.id !== Date.now()) // Geçici ID'yi kaldır
+          };
+        });
+      }
       
       // Özel hata mesajları
       if (error.message?.includes('Transaction silently rolled back') || 
@@ -1034,12 +1100,26 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isLoggedIn) {
       console.log('🔄 [CHAT CONTEXT] Kullanıcı login, chat verileri yükleniyor...');
+      
+      // Kullanıcı profilini yükle
+      const loadUserProfile = async () => {
+        try {
+          const profile = await userApi.getProfile();
+          setUserProfile(profile);
+          console.log('✅ [CHAT CONTEXT] Kullanıcı profili yüklendi:', profile.id);
+        } catch (error) {
+          console.error('❌ [CHAT CONTEXT] Kullanıcı profili yüklenemedi:', error);
+        }
+      };
+      
+      loadUserProfile();
       refreshChatList();
       refreshPrivateChats();
       refreshMessageLimit();
       initializeWebSocketConnection();
     } else {
       console.log('ℹ️ [CHAT CONTEXT] Kullanıcı logout, chat verileri yüklenmiyor');
+      setUserProfile(null);
     }
   }, [isLoggedIn]);
 

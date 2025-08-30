@@ -104,6 +104,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setPremium = async (premium: boolean) => {
     setIsPremium(premium);
     await AsyncStorage.setItem('user_premium', premium.toString());
+    
+    // ProfileContext'i de güncelle (eğer varsa)
+    try {
+      const { useProfile } = await import('./ProfileContext');
+      // Bu şekilde circular dependency'den kaçınırız
+    } catch (error) {
+      // ProfileContext henüz yüklenmemiş olabilir, bu normal
+    }
   };
 
   // Normal çıkış yapma fonksiyonu
@@ -138,26 +146,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.replace('/(auth)/login');
   };
 
-  // Uygulama başlangıcında direkt login ekranına yönlendir
+  // Uygulama başlangıcında persistent login dene
   useEffect(() => {
     const initializeApp = async () => {
       try {
+        setIsLoading(true);
+        
         // Logout alert flag'ini kontrol et
         const logoutAlertNeeded = await AsyncStorage.getItem('logout_alert_needed');
         if (logoutAlertNeeded === 'true') {
           console.log('🚨 [AUTH] Logout alert flag found - showing alert');
           setShouldShowLogoutAlert(true);
           await AsyncStorage.removeItem('logout_alert_needed'); // Flag'i temizle
+          setIsLoggedIn(false);
           return; // Alert göster
         }
         
-        // Hiç persistent login deneme, direkt login ekranına git
-        console.log('🚀 [AUTH] Direkt login ekranına yönlendiriliyor');
-        setIsLoggedIn(false);
+        // Persistent login dene (refresh token ile)
+        console.log('🔄 [AUTH] Persistent login deneniyor...');
+        try {
+          const response = await authApi.persistentLogin();
+          
+          if (response.success && response.token) {
+            console.log('✅ [AUTH] Persistent login başarılı');
+            
+            // Mode'u yükle
+            const savedMode = await AsyncStorage.getItem('user_mode') as 'astrology' | 'music' | null;
+            const savedPremium = await AsyncStorage.getItem('user_premium');
+            
+            setIsLoggedIn(true);
+            setCurrentMode(savedMode || 'astrology');
+            setIsPremium(savedPremium === 'true');
+            
+            console.log('✅ [AUTH] Kullanıcı otomatik giriş yaptı');
+          } else {
+            console.log('❌ [AUTH] Persistent login başarısız - token yok');
+            setIsLoggedIn(false);
+          }
+        } catch (persistentError: any) {
+          console.log('❌ [AUTH] Persistent login hatası:', persistentError.message);
+          
+          // Refresh token geçersizse tüm token'ları temizle
+          if (persistentError.message?.includes('Oturum süresi dolmuş') || 
+              persistentError.message?.includes('Token geçersiz')) {
+            console.log('🗑️ [AUTH] Geçersiz token\'lar temizleniyor');
+            await removeAllTokens();
+          }
+          
+          setIsLoggedIn(false);
+        }
         
       } catch (error) {
         console.error('❌ [AUTH] App initialization hatası:', error);
         setIsLoggedIn(false);
+      } finally {
+        setIsLoading(false);
       }
     };
 

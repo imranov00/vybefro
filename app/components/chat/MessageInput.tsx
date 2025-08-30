@@ -3,15 +3,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated,
-  Keyboard,
-  KeyboardEvent,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    Animated,
+    Keyboard,
+    KeyboardEvent,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { MessageLimitInfo } from '../../services/api';
@@ -161,7 +161,7 @@ export default function MessageInput({
     router.push('/(profile)/premiumScreen');
   };
 
-  // Mesaj gönderme
+  // Mesaj gönderme - Optimistic Update ile
   const handleSendMessage = async () => {
     const trimmedMessage = message.trim();
     
@@ -203,17 +203,25 @@ export default function MessageInput({
         }),
       ]).start();
 
+      // Optimistic Update: Mesajı hemen gönder ve input'u temizle
       const success = await onSendMessage(trimmedMessage);
       
       if (success) {
+        // Mesaj başarıyla gönderildi (optimistic update sayesinde hemen görünür)
         setMessage('');
         // Mesaj gönderildikten sonra typing'i durdur
         handleTypingChange(false);
         // Klavyeyi kapat
         blurInput();
+        
+        console.log('✅ [MESSAGE INPUT] Mesaj gönderildi (optimistic update)');
+      } else {
+        // Hata durumunda mesaj input'ta kalır (kullanıcı tekrar deneyebilir)
+        console.log('❌ [MESSAGE INPUT] Mesaj gönderilemedi, input temizlenmedi');
       }
     } catch (error) {
       console.error('Mesaj gönderme hatası:', error);
+      // Hata durumunda mesaj input'ta kalır
     } finally {
       setIsSending(false);
     }

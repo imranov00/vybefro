@@ -18,6 +18,7 @@ export type UserProfile = {
   zodiacSignTurkish?: string; // Legacy destek
   profileImage: string;
   bio: string;
+  isPremium?: boolean; // Premium durumu
 };
 
 // Context'in değer tipi
@@ -33,6 +34,7 @@ type ProfileContextType = {
   error: string | null;
   currentUserId: string | null;
   clearCache: () => void;
+  updatePremiumStatus: (isPremium: boolean) => void; // Premium durumu güncelleme
 };
 
 // Varsayılan değerler
@@ -64,6 +66,7 @@ const mapApiResponseToUserProfile = (data: UserProfileResponse): UserProfile => 
     zodiacSignTurkish: data.zodiacSignTurkish,
     profileImage: profileImageUrl,
     bio: data.bio || 'Kullanıcı biyografisi burada görünecek.', // API'den gelen biyografi
+    isPremium: data.isPremium || false, // Premium durumu
   };
 };
 
@@ -193,6 +196,15 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     console.log('✅ [PROFILE CONTEXT] Cache temizlendi');
   };
 
+  // Premium durumu güncelleme fonksiyonu
+  const updatePremiumStatus = (isPremium: boolean) => {
+    setUserProfile(prevProfile => ({
+      ...prevProfile,
+      isPremium: isPremium
+    }));
+    console.log('👑 [PROFILE CONTEXT] Premium durumu güncellendi:', isPremium);
+  };
+
   useEffect(() => {
     // Sadece ilk yüklemede kullanıcı bilgilerini kontrol et
     const initializeUser = async () => {
@@ -226,6 +238,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         error,
         currentUserId,
         clearCache,
+        updatePremiumStatus,
       }}
     >
       {children}
