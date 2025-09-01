@@ -173,6 +173,10 @@ export default function AstrologyMatchesScreen() {
   const [showNewUserOverlay, setShowNewUserOverlay] = useState(false);
   const [errorToast, setErrorToast] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
   
+  // Swipe Limit State
+  const [swipeLimitDetails, setSwipeLimitDetails] = useState<any>(null);
+  const [showLimitOverlay, setShowLimitOverlay] = useState(false);
+  
   // Swipe edilmiş kullanıcıları timestamp ve action ile takip et
   const [swipedUsers, setSwipedUsers] = useState<Map<number, { timestamp: number; action: 'LIKE' | 'DISLIKE' | 'MATCH' }>>(new Map());
   
@@ -294,6 +298,12 @@ export default function AstrologyMatchesScreen() {
         // API'den gelen tekil user'ı kullan
         const user = data.user;
         
+        // Match screen açıksa yeni kullanıcı getirme
+        if (showMatchScreen) {
+          console.log('💕 [DISCOVER] Match screen açık, yeni kullanıcı getirilmiyor');
+          return;
+        }
+        
         // Bu kullanıcı daha önce swipe edilmiş mi kontrol et
         if (isUserSwiped(user.id)) {
           console.log(`🔄 [DISCOVER] Kullanıcı ${user.firstName} (ID: ${user.id}) zaten swipe edilmiş, yeni kullanıcı getiriliyor`);
@@ -305,12 +315,6 @@ export default function AstrologyMatchesScreen() {
             // Normal modda ise yeni kullanıcı getir
             setTimeout(() => getNextUser(false), 1000);
           }
-          return;
-        }
-        
-        // Match screen açıksa yeni kullanıcı getirme
-        if (showMatchScreen) {
-          console.log('💕 [DISCOVER] Match screen açık, yeni kullanıcı getirilmiyor');
           return;
         }
         
@@ -481,6 +485,23 @@ export default function AstrologyMatchesScreen() {
   //   // TODO: Yeni API entegrasyonu gelecek
   // };
 
+  // Swipe limit bilgilerini çek
+  const fetchSwipeLimitInfo = async () => {
+    try {
+      const { swipeApi } = await import('../services/api');
+      const limitInfo = await swipeApi.getSwipeLimitInfo();
+      console.log('📊 [SWIPE LIMIT] Limit bilgileri alındı:', limitInfo);
+      setSwipeLimitDetails(limitInfo);
+      
+      // Swipe yapılamıyorsa overlay'i göster
+      if (!limitInfo.canSwipe) {
+        setShowLimitOverlay(true);
+      }
+    } catch (error) {
+      console.error('❌ [SWIPE LIMIT] Limit bilgileri alınamadı:', error);
+    }
+  };
+
   // Premium sayfasına yönlendir
   const navigateToPremium = () => {
     console.log('🎖️ [PREMIUM] Premium sayfasına yönlendiriliyor');
@@ -493,6 +514,13 @@ export default function AstrologyMatchesScreen() {
       // Çift çağrım koruması
       if (isSwipeInProgress) {
         console.log('🚫 [SWIPE] Zaten swipe işlemi devam ediyor');
+        return;
+      }
+      
+      // Swipe limit kontrolü
+      if (swipeLimitDetails && !swipeLimitDetails.canSwipe) {
+        console.log('⏰ [SWIPE] Swipe limiti dolmuş, limit overlay gösteriliyor');
+        setShowLimitOverlay(true);
         return;
       }
       
@@ -513,15 +541,15 @@ export default function AstrologyMatchesScreen() {
       if (swipeResult.success && swipeResult.isMatch) {
         console.log('💕 [MATCH] EŞLEŞME BULUNDU! Match screen açılıyor...');
         
+        // Önce kullanıcıyı swipe edildi olarak işaretle
+        markUserAsSwiped(toUserId, action);
+        
         // Match data'sını set et
         setMatchedUserData(currentUser);
         setMatchResponse(swipeResult);
         
         // Match screen'i göster
         setShowMatchScreen(true);
-        
-        // Kullanıcıyı swipe edildi olarak işaretle
-        markUserAsSwiped(toUserId, action);
         
         // Match screen'de kal, sonraki kullanıcıya geçme
         return;
@@ -716,10 +744,38 @@ export default function AstrologyMatchesScreen() {
       // Önce swipe edilen kullanıcıları yükle
       loadSwipedUsersFromStorage();
       
+      // Swipe limit bilgilerini çek
+      fetchSwipeLimitInfo();
+      
       // Sonra diğer verileri yükle
       getNextUser(false); // Normal mod - yeni kullanıcı getir
-    }, [showMatchScreen])
+    }, [])
   );
+
+  // Swipe limit bilgilerini periyodik olarak güncelle (her 30 saniyede)
+  useEffect(() => {
+    const limitUpdateInterval = setInterval(() => {
+      if (!showMatchScreen && swipeLimitDetails) {
+        fetchSwipeLimitInfo();
+      }
+    }, 30000); // 30 saniye
+
+    return () => clearInterval(limitUpdateInterval);
+  }, []);
+
+  // Swipe edilmiş kullanıcıları otomatik olarak temizle ve yeni kullanıcı getir
+  useEffect(() => {
+    if (currentUser && isUserSwiped(currentUser.id)) {
+      console.log(`🔄 [AUTO_CLEANUP] Kullanıcı ${currentUser.firstName} (ID: ${currentUser.id}) zaten swipe edilmiş, yeni kullanıcı getiriliyor`);
+      
+      // Kısa bir gecikme ile yeni kullanıcı getir
+      const timer = setTimeout(() => {
+        getNextUser(false);
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [currentUser?.id]);
 
   // Tutorial overlay kontrolü - sadece uygulama kullanıcısı için tek seferlik
   useEffect(() => {
@@ -785,10 +841,6 @@ export default function AstrologyMatchesScreen() {
   // Mevcut kullanıcı swipe edilmiş mi kontrol et - Yeni Tinder Mantığı
   if (currentUser && isUserSwiped(currentUser.id)) {
     console.log(`🔄 [UI] Kullanıcı ${currentUser.firstName} (ID: ${currentUser.id}) zaten swipe edilmiş, yeni kullanıcı getiriliyor`);
-    // Otomatik olarak yeni kullanıcı getir
-    useEffect(() => {
-      getNextUser(false);
-    }, []);
     return (
       <View style={styles.container}>
         <LinearGradient colors={astrologyTheme.gradient as any} style={styles.background} />
@@ -1123,6 +1175,99 @@ export default function AstrologyMatchesScreen() {
         <View style={styles.swipeProgress}>
           <ActivityIndicator size="small" color={astrologyTheme.accent} />
           <Text style={styles.swipeProgressText}>İşleniyor...</Text>
+        </View>
+      )}
+
+      {/* Swipe Limit Overlay */}
+      {showLimitOverlay && swipeLimitDetails && (
+        <View style={styles.limitOverlay}>
+          <LinearGradient colors={['#FF6B6B', '#FF8E53']} style={styles.limitOverlayGradient}>
+            <View style={styles.limitOverlayContent}>
+              {/* Header */}
+              <View style={styles.limitHeader}>
+                <Text style={styles.limitIcon}>⏰</Text>
+                <Text style={styles.limitTitle}>Swipe Limiti Doldu</Text>
+                <Text style={styles.limitSubtitle}>
+                  Günlük swipe hakkınız tükendi
+                </Text>
+              </View>
+
+              {/* Limit Bilgileri */}
+              <View style={styles.limitInfoContainer}>
+                <View style={styles.limitInfoRow}>
+                  <Text style={styles.limitInfoLabel}>Günlük Limit:</Text>
+                  <Text style={styles.limitInfoValue}>20 swipe</Text>
+                </View>
+                <View style={styles.limitInfoRow}>
+                  <Text style={styles.limitInfoLabel}>Kullanılan:</Text>
+                  <Text style={styles.limitInfoValue}>{swipeLimitDetails.dailySwipeCount || 0} swipe</Text>
+                </View>
+                <View style={styles.limitInfoRow}>
+                  <Text style={styles.limitInfoLabel}>Kalan:</Text>
+                  <Text style={styles.limitInfoValue}>{swipeLimitDetails.remainingSwipes || 0} swipe</Text>
+                </View>
+              </View>
+
+              {/* Reset Timer */}
+              {swipeLimitDetails.resetInfo && (
+                <View style={styles.resetTimerContainer}>
+                  <Text style={styles.resetTimerTitle}>🔄 Ne Zaman Yenilenecek?</Text>
+                  <View style={styles.resetTimer}>
+                    <View style={styles.timerUnit}>
+                      <Text style={styles.timerValue}>
+                        {swipeLimitDetails.resetInfo.hoursUntilReset || 0}
+                      </Text>
+                      <Text style={styles.timerLabel}>Saat</Text>
+                    </View>
+                    <Text style={styles.timerSeparator}>:</Text>
+                    <View style={styles.timerUnit}>
+                      <Text style={styles.timerValue}>
+                        {swipeLimitDetails.resetInfo.minutesUntilReset || 0}
+                      </Text>
+                      <Text style={styles.timerLabel}>Dakika</Text>
+                    </View>
+                    <Text style={styles.timerSeparator}>:</Text>
+                    <View style={styles.timerUnit}>
+                      <Text style={styles.timerValue}>
+                        {swipeLimitDetails.resetInfo.secondsUntilReset || 0}
+                      </Text>
+                      <Text style={styles.timerLabel}>Saniye</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.resetMessage}>
+                    {swipeLimitDetails.resetInfo.resetMessage || 'Gece 00:00\'da yenilenecek'}
+                  </Text>
+                </View>
+              )}
+
+              {/* Premium CTA */}
+              <View style={styles.premiumCtaContainer}>
+                <Text style={styles.premiumCtaTitle}>🚀 Premium Avantajları</Text>
+                <Text style={styles.premiumCtaText}>
+                  Premium üye olun, sınırsız swipe yapın!
+                </Text>
+                <TouchableOpacity
+                  style={styles.premiumCtaButton}
+                  onPress={() => {
+                    setShowLimitOverlay(false);
+                    navigateToPremium();
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.premiumCtaButtonText}>Premium Ol</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Kapat Butonu */}
+              <TouchableOpacity
+                style={styles.limitCloseButton}
+                onPress={() => setShowLimitOverlay(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.limitCloseButtonText}>Tamam</Text>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
         </View>
       )}
 
@@ -1869,5 +2014,176 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.7)',
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  // Swipe Limit Overlay Styles
+  limitOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1000,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  limitOverlayGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  limitOverlayContent: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    margin: 30,
+    padding: 30,
+    borderRadius: 25,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 15,
+    maxWidth: 350,
+  },
+  limitHeader: {
+    alignItems: 'center',
+    marginBottom: 25,
+  },
+  limitIcon: {
+    fontSize: 50,
+    marginBottom: 15,
+  },
+  limitTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FF6B6B',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  limitSubtitle: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
+  limitInfoContainer: {
+    width: '100%',
+    marginBottom: 25,
+  },
+  limitInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.1)',
+  },
+  limitInfoLabel: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  limitInfoValue: {
+    fontSize: 14,
+    color: '#FF6B6B',
+    fontWeight: 'bold',
+  },
+  resetTimerContainer: {
+    alignItems: 'center',
+    marginBottom: 25,
+  },
+  resetTimerTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FF6B6B',
+    textAlign: 'center',
+    marginBottom: 15,
+  },
+  resetTimer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  timerUnit: {
+    alignItems: 'center',
+    marginHorizontal: 8,
+  },
+  timerValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FF6B6B',
+  },
+  timerLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  timerSeparator: {
+    fontSize: 20,
+    color: '#FF6B6B',
+    fontWeight: 'bold',
+    marginHorizontal: 5,
+  },
+  resetMessage: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  premiumCtaContainer: {
+    alignItems: 'center',
+    marginBottom: 25,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.1)',
+  },
+  premiumCtaTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FF6B6B',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  premiumCtaText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 15,
+  },
+  premiumCtaButton: {
+    backgroundColor: '#FF6B6B',
+    paddingHorizontal: 30,
+    paddingVertical: 12,
+    borderRadius: 25,
+    shadowColor: '#FF6B6B',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  premiumCtaButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  limitCloseButton: {
+    paddingHorizontal: 30,
+    paddingVertical: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#FF6B6B',
+  },
+  limitCloseButtonText: {
+    color: '#FF6B6B',
+    fontSize: 16,
+    fontWeight: '600',
   },
 }); 
