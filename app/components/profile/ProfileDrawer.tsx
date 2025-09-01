@@ -41,11 +41,8 @@ type ProfileDrawerProps = {
 
 export default function ProfileDrawer({ visible, onClose, user, isLoading = false }: ProfileDrawerProps) {
   const colorScheme = useColorScheme();
-  const { currentMode, switchMode, logout, isLoggedIn, setPremium } = useAuth();
+  const { currentMode, switchMode, logout, isPremium, isLoggedIn, setPremium } = useAuth();
   const { showProfile, isLoading: profileLoading, userProfile } = useProfile();
-  
-  // Premium durumunu ProfileContext'ten al
-  const isPremium = userProfile?.isPremium || false;
   const router = useRouter();
   const [isRendered, setIsRendered] = useState(visible);
   

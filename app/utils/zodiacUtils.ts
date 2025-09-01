@@ -57,4 +57,12 @@ export const formatZodiacSign = (zodiacSign: string): string => {
   
   // Emoji ve Türkçe ismi döndür
   return `${zodiacInfo.emoji} ${zodiacInfo.name}`;
-}; 
+};
+
+// Default export
+const zodiacUtils = {
+  calculateZodiacSign,
+  formatZodiacSign
+};
+
+export default zodiacUtils; 

@@ -23,7 +23,6 @@ import Animated, {
     withTiming
 } from 'react-native-reanimated';
 import { useAuth } from '../context/AuthContext';
-import { useProfile } from '../context/ProfileContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -69,12 +68,8 @@ const premiumFeatures = [
 
 export default function PremiumScreen() {
   const colorScheme = useColorScheme();
-  const { currentMode, setPremium } = useAuth();
-  const { userProfile, updatePremiumStatus } = useProfile();
+  const { currentMode, isPremium, setPremium } = useAuth();
   const router = useRouter();
-  
-  // Premium durumunu ProfileContext'ten al
-  const isPremium = userProfile?.isPremium || false;
   const [isProcessing, setIsProcessing] = useState(false);
   
   // Animasyon değerleri
@@ -140,9 +135,8 @@ export default function PremiumScreen() {
       });
       
       if (response.success) {
-        // Premium'u aktif et - hem AuthContext hem ProfileContext
+        // Premium'u aktif et
         setPremium(true);
-        updatePremiumStatus(true);
         
         Alert.alert('🎉 Tebrikler!', response.message || 'Premium üyeliğiniz başarıyla aktifleştirildi! Artık tüm premium özelliklerden yararlanabilirsiniz.', [
           {
@@ -182,9 +176,8 @@ export default function PremiumScreen() {
               const response = await premiumApi.cancel();
               
               if (response.success) {
-                // Premium'u iptal et - hem AuthContext hem ProfileContext
+                // Premium'u iptal et
                 setPremium(false);
-                updatePremiumStatus(false);
                 
                 Alert.alert('İptal Edildi', response.message || 'Premium üyeliğiniz başarıyla iptal edildi.', [
                   {

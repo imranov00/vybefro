@@ -600,3 +600,11 @@ export const closeWebSocket = (): void => {
   }
   console.log('🔌 [WEBSOCKET] WebSocket instance tamamen kapatıldı');
 };
+
+// Default export
+export default {
+  initializeWebSocket,
+  VybeWebSocketClient,
+  WebSocketStatus,
+  WebSocketMessageType
+};

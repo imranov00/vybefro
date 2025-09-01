@@ -48,9 +48,11 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider>
-      <RootLayoutNav />
-    </AuthProvider>
+    <ProfileProvider>
+      <AuthProvider>
+        <RootLayoutNav />
+      </AuthProvider>
+    </ProfileProvider>
   );
 }
 
@@ -60,11 +62,9 @@ function RootLayoutNav() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <ProfileProvider>
-          <ChatProvider>
-            <Slot />
-          </ChatProvider>
-        </ProfileProvider>
+        <ChatProvider>
+          <Slot />
+        </ChatProvider>
         <StatusBar style="light" />
       </ThemeProvider>
     </GestureHandlerRootView>

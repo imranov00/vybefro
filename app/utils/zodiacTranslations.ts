@@ -13,4 +13,19 @@ export const zodiacSignTranslations: Record<ZodiacSign, string> = {
   CAPRICORN: "Oğlak",
   AQUARIUS: "Kova",
   PISCES: "Balık"
+};
+
+// Alias for backward compatibility
+export const zodiacTranslations = zodiacSignTranslations;
+
+// Helper function to get zodiac translation
+export const getZodiacTranslation = (zodiacSign: ZodiacSign): string => {
+  return zodiacSignTranslations[zodiacSign] || zodiacSign;
+};
+
+// Default export
+export default {
+  zodiacTranslations,
+  zodiacSignTranslations,
+  getZodiacTranslation
 }; 

@@ -125,3 +125,8 @@ export const showRegisterSuccess = (onConfirm?: () => void) => {
   });
 };
 
+// Default export
+export default {
+  showSessionTimeoutAlert
+};
+

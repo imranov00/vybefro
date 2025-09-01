@@ -245,3 +245,10 @@ export const getCompatibilityLabel = (score: number): string => {
       return 'Bilinmiyor';
   }
 }; 
+
+// Default export
+export default {
+  calculateCompatibility,
+  getCompatibilityDescription,
+  getCompatibilityColor
+}; 

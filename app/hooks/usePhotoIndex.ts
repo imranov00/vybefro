@@ -14,4 +14,7 @@ export const usePhotoIndex = () => {
     photoIndexes,
     setPhotoIndex
   };
-}; 
+};
+
+// Default export
+export default usePhotoIndex; 

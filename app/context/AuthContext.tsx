@@ -1,9 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useSegments } from 'expo-router';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import { DeviceEventEmitter } from 'react-native';
 import { showSessionTimeoutAlert } from '../components/CustomAlert';
 import { authApi } from '../services/api';
 import { removeAllTokens } from '../utils/tokenStorage';
+import { useProfile } from './ProfileContext';
 
 // Context değer tipi
 type AuthContextType = {
@@ -52,22 +54,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isPremium, setIsPremium] = useState<boolean>(false);
   const [shouldShowLogoutAlert, setShouldShowLogoutAlert] = useState<boolean>(false);
   const router = useRouter();
+  
+  // ProfileContext'ten premium durumunu al
+  const { userProfile, clearCache: clearProfileCache } = useProfile();
+
+  // Kapsamlı cache temizleme fonksiyonu
+  const clearAllCaches = async () => {
+    try {
+      console.log('🗑️ [AUTH] Tüm cache\'ler temizleniyor...');
+      
+      // ProfileContext cache'ini temizle
+      if (clearProfileCache) {
+        clearProfileCache();
+      }
+      
+      // AsyncStorage'dan tüm kullanıcı verilerini temizle
+      const keysToRemove = [
+        'user_mode',
+        'user_premium', 
+        'logout_alert_needed',
+        'chat_cache',
+        'astrology_matches_cache',
+        'music_matches_cache',
+        'user_zodiac_selection',
+        'last_chat_refresh',
+        'private_chat_cache'
+      ];
+      
+      await Promise.all(keysToRemove.map(key => AsyncStorage.removeItem(key)));
+      
+      console.log('✅ [AUTH] Tüm cache\'ler temizlendi');
+    } catch (error) {
+      console.error('❌ [AUTH] Cache temizleme hatası:', error);
+    }
+  };
 
   // Zorunlu çıkış fonksiyonu (token geçersizse)
   const forceLogout = async (reason?: string, clearCacheCallback?: () => void) => {
     try {
       console.log('🔓 [AUTH] Force logout:', reason || 'Token geçersiz');
       
+      // Kapsamlı cache temizleme
+      await clearAllCaches();
+      
+      // Diğer context'lere logout event'i gönder
+      DeviceEventEmitter.emit('user_logout', { reason: 'force_logout' });
+      
       // Cache temizleme callback'ini çağır (eğer verilmişse)
       if (clearCacheCallback) {
-        console.log('🗑️ [AUTH] Context cacheleri temizleniyor...');
+        console.log('🗑️ [AUTH] Ek context cacheleri temizleniyor...');
         clearCacheCallback();
       }
       
-      // Local storage'ı temizle
+      // Token'ları temizle
       await removeAllTokens();
-      await AsyncStorage.removeItem('user_mode');
-      await AsyncStorage.removeItem('user_premium');
       
       // State'i güncelle
       setIsLoggedIn(false);
@@ -104,15 +144,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setPremium = async (premium: boolean) => {
     setIsPremium(premium);
     await AsyncStorage.setItem('user_premium', premium.toString());
-    
-    // ProfileContext'i de güncelle (eğer varsa)
-    try {
-      const { useProfile } = await import('./ProfileContext');
-      // Bu şekilde circular dependency'den kaçınırız
-    } catch (error) {
-      // ProfileContext henüz yüklenmemiş olabilir, bu normal
-    }
   };
+  
+  // ProfileContext'ten premium durumunu güncelle
+  useEffect(() => {
+    if (userProfile?.isPremium !== undefined) {
+      setIsPremium(userProfile.isPremium);
+      console.log('👑 [AUTH] Premium durumu güncellendi:', userProfile.isPremium);
+    }
+  }, [userProfile?.isPremium]);
 
   // Normal çıkış yapma fonksiyonu
   const logout = async (clearCacheCallback?: () => void) => {
@@ -125,16 +165,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Hata olsa bile devam et
     }
     
+    // Kapsamlı cache temizleme
+    await clearAllCaches();
+    
+    // Diğer context'lere logout event'i gönder
+    DeviceEventEmitter.emit('user_logout', { reason: 'normal_logout' });
+    
     // Cache temizleme callback'ini çağır (eğer verilmişse)
     if (clearCacheCallback) {
-      console.log('🗑️ [AUTH] Context cacheleri temizleniyor...');
+      console.log('🗑️ [AUTH] Ek context cacheleri temizleniyor...');
       clearCacheCallback();
     }
     
-    // Local storage'ı temizle
+    // Token'ları temizle
     await removeAllTokens();
-    await AsyncStorage.removeItem('user_mode');
-    await AsyncStorage.removeItem('user_premium');
     
     // State'i güncelle
     setIsLoggedIn(false);
@@ -162,10 +206,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return; // Alert göster
         }
         
-        // Persistent login dene (refresh token ile)
+        // Persistent login dene (refresh token ile) - 3 saniye timeout
         console.log('🔄 [AUTH] Persistent login deneniyor...');
+        
+        // 3 saniye timeout ile persistent login dene
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 3000)
+        );
+        
         try {
-          const response = await authApi.persistentLogin();
+          const response = await Promise.race([
+            authApi.persistentLogin(),
+            timeoutPromise
+          ]) as any;
           
           if (response.success && response.token) {
             console.log('✅ [AUTH] Persistent login başarılı');
@@ -186,11 +239,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (persistentError: any) {
           console.log('❌ [AUTH] Persistent login hatası:', persistentError.message);
           
-          // Refresh token geçersizse tüm token'ları temizle
-          if (persistentError.message?.includes('Oturum süresi dolmuş') || 
-              persistentError.message?.includes('Token geçersiz')) {
-            console.log('🗑️ [AUTH] Geçersiz token\'lar temizleniyor');
-            await removeAllTokens();
+          // Herhangi bir hata durumunda (timeout dahil) logout yap
+          console.log('🗑️ [AUTH] Persistent login başarısız, token\'lar temizleniyor');
+          await removeAllTokens();
+          
+          // Timeout dışındaki hatalar için alert göster
+          if (persistentError.message !== 'Timeout') {
+            setShouldShowLogoutAlert(true);
           }
           
           setIsLoggedIn(false);
@@ -246,4 +301,9 @@ export function useAuth() {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
+}
+
+// Expo Router uyumluluğu için default export
+export default function AuthContextPage() {
+  return null;
 } 

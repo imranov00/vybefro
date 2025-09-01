@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import { userApi, UserProfileResponse } from '../services/api';
 import { ZodiacSign } from '../types/zodiac';
@@ -34,7 +35,6 @@ type ProfileContextType = {
   error: string | null;
   currentUserId: string | null;
   clearCache: () => void;
-  updatePremiumStatus: (isPremium: boolean) => void; // Premium durumu güncelleme
 };
 
 // Varsayılan değerler
@@ -196,15 +196,6 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     console.log('✅ [PROFILE CONTEXT] Cache temizlendi');
   };
 
-  // Premium durumu güncelleme fonksiyonu
-  const updatePremiumStatus = (isPremium: boolean) => {
-    setUserProfile(prevProfile => ({
-      ...prevProfile,
-      isPremium: isPremium
-    }));
-    console.log('👑 [PROFILE CONTEXT] Premium durumu güncellendi:', isPremium);
-  };
-
   useEffect(() => {
     // Sadece ilk yüklemede kullanıcı bilgilerini kontrol et
     const initializeUser = async () => {
@@ -224,6 +215,22 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     initializeUser();
   }, []); // Sadece component mount olduğunda çalışır
 
+  // Kullanıcı profili değiştiğinde burç seçimini otomatik kaydet
+  useEffect(() => {
+    const saveZodiacSelection = async () => {
+      if (userProfile?.zodiacSign && userProfile.zodiacSign !== 'İsim Soyisim') {
+        try {
+          await AsyncStorage.setItem('user_zodiac_selection', userProfile.zodiacSign);
+          console.log('✨ [PROFILE CONTEXT] Kullanıcının burcu otomatik kaydedildi:', userProfile.zodiacSign);
+        } catch (error) {
+          console.error('❌ [PROFILE CONTEXT] Burç seçimi kaydetme hatası:', error);
+        }
+      }
+    };
+
+    saveZodiacSelection();
+  }, [userProfile?.zodiacSign]);
+
   return (
     <ProfileContext.Provider
       value={{
@@ -238,7 +245,6 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         error,
         currentUserId,
         clearCache,
-        updatePremiumStatus,
       }}
     >
       {children}
@@ -255,6 +261,10 @@ export function useProfile() {
   return context;
 }
 
-// ProfileDrawer component'ini yeniden export et
-export { default as ProfileDrawer } from '../components/profile/ProfileDrawer';
+// ProfileDrawer import'u kaldırıldı - require cycle'ı önlemek için
+
+// Expo Router uyumluluğu için default export
+export default function ProfileContextPage() {
+  return null;
+}
 

@@ -127,4 +127,17 @@ export const hasRefreshToken = async (): Promise<boolean> => {
     console.error('Refresh token kontrol edilirken hata oluştu:', error);
     return false;
   }
+};
+
+// Default export
+export default {
+  getToken,
+  saveToken,
+  removeToken,
+  getRefreshToken,
+  saveRefreshToken,
+  removeRefreshToken,
+  removeAllTokens,
+  hasToken,
+  hasRefreshToken
 }; 

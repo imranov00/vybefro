@@ -238,3 +238,14 @@ export const getZodiacDescription = (zodiacSign: string | ZodiacSign): string =>
   const info = getZodiacInfo(zodiacSign);
   return info ? info.description : 'Açıklama bulunamadı.';
 }; 
+
+// Default export
+export default {
+  ZodiacSign,
+  getZodiacDisplay,
+  getZodiacEmoji,
+  getZodiacTurkish,
+  getZodiacElement,
+  getZodiacPlanet,
+  getZodiacDescription
+}; 

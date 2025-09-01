@@ -1,5 +1,5 @@
 import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, DeviceEventEmitter } from 'react-native';
 import { chatApi, ChatListItem, ChatMessage, GlobalChatResponse, MessageLimitInfo, PrivateChatResponse, PrivateChatRoom, userApi } from '../services/api';
 import {
   initializeWebSocket,
@@ -1096,6 +1096,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Logout event listener'ı ekle
+  useEffect(() => {
+    const logoutListener = DeviceEventEmitter.addListener('user_logout', (data) => {
+      console.log('🗑️ [CHAT CONTEXT] Logout event alındı:', data.reason);
+      clearAllCache();
+    });
+
+    return () => {
+      logoutListener.remove();
+    };
+  }, []);
+
   // Login durumuna göre chat listesini ve limit bilgisini yükle
   useEffect(() => {
     if (isLoggedIn) {
@@ -1359,4 +1371,9 @@ export function useChat() {
     throw new Error('useChat must be used within a ChatProvider');
   }
   return context;
+}
+
+// Expo Router uyumluluğu için default export
+export default function ChatContextPage() {
+  return null;
 }

@@ -4,7 +4,7 @@ import { ZodiacSign } from '../types/zodiac';
 import { getRefreshToken, getToken, removeAllTokens, saveRefreshToken, saveToken } from '../utils/tokenStorage';
 
 // CLOUDFLARE TUNNEL URL'i - değişebilir
-const CLOUDFLARE_URL = 'https://jason-colleagues-capable-opened.trycloudflare.com';
+const CLOUDFLARE_URL = 'https://beans-redeem-cdna-plan.trycloudflare.com';
 
 // Alternative endpoints (gerektiğinde eklenebilir)
 const FALLBACK_URLS: string[] = [
@@ -89,6 +89,123 @@ const updateApiBaseUrl = async () => {
 api.interceptors.request.use(
   async (config) => {
     console.log(`[API REQUEST] ${config.method?.toUpperCase()} ${config.url}`);
+    
+    // Token gerekli olmayan endpoint'ler veya refresh token istekleri
+    const noAuthEndpoints = ['/health', '/api/auth/login', '/api/auth/register', '/api/auth/register-music'];
+    const isNoAuthEndpoint = noAuthEndpoints.some(endpoint => config.url?.includes(endpoint)) ||
+                            (config as any).metadata?.isRefreshRequest === true ||
+                            config.url?.includes('/api/auth/refresh') ||
+                            config.url?.includes('/api/auth/persistent-login');
+    
+    if (!isNoAuthEndpoint) {
+      // Token'ı al ve kontrol et
+      const token = await getToken();
+      const refreshToken = await getRefreshToken();
+      
+      console.log('🔑 [API] Token kontrolü:', {
+        hasAccessToken: !!token,
+        hasRefreshToken: !!refreshToken
+      });
+      
+      if (token) {
+        // Token'ı decode et ve süresi dolmuş mu kontrol et
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          const currentTime = Date.now() / 1000;
+          
+          console.log('🔍 [API] Token içeriği:', {
+            exp: payload.exp ? new Date(payload.exp * 1000).toISOString() : 'N/A',
+            iat: payload.iat ? new Date(payload.iat * 1000).toISOString() : 'N/A',
+            userId: payload.userId,
+            username: payload.username
+          });
+          
+          // Token süresi dolmuş mu kontrol et
+          if (payload.exp && payload.exp < currentTime) {
+            console.warn('⚠️ [API] Token süresi dolmuş!');
+            
+            // Çok fazla yenileme denemesi yapılmışsa logout yap
+            if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
+              console.error('❌ [API] Maksimum token yenileme denemesi aşıldı, logout yapılıyor');
+              refreshAttempts = 0;
+              await removeAllTokens();
+              await AsyncStorage.setItem('logout_alert_needed', 'true');
+              return Promise.reject(new Error('Oturum süresi dolmuş. Lütfen tekrar giriş yapın.'));
+            }
+            
+            // Refresh token varsa yenilemeyi dene - kontrollü şekilde
+            if (refreshToken && !isRefreshing) {
+              refreshAttempts++;
+              isRefreshing = true;
+              
+              console.log(`🔄 [API] Token yenileniyor... (${refreshAttempts}/${MAX_REFRESH_ATTEMPTS})`);
+              
+              try {
+                // Kontrollü refresh token isteği - response interceptor'da işlenecek
+                const refreshResponse = await api.post('/api/auth/refresh', { refreshToken }, {
+                  timeout: 5000,
+                  // Özel metadata ekle ki response interceptor'da tanısın
+                  metadata: { isRefreshRequest: true }
+                } as any);
+                
+                if (refreshResponse.data?.token) {
+                  await saveToken(refreshResponse.data.token);
+                  
+                  if (refreshResponse.data?.refreshToken) {
+                    await saveRefreshToken(refreshResponse.data.refreshToken);
+                  }
+                  
+                  // Yeni token ile devam et
+                  config.headers['Authorization'] = `Bearer ${refreshResponse.data.token}`;
+                  refreshAttempts = 0; // Başarılı yenileme, counter'ı sıfırla
+                  console.log('✅ [API] Token başarıyla yenilendi');
+                } else {
+                  throw new Error('Token yenileme yanıtı geçersiz');
+                }
+              } catch (refreshError) {
+                console.error('❌ [API] Token yenileme hatası:', refreshError);
+                
+                // Token yenilenemiyorsa tüm token'ları temizle ve logout flag'i set et
+                await removeAllTokens();
+                await AsyncStorage.setItem('logout_alert_needed', 'true');
+                
+                return Promise.reject(new Error('Oturum süresi dolmuş. Lütfen tekrar giriş yapın.'));
+              } finally {
+                isRefreshing = false;
+              }
+            } else {
+              console.warn('⚠️ [API] Refresh token yok veya zaten yenileniyor, logout yapılıyor');
+              
+              // Refresh token yoksa veya zaten yenileniyorsa logout yap
+              await removeAllTokens();
+              await AsyncStorage.setItem('logout_alert_needed', 'true');
+              
+              return Promise.reject(new Error('Oturum süresi dolmuş. Lütfen tekrar giriş yapın.'));
+            }
+          } else {
+            // Token geçerli, header'a ekle
+            config.headers['Authorization'] = `Bearer ${token}`;
+          }
+        } catch (tokenParseError) {
+          console.error('❌ [API] Token parse hatası:', tokenParseError);
+          
+          // Token parse edilemiyorsa temizle
+          await removeAllTokens();
+          await AsyncStorage.setItem('logout_alert_needed', 'true');
+          
+          return Promise.reject(new Error('Geçersiz token. Lütfen tekrar giriş yapın.'));
+        }
+      } else {
+        console.warn('⚠️ [API] Token bulunamadı');
+        
+        // Token yoksa logout yap
+        await removeAllTokens();
+        await AsyncStorage.setItem('logout_alert_needed', 'true');
+        
+        return Promise.reject(new Error('Oturum bulunamadı. Lütfen giriş yapın.'));
+      }
+    }
+    
     return config;
   },
   (error) => {
@@ -100,6 +217,8 @@ api.interceptors.request.use(
 // Token yenileme işlemi için global flag (döngüyü engellemek için)
 let isRefreshing = false;
 let failedQueue: Array<{ resolve: (value: any) => void; reject: (reason?: any) => void }> = [];
+let refreshAttempts = 0;
+const MAX_REFRESH_ATTEMPTS = 2;
 
 const processQueue = (error: any, token: string | null = null) => {
   failedQueue.forEach(({ resolve, reject }) => {
@@ -136,6 +255,12 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     
+    // Refresh token isteği ise döngüye girmesin - direkt hata fırlat
+    if (originalRequest.metadata?.isRefreshRequest || originalRequest.url?.includes('/api/auth/refresh')) {
+      console.error('❌ [API] Refresh token isteği başarısız:', error.response?.status);
+      return Promise.reject(error);
+    }
+    
     // 401 veya 403 hatası ve henüz retry yapılmamışsa
     if ((error.response?.status === 401 || error.response?.status === 403) && !originalRequest._retry) {
       if (isRefreshing) {
@@ -164,10 +289,11 @@ api.interceptors.response.use(
           throw new Error('Oturum süresi dolmuş');
         }
         
-        // Refresh token endpoint'ini çağır
+        // Refresh token endpoint'ini çağır - kontrollü şekilde
         const response = await api.post('/api/auth/refresh', { refreshToken }, {
-          timeout: 2000 // 2 saniye timeout (çok agresif)
-        });
+          timeout: 5000, // 5 saniye timeout
+          metadata: { isRefreshRequest: true }
+        } as any);
         
         // Yeni token'ları kaydet
         if (response.data?.token) {
@@ -742,8 +868,9 @@ export const authApi = {
       const response = await api.post('/api/auth/persistent-login', {
         refreshToken: refreshToken
       }, {
-        timeout: 2000 // 2 saniye timeout (çok agresif)
-      });
+        timeout: 5000, // 5 saniye timeout
+        metadata: { isRefreshRequest: true }
+      } as any);
       
       if (response.data?.success && response.data?.token) {
         // Yeni token'ı kaydet

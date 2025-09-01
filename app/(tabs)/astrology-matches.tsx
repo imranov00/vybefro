@@ -8,6 +8,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  DeviceEventEmitter,
   Dimensions,
   Image,
   Platform,
@@ -173,6 +174,48 @@ export default function AstrologyMatchesScreen() {
   const [matchedUserData, setMatchedUserData] = useState<SwipeUser | null>(null);
   const [matchResponse, setMatchResponse] = useState<any>(null);
   const [isClosing, setIsClosing] = useState(false);
+
+  // Logout event listener - cache temizleme
+  useEffect(() => {
+    const logoutListener = DeviceEventEmitter.addListener('user_logout', (data) => {
+      console.log('🗑️ [ASTROLOGY MATCHES] Logout event alındı:', data.reason);
+      
+      // Tüm state'leri temizle
+      setUsers([]);
+      setCurrentUserIndex(0);
+      setSwipedUserIds(new Set());
+      setCurrentPhotoIndex(0);
+      setShowDetailView(false);
+      setShowNewUserOverlay(false);
+      setShowMatchScreen(false);
+      setMatchedUserData(null);
+      setMatchResponse(null);
+      setIsClosing(false);
+      setErrorToast({ show: false, message: '' });
+      
+      console.log('✅ [ASTROLOGY MATCHES] Tüm state\'ler temizlendi');
+    });
+
+    return () => {
+      logoutListener.remove();
+    };
+  }, []);
+
+  // Otomatik burç seçimi - kullanıcı profili yüklendiğinde
+  useEffect(() => {
+    const setAutoZodiacSelection = async () => {
+      if (userProfile?.zodiacSign) {
+        try {
+          await AsyncStorage.setItem('user_zodiac_selection', userProfile.zodiacSign);
+          console.log('✨ [ASTROLOGY MATCHES] Kullanıcının burcu otomatik seçildi:', userProfile.zodiacSign);
+        } catch (error) {
+          console.error('❌ [ASTROLOGY MATCHES] Burç seçimi kaydetme hatası:', error);
+        }
+      }
+    };
+
+    setAutoZodiacSelection();
+  }, [userProfile?.zodiacSign]);
 
   // Debug: Match screen state'lerini takip et
   useEffect(() => {
