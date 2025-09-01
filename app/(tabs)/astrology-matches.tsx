@@ -19,8 +19,9 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { PanGestureHandler } from 'react-native-gesture-handler';
+import { GestureHandlerRootView, PanGestureHandler as RNGHPanGestureHandler } from 'react-native-gesture-handler';
 import Animated, {
+  Extrapolate,
   interpolate,
   runOnJS,
   useAnimatedGestureHandler,
@@ -32,12 +33,19 @@ import Animated, {
 import AstrologyMatchScreen from '../components/match/AstrologyMatchScreen';
 import { useAuth } from '../context/AuthContext';
 import { useProfile } from '../context/ProfileContext';
-import { swipeApi, SwipeLimitInfo } from '../services/api';
+import { DiscoverResponse, DiscoverUser } from '../services/api';
 import { getZodiacInfo, ZodiacSign } from '../types/zodiac';
 
+// Yeni Tinder Mantığı API Types - API servis dosyasından import ediliyor
+
+// Swipe edilen kullanıcıları cooldown süresi boyunca gizle
+const DISLIKE_COOLDOWN = 10 * 60 * 1000; // 10 dakika (milisaniye)
+const LIKE_COOLDOWN = 10 * 60 * 1000; // 10 dakika (milisaniye)
+const MATCH_EXPIRY = 36 * 60 * 60 * 1000; // 36 saat (milisaniye)
+
 const { width, height } = Dimensions.get('window');
-const CARD_WIDTH = width * 0.9;
-const CARD_HEIGHT = height * 0.8;
+const CARD_WIDTH = width * 0.85; // Ekranı kaplamasın
+const CARD_HEIGHT = height * 0.7; // Ekranı kaplamasın
 
 // Swipe API Types
 interface SwipeUser {
@@ -155,23 +163,22 @@ export default function AstrologyMatchesScreen() {
   const { userProfile } = useProfile();
   const router = useRouter();
   
-  // State
-  const [users, setUsers] = useState<SwipeUser[]>([]);
-  const [currentUserIndex, setCurrentUserIndex] = useState(0);
+  // State - Yeni Tinder Mantığı
+  const [currentUser, setCurrentUser] = useState<DiscoverUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [swipeLimitInfo, setSwipeLimitInfo] = useState<SwipeLimitInfo | null>(null);
+  const [swipeLimitInfo, setSwipeLimitInfo] = useState<DiscoverResponse['swipeLimitInfo'] | null>(null);
   const [isSwipeInProgress, setIsSwipeInProgress] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [showDetailView, setShowDetailView] = useState(false);
   const [showNewUserOverlay, setShowNewUserOverlay] = useState(false);
   const [errorToast, setErrorToast] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
   
-  // Swipe edilmiş kullanıcıları takip et
-  const [swipedUserIds, setSwipedUserIds] = useState<Set<number>>(new Set());
+  // Swipe edilmiş kullanıcıları timestamp ve action ile takip et
+  const [swipedUsers, setSwipedUsers] = useState<Map<number, { timestamp: number; action: 'LIKE' | 'DISLIKE' | 'MATCH' }>>(new Map());
   
   // Match Screen State
   const [showMatchScreen, setShowMatchScreen] = useState(false);
-  const [matchedUserData, setMatchedUserData] = useState<SwipeUser | null>(null);
+  const [matchedUserData, setMatchedUserData] = useState<DiscoverUser | null>(null);
   const [matchResponse, setMatchResponse] = useState<any>(null);
   const [isClosing, setIsClosing] = useState(false);
 
@@ -181,9 +188,8 @@ export default function AstrologyMatchesScreen() {
       console.log('🗑️ [ASTROLOGY MATCHES] Logout event alındı:', data.reason);
       
       // Tüm state'leri temizle
-      setUsers([]);
-      setCurrentUserIndex(0);
-      setSwipedUserIds(new Set());
+      setCurrentUser(null);
+      setSwipedUsers(new Map());
       setCurrentPhotoIndex(0);
       setShowDetailView(false);
       setShowNewUserOverlay(false);
@@ -193,7 +199,10 @@ export default function AstrologyMatchesScreen() {
       setIsClosing(false);
       setErrorToast({ show: false, message: '' });
       
-      console.log('✅ [ASTROLOGY MATCHES] Tüm state\'ler temizlendi');
+      // AsyncStorage'dan swipe edilen kullanıcıları temizle
+      clearSwipedUsersFromStorage();
+      
+      console.log('✅ [ASTROLOGY MATCHES] Tüm state\'ler ve storage temizlendi');
     });
 
     return () => {
@@ -242,13 +251,14 @@ export default function AstrologyMatchesScreen() {
     }
   }, [showMatchScreen, matchedUserData, userProfile]);
 
-  // Animation values
+  // Swipe Animation Values - Tinder Tarzı
   const translateX = useSharedValue(0);
-  // translateY kaldırıldı - sadece yatay hareket
+  const translateY = useSharedValue(0);
   const rotate = useSharedValue(0);
   const scale = useSharedValue(1);
   const likeOpacity = useSharedValue(0);
   const dislikeOpacity = useSharedValue(0);
+  const cardOpacity = useSharedValue(1);
 
   // Astroloji tema renkleri
   const astrologyTheme = {
@@ -268,255 +278,208 @@ export default function AstrologyMatchesScreen() {
     console.log('🔇 [TOAST] Toast gösterilmedi:', message);
   };
 
-  // Kullanıcıları getir (Normal keşif - hiç swipe yapmadığı + cooldown dolmuş)
-  const fetchUsers = async () => {
+  // Yeni Tinder Mantığı: Tek kullanıcı getir
+  const getNextUser = async (refresh: boolean = false) => {
     try {
       setIsLoading(true);
-      console.log('🔍 [FETCH] Yeni kullanıcılar getiriliyor (refresh=false - sadece yeni kullanıcılar)');
-      const response = await swipeApi.getDiscoverUsers(1, 10, false);
+      console.log(`🔍 [DISCOVER] ${refresh ? 'Refresh' : 'Normal'} mod - API isteği yapılıyor`);
       
-      if (response.success) {
-        // DiscoverUser'ları SwipeUser formatına dönüştür
-        console.log(`✅ [FETCH] ${response.users.length} yeni kullanıcı bulundu (mode: ${response.mode || 'filtered'})`);
-        console.log(`📊 [FETCH] Toplam: ${response.totalCount}, HasMore: ${response.hasMore}`);
+      // API servis dosyasındaki swipeApi.getDiscoverUsers kullan
+      const { swipeApi } = await import('../services/api');
+      const data = await swipeApi.getDiscoverUsers(1, 1, refresh);
+      
+      console.log(`📡 [API] Response alındı:`, data);
+      
+      if (data.success && data.user) {
+        // API'den gelen tekil user'ı kullan
+        const user = data.user;
         
-        const convertedUsers: SwipeUser[] = response.users.map(user => {
-          // Fotoğraf debug
-          console.log(`👤 Kullanıcı: ${user.firstName}, Fotoğraf sayısı: ${user.photos?.length || 0}`);
-          if (user.photos) {
-            user.photos.forEach((photo, index) => {
-              console.log(`📸 Fotoğraf ${index + 1}: ${photo.photoUrl ? 'VALID' : 'EMPTY'} - ${photo.photoUrl}`);
-            });
+        // Bu kullanıcı daha önce swipe edilmiş mi kontrol et
+        if (isUserSwiped(user.id)) {
+          console.log(`🔄 [DISCOVER] Kullanıcı ${user.firstName} (ID: ${user.id}) zaten swipe edilmiş, yeni kullanıcı getiriliyor`);
+          // Recursive olarak yeni kullanıcı getir
+          if (refresh) {
+            // Refresh modunda ise tekrar dene
+            setTimeout(() => getNextUser(true), 1000);
+          } else {
+            // Normal modda ise yeni kullanıcı getir
+            setTimeout(() => getNextUser(false), 1000);
           }
-          
-          // Fotoğrafları filtrele (sadece valid olanlar)
-          const validPhotos = user.photos?.filter(p => p.photoUrl && p.photoUrl.trim() !== '') || [];
-          
-          // Profil fotoğrafını belirle
-          const profileImage = user.profileImageUrl && user.profileImageUrl.trim() !== '' 
-            ? user.profileImageUrl 
-            : validPhotos.length > 0 
-              ? validPhotos[0].photoUrl 
-              : `https://picsum.photos/400/600?random=${user.id}`;
-          
-          console.log(`🖼️ ${user.firstName} profil fotoğrafı: ${profileImage}`);
-          console.log(`📂 ${user.firstName} toplam valid fotoğraf: ${validPhotos.length}`);
-          
-          return {
-          id: user.id,
-          username: user.firstName.toLowerCase() + user.id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          fullName: `${user.firstName} ${user.lastName}`,
-          age: user.age,
-          gender: 'UNKNOWN',
-          bio: user.bio || 'Yıldızların rehberliğinde hayatımı yaşıyorum ✨',
-          zodiacSign: user.zodiacSign as ZodiacSign,
-          zodiacSignDisplay: user.zodiacSign,
-          compatibilityScore: user.compatibilityScore,
-          compatibilityMessage: user.compatibilityMessage || 'Yıldızlar sizin için mükemmel bir uyum öngörüyor! 🌟',
-          profileImageUrl: profileImage,
-          photos: validPhotos.map((p, index) => ({
-            id: Math.random(),
-            photoUrl: p.photoUrl,
-            isProfilePhoto: index === 0, // Sadece ilk fotoğraf profil fotoğrafı
-            displayOrder: index + 1
-          })),
-          photoCount: validPhotos.length,
-          isPremium: user.isPremium || false,
-          lastActiveTime: new Date().toISOString(),
-          activityStatus: user.activityStatus || '2 saat önce',
-          location: 'İstanbul, Türkiye',
-          distanceKm: user.distanceKm || Math.floor(Math.random() * 20) + 1,
-          isVerified: user.isVerified || Math.random() > 0.7,
-          hasInstagram: Math.random() > 0.5,
-          hasSpotify: Math.random() > 0.6,
-          isNewUser: user.isNewUser || false,
-          profileCompleteness: '85%'
-          };
-        });
+          return;
+        }
         
-        setUsers(convertedUsers);
-        setSwipeLimitInfo(response.swipeLimitInfo);
+        // Match screen açıksa yeni kullanıcı getirme
+        if (showMatchScreen) {
+          console.log('💕 [DISCOVER] Match screen açık, yeni kullanıcı getirilmiyor');
+          return;
+        }
         
-        // İlk yükleme - yeni kullanıcı overlay ID listesini temizle
-        if (convertedUsers.length > 0) {
-          // setShownNewUserIds(new Set()); // Bu satır kaldırıldı
-          console.log('🆕 [FETCH] Yeni kullanıcı overlay ID listesi temizlendi');
+        // API servis dosyasındaki DiscoverUser tipine uygun hale getir
+        const compatibleUser: DiscoverUser = {
+          ...user,
+          bio: user.bio || '',
+          zodiacSign: user.zodiacSign as ZodiacSign
+        };
+        setCurrentUser(compatibleUser);
+        
+        // Swipe limit bilgisi varsa set et
+        if (data.swipeLimitInfo) {
+          setSwipeLimitInfo(data.swipeLimitInfo);
+        }
+        
+        // Yeni kullanıcı geldiğinde animasyon değerlerini sıfırla
+        translateX.value = 0;
+        translateY.value = 0;
+        rotate.value = 0;
+        scale.value = 1;
+        cardOpacity.value = 1;
+        likeOpacity.value = 0;
+        dislikeOpacity.value = 0;
+        
+        console.log(`✅ [DISCOVER] Kullanıcı bulundu: ${user.firstName} ${user.lastName} (${data.totalRemainingUsers || 0} kullanıcı kaldı)`);
+        if (data.swipeLimitInfo) {
+          console.log(`📊 [DISCOVER] Swipe limit: ${data.swipeLimitInfo.remainingSwipes} kaldı`);
         }
       } else {
-        Alert.alert('Hata', response.message || 'Kullanıcılar yüklenemedi');
+        setCurrentUser(null);
+        console.log('❌ [DISCOVER] Gösterilecek kullanıcı yok:', data.message);
       }
+      
     } catch (error: any) {
-      console.error('Kullanıcılar getirme hatası:', error);
+      console.error('❌ [DISCOVER] API hatası:', error);
       
-      // 403 hatası - Swipe limit doldu
-      if (error?.response?.status === 403) {
-        console.log('🚫 [FETCH] 403 - Swipe limiti dolmuş:', error?.response?.data?.message);
-        
-        // Limit bilgisini güncelle
-        try {
-          await fetchSwipeLimitInfo();
-        } catch (limitError) {
-          console.error('❌ [FETCH] Limit info güncellenemedi:', limitError);
-        }
-        
-        // Kullanıcı listesini boşalt - limit ekranı gösterilsin
-        setUsers([]);
-        
-        // Error alert gösterme, limit ekranı zaten gösterilecek
-        return;
+      // Network hatası durumunda kullanıcıyı bilgilendir
+      if (error.message.includes('fetch')) {
+        Alert.alert('Bağlantı Hatası', 'Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol edin.');
+      } else {
+        Alert.alert('Hata', 'Kullanıcı yüklenirken bir hata oluştu: ' + error.message);
       }
       
-      // Diğer hatalar için generic alert
-      Alert.alert('Hata', 'Kullanıcılar yüklenirken bir hata oluştu');
+      setCurrentUser(null);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Kullanıcıları yenile (Yenile butonu - tam random sıralama)
-  const refreshUsers = async () => {
-    console.log('🔄 [REFRESH] Kullanıcıları yeniliyor (refresh=true - cooldown geçmiş kullanıcılar dahil)');
+  // Refresh fonksiyonu kaldırıldı - doğrudan getNextUser(true) kullanılıyor
+
+  // AsyncStorage'a swipe edilen kullanıcıları kaydet
+  const saveSwipedUsersToStorage = async (userId: number, timestamp: number, action: 'LIKE' | 'DISLIKE' | 'MATCH') => {
     try {
-      setIsLoading(true);
-      const response = await swipeApi.getDiscoverUsers(1, 10, true); // refresh=true
-      
-      if (response.success) {
-        console.log(`🎲 [REFRESH] ${response.users.length} kullanıcı (mode: ${response.mode || 'random'})`);
-        console.log(`📊 [REFRESH] Toplam: ${response.totalCount}, HasMore: ${response.hasMore}`);
-        
-        // Tutorial'ı test etmek için reset et (isteğe bağlı)
-        // await AsyncStorage.removeItem('astrology_tutorial_shown');
-        // console.log('🔄 [REFRESH] Tutorial reset edildi (test için)');
-        
-        // DiscoverUser'ları SwipeUser formatına dönüştür (aynı mantık)
-        const convertedUsers: SwipeUser[] = response.users.map(user => {
-          const validPhotos = user.photos?.filter(p => p.photoUrl && p.photoUrl.trim() !== '') || [];
-          const profileImage = user.profileImageUrl && user.profileImageUrl.trim() !== '' 
-            ? user.profileImageUrl 
-            : validPhotos.length > 0 
-              ? validPhotos[0].photoUrl 
-              : `https://picsum.photos/400/600?random=${user.id}`;
-          
-          return {
-            id: user.id,
-            username: user.firstName.toLowerCase() + user.id,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            fullName: `${user.firstName} ${user.lastName}`,
-            age: user.age,
-            gender: 'UNKNOWN',
-            bio: user.bio || 'Yıldızların rehberliğinde hayatımı yaşıyorum ✨',
-            zodiacSign: user.zodiacSign as ZodiacSign,
-            zodiacSignDisplay: user.zodiacSign,
-            compatibilityScore: user.compatibilityScore,
-            compatibilityMessage: user.compatibilityMessage || 'Yıldızlar sizin için mükemmel bir uyum öngörüyor! 🌟',
-            profileImageUrl: profileImage,
-            photos: validPhotos.map((p, index) => ({
-              id: Math.random(),
-              photoUrl: p.photoUrl,
-              isProfilePhoto: index === 0,
-              displayOrder: index + 1
-            })),
-            photoCount: validPhotos.length,
-            isPremium: user.isPremium || false,
-            lastActiveTime: new Date().toISOString(),
-            activityStatus: user.activityStatus || '2 saat önce',
-            location: 'İstanbul, Türkiye',
-            distanceKm: user.distanceKm || Math.floor(Math.random() * 20) + 1,
-            isVerified: user.isVerified || Math.random() > 0.7,
-            hasInstagram: Math.random() > 0.5,
-            hasSpotify: Math.random() > 0.6,
-            isNewUser: user.isNewUser || false,
-            profileCompleteness: '85%'
-          };
-        });
-        
-        setUsers(convertedUsers);
-        setCurrentUserIndex(0); // Index'i sıfırla
-        setSwipeLimitInfo(response.swipeLimitInfo);
-        
-        // Swipe edilmiş kullanıcıları temizle (yenile sırasında)
-        setSwipedUserIds(new Set());
-        console.log('🔄 [REFRESH] Swipe edilmiş kullanıcılar temizlendi');
-        
-        // Yeni kullanıcı overlay'ini gösterilen ID listesini temizle
-        // setShownNewUserIds(new Set()); // Bu satır kaldırıldı
-        console.log('🔄 [REFRESH] Yeni kullanıcı overlay ID listesi temizlendi');
-        
-        console.log('✅ [REFRESH] Kullanıcılar yenilendi ve index sıfırlandı');
-      } else {
-        Alert.alert('Hata', response.message || 'Kullanıcılar yenilenemedi');
-      }
-    } catch (error: any) {
-      console.error('❌ [REFRESH] Kullanıcıları yenileme hatası:', error);
-      
-      // 403 hatası - Swipe limit doldu
-      if (error?.response?.status === 403) {
-        console.log('🚫 [REFRESH] 403 - Swipe limiti dolmuş:', error?.response?.data?.message);
-        
-        // Limit bilgisini güncelle
-        try {
-          await fetchSwipeLimitInfo();
-        } catch (limitError) {
-          console.error('❌ [REFRESH] Limit info güncellenemedi:', limitError);
-        }
-        
-        // Kullanıcı listesini boşalt - limit ekranı gösterilsin
-        setUsers([]);
-        
-        // Error alert gösterme, limit ekranı zaten gösterilecek
-        return;
-      }
-      
-      // Diğer hatalar için generic alert
-      Alert.alert('Hata', 'Kullanıcılar yenilenirken bir hata oluştu');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Swipe edilmiş kullanıcı ID'sini kaydet
-  const markUserAsSwiped = (userId: number) => {
-    setSwipedUserIds(prev => new Set([...prev, userId]));
-    console.log(`✅ [SWIPE_TRACK] Kullanıcı ${userId} swipe edildi olarak işaretlendi`);
-  };
-
-  // Kullanıcının swipe edilip edilmediğini kontrol et
-  const isUserSwiped = (userId: number): boolean => {
-    return swipedUserIds.has(userId);
-  };
-
-  // Swipe edilmemiş kullanıcıları filtrele
-  const getUnswipedUsers = (): SwipeUser[] => {
-    return users.filter(user => !isUserSwiped(user.id));
-  };
-
-  // Swipe limit bilgisi getir
-  const fetchSwipeLimitInfo = async () => {
-    try {
-      console.log('🔄 [LIMIT] Swipe limit bilgisi getiriliyor...');
-      const limitInfo = await swipeApi.getSwipeLimitInfo();
-      console.log('✅ [LIMIT] Swipe limit bilgisi:', {
-        isPremium: limitInfo.isPremium,
-        remainingSwipes: limitInfo.remainingSwipes,
-        dailySwipeCount: limitInfo.dailySwipeCount,
-        canSwipe: limitInfo.canSwipe,
-        hasResetInfo: !!limitInfo.resetInfo
-      });
-      
-      setSwipeLimitInfo(limitInfo);
-      
-      // Limit dolmuşsa kullanıcıyı bilgilendir
-      if (!limitInfo.canSwipe && limitInfo.resetInfo) {
-        console.log('⚠️ [LIMIT] Swipe limiti dolmuş:', limitInfo.resetInfo.resetMessage);
-      }
-      
+      const key = `swiped_user_${userId}`;
+      const data = JSON.stringify({ timestamp, action });
+      await AsyncStorage.setItem(key, data);
+      console.log(`💾 [STORAGE] Kullanıcı ${userId} ${action} olarak kaydedildi`);
     } catch (error) {
-      console.error('❌ [LIMIT] Swipe limit bilgisi hatası:', error);
+      console.error(`❌ [STORAGE] Kullanıcı ${userId} kaydetme hatası:`, error);
     }
   };
+
+  // AsyncStorage'dan swipe edilen kullanıcıları yükle
+  const loadSwipedUsersFromStorage = async () => {
+    try {
+      const swipedUsersMap = new Map<number, { timestamp: number; action: 'LIKE' | 'DISLIKE' | 'MATCH' }>();
+      
+      // Tüm swipe edilen kullanıcıları AsyncStorage'dan al
+      const keys = await AsyncStorage.getAllKeys();
+      const swipedKeys = keys.filter(key => key.startsWith('swiped_user_'));
+      
+      for (const key of swipedKeys) {
+        const userId = parseInt(key.replace('swiped_user_', ''));
+        const dataStr = await AsyncStorage.getItem(key);
+        
+        if (dataStr) {
+          try {
+            const data = JSON.parse(dataStr);
+            const { timestamp, action } = data;
+            
+            // Cooldown süresi geçmiş mi kontrol et
+            const cooldownDuration = action === 'MATCH' ? MATCH_EXPIRY : 
+                                   action === 'LIKE' ? LIKE_COOLDOWN : DISLIKE_COOLDOWN;
+            
+            if (Date.now() - timestamp <= cooldownDuration) {
+              swipedUsersMap.set(userId, { timestamp, action });
+            } else {
+              // Süresi dolmuş, AsyncStorage'dan sil
+              await AsyncStorage.removeItem(key);
+              console.log(`🗑️ [STORAGE] Cooldown süresi dolmuş kullanıcı ${userId} silindi`);
+            }
+          } catch (parseError) {
+            console.error(`❌ [STORAGE] Kullanıcı ${userId} veri parse hatası:`, parseError);
+            // Eski format, sil
+            await AsyncStorage.removeItem(key);
+          }
+        }
+      }
+      
+      setSwipedUsers(swipedUsersMap);
+      console.log(`📱 [STORAGE] ${swipedUsersMap.size} aktif swipe edilen kullanıcı yüklendi`);
+    } catch (error) {
+      console.error('❌ [STORAGE] Swipe edilen kullanıcıları yükleme hatası:', error);
+    }
+  };
+
+  // AsyncStorage'dan swipe edilen kullanıcıları temizle
+  const clearSwipedUsersFromStorage = async () => {
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const swipedKeys = keys.filter(key => key.startsWith('swiped_user_'));
+      
+      for (const key of swipedKeys) {
+        await AsyncStorage.removeItem(key);
+      }
+      
+      console.log(`🗑️ [STORAGE] ${swipedKeys.length} swipe edilen kullanıcı storage'dan temizlendi`);
+    } catch (error) {
+      console.error('❌ [STORAGE] Swipe edilen kullanıcıları temizleme hatası:', error);
+    }
+  };
+
+  // Swipe edilmiş kullanıcı ID'sini timestamp ve action ile kaydet
+  const markUserAsSwiped = (userId: number, action: 'LIKE' | 'DISLIKE' | 'MATCH') => {
+    const timestamp = Date.now();
+    setSwipedUsers(prev => new Map(prev).set(userId, { timestamp, action }));
+    
+    // AsyncStorage'a da kaydet
+    saveSwipedUsersToStorage(userId, timestamp, action);
+    
+    console.log(`✅ [SWIPE_TRACK] Kullanıcı ${userId} ${action} olarak işaretlendi (timestamp: ${timestamp})`);
+  };
+
+  // Kullanıcının swipe edilip edilmediğini kontrol et (cooldown kontrolü ile)
+  const isUserSwiped = (userId: number): boolean => {
+    const swipeData = swipedUsers.get(userId);
+    if (!swipeData) return false;
+    
+    const { timestamp, action } = swipeData;
+    
+    // Cooldown süresi geçmiş mi kontrol et
+    const cooldownDuration = action === 'MATCH' ? MATCH_EXPIRY : 
+                           action === 'LIKE' ? LIKE_COOLDOWN : DISLIKE_COOLDOWN;
+    
+    const isExpired = Date.now() - timestamp > cooldownDuration;
+    if (isExpired) {
+      // Süresi dolmuş, Map'ten kaldır
+      setSwipedUsers(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(userId);
+        return newMap;
+      });
+      return false;
+    }
+    
+    return true;
+  };
+
+  // Swipe edilmemiş kullanıcıları filtrele - KALDIRILDI (Tinder mantığında gerekli değil)
+  // const getUnswipedUsers = (): SwipeUser[] => {
+  //   return users.filter(user => !isUserSwiped(user.id));
+  // };
+
+  // Swipe limit bilgisi getir - KALDIRILDI, Yeni API gelecek
+  // const fetchSwipeLimitInfo = async () => {
+  //   // TODO: Yeni API entegrasyonu gelecek
+  // };
 
   // Premium sayfasına yönlendir
   const navigateToPremium = () => {
@@ -524,356 +487,211 @@ export default function AstrologyMatchesScreen() {
     router.push('/(profile)/premiumScreen');
   };
 
-  // Swipe işlemi
-  const performSwipe = async (toUserId: number, action: 'LIKE' | 'DISLIKE' | 'SUPER_LIKE') => {
+  // Swipe işlemi - Yeni Tinder Mantığı
+  const performSwipe = async (toUserId: number, action: 'LIKE' | 'DISLIKE') => {
     try {
-      // Swipe limit kontrolü
-      if (swipeLimitInfo && !swipeLimitInfo.canSwipe && !swipeLimitInfo.isPremium) {
-        console.log('🚫 [SWIPE] Swipe limiti dolmuş, işlem iptal ediliyor');
-        Alert.alert(
-          '⏰ Günlük Limit Doldu',
-          swipeLimitInfo.resetInfo?.resetMessage || 'Günlük swipe limitiniz dolmuş',
-          [
-            { text: 'Tamam', style: 'default' },
-            { text: 'Premium Ol', style: 'default', onPress: navigateToPremium }
-          ]
-        );
-        return; // Swipe işlemini iptal et
+      // Çift çağrım koruması
+      if (isSwipeInProgress) {
+        console.log('🚫 [SWIPE] Zaten swipe işlemi devam ediyor');
+        return;
       }
       
       setIsSwipeInProgress(true);
+      console.log(`🔄 [SWIPE] ${action} işlemi başlatılıyor - API isteği yapılıyor`);
       
-      const response = await swipeApi.swipe({
+      // API servis dosyasındaki swipeApi.swipe kullan
+      const { swipeApi } = await import('../services/api');
+      const swipeData = {
         toUserId,
-        action: action === 'SUPER_LIKE' ? 'LIKE' : action
-      });
-
-      if (response.success) {
-        console.log('✅ [SWIPE] Swipe response:', {
-          action: action,
-          success: response.success,
-          isMatch: response.isMatch,
-          status: response.status,
-          matchId: response.matchId,
-          remainingSwipes: response.remainingSwipes,
-          message: response.message
-        });
+        action: action as 'LIKE' | 'DISLIKE'
+      };
+      
+      const swipeResult = await swipeApi.swipe(swipeData);
+      console.log(`📡 [SWIPE] API response:`, swipeResult);
+      
+      // Match kontrolü yap
+      if (swipeResult.success && swipeResult.isMatch) {
+        console.log('💕 [MATCH] EŞLEŞME BULUNDU! Match screen açılıyor...');
+        
+        // Match data'sını set et
+        setMatchedUserData(currentUser);
+        setMatchResponse(swipeResult);
+        
+        // Match screen'i göster
+        setShowMatchScreen(true);
         
         // Kullanıcıyı swipe edildi olarak işaretle
-        markUserAsSwiped(toUserId);
+        markUserAsSwiped(toUserId, action);
         
-        // Match kontrolü: hem isMatch hem de status MATCHED olmalı
-        const isMatched = response.isMatch && response.status === 'MATCHED';
+        // Match screen'de kal, sonraki kullanıcıya geçme
+        return;
+      }
+      
+      // Match yoksa normal akış
+      console.log('💔 [SWIPE] Match bulunamadı, sonraki kullanıcıya geçiliyor');
+      
+      // Kullanıcıyı swipe edildi olarak işaretle
+      markUserAsSwiped(toUserId, action);
+      
+      // Sonraki kullanıcıya geç
+      await nextUser();
+      
+    } catch (error: any) {
+      console.error('❌ [SWIPE] API hatası:', error);
+      
+      // Duplicate swipe hatası - kullanıcıyı bilgilendir ve sonraki kullanıcıya geç
+      if (error.message.includes('zaten bir swipe kaydınız var')) {
+        console.log('🔄 [SWIPE] Kullanıcı zaten swipe edilmiş, sonraki kullanıcıya geçiliyor');
         
-        console.log('🔍 [MATCH] Match kontrol sonucu:', {
-          isMatched: isMatched,
-          responseIsMatch: response.isMatch,
-          responseStatus: response.status,
-          willShowMatchScreen: isMatched
-        });
-        
-        if (isMatched) {
-          // Eşleşme var!
-          console.log('🎉 [MATCH] Eşleşme bulundu!', {
-            matchId: response.matchId,
-            message: response.message,
-            remainingSwipes: response.remainingSwipes
-          });
-          
-          // Match screen'i göster
-          console.log('🎯 [MATCH] Match screen açılıyor...', {
-            currentUserIndex: currentUserIndex,
-            hasMatchedUser: !!users[currentUserIndex],
-            hasUserProfile: !!userProfile,
-            userProfileId: userProfile?.id,
-            matchedUserId: users[currentUserIndex]?.id
-          });
-          
-          setShowMatchScreen(true);
-          setMatchedUserData(users[currentUserIndex]);
-          setMatchResponse(response);
-          
-          console.log('✅ [MATCH] Match screen state güncellendi');
-          
-          // Match animasyonu (opsiyonel)
-          showMatchAnimation();
-          
-          // Match mesajını göster
-          console.log('💌 [MATCH] Mesaj:', response.message);
-          
-        } else if (response.status === 'LIKED') {
-          // Beğenildi ama henüz karşılık yok
-          console.log('💖 [LIKE] Kullanıcı beğenildi, karşılık bekleniyor');
-          
-        } else if (response.status === 'DISLIKED') {
-          // Beğenilmedi
-          console.log('❌ [DISLIKE] Kullanıcı beğenilmedi');
-        }
-        
-        // Kalan swipe hakkını göster ve resetInfo kontrol et
-        if (response.remainingSwipes !== undefined) {
-          console.log(`📊 [SWIPE] Kalan swipe hakkı: ${response.remainingSwipes}`);
-          
-          // Limit dolmuşsa özel mesaj göster
-          if (response.remainingSwipes === 0 && response.resetInfo) {
-            console.log('⏰ [SWIPE] Limit doldu, reset bilgisi:', response.resetInfo.resetMessage);
-            // Büyük alert göster
-            Alert.alert(
-              '⏰ Günlük Limit Doldu', 
-              response.resetInfo.resetMessage + '\n\nPremium üyelik ile sınırsız swipe yapabilirsiniz!',
-              [
-                { text: 'Tamam', style: 'default' },
-                { text: 'Premium Ol', style: 'default', onPress: navigateToPremium }
-              ]
-            );
-          }
-        }
-        
-        // Swipe limit bilgisini güncelle
-        await fetchSwipeLimitInfo();
+        // Kullanıcıyı swipe edildi olarak işaretle
+        markUserAsSwiped(toUserId, action);
         
         // Sonraki kullanıcıya geç
-        nextUser();
-      } else {
-        // API başarısız yanıt döndü - sessizce handle et
-        console.log('❌ [API] Swipe başarısız:', response.message);
-        
-        // Kullanıcıya uyarı gösterme, sessizce geç
-        setTimeout(() => {
-          nextUser(); // Kullanıcıyı geç
-        }, 500); // Daha hızlı geç
-      }
-    } catch (error: any) {
-      console.error('❌ [API] swipe hatası:', error?.response?.data || error?.message || error);
-      
-      // 400 hatası - kullanıcı zaten swipe edilmiş (sessizce handle et)
-      if (error?.response?.status === 400 && error?.response?.data?.message?.includes('zaten bir swipe kaydınız var')) {
-        console.log('🔄 [SWIPE] Kullanıcı zaten swipe edilmiş, sessizce işaretleniyor...');
-        markUserAsSwiped(toUserId);
-        // Kullanıcıya hiçbir uyarı gösterme, sessizce geç
-      } else {
-        // Diğer hatalar için de sessizce geç
-        console.log('❌ [SWIPE] Diğer hata türü:', error?.response?.data?.message || 'Bilinmeyen hata');
-        // Kullanıcıya hiçbir uyarı gösterme
+        await nextUser();
+        return;
       }
       
-      // Hızlıca sonraki kullanıcıya geç
-      setTimeout(() => {
-        nextUser();
-      }, 300);
+      // Network hatası durumunda kullanıcıyı bilgilendir
+      if (error.message.includes('fetch')) {
+        Alert.alert('Bağlantı Hatası', 'Swipe işlemi yapılamadı. Lütfen internet bağlantınızı kontrol edin.');
+      } else {
+        Alert.alert('Hata', 'Swipe işlemi sırasında bir hata oluştu: ' + error.message);
+      }
     } finally {
       setIsSwipeInProgress(false);
     }
   };
 
-  // Sonraki kullanıcıya geç
-  const nextUser = () => {
-    const unswipedUsers = getUnswipedUsers();
-    const currentUnswipedIndex = unswipedUsers.findIndex(user => user.id === users[currentUserIndex]?.id);
-    
-    // Swipe edilmemiş kullanıcılar arasında bir sonraki kullanıcıyı bul
-    let nextUnswipedIndex = currentUnswipedIndex + 1;
-    
-    // Eğer swipe edilmemiş kullanıcı kalmadıysa, yeni kullanıcılar getir
-    if (nextUnswipedIndex >= unswipedUsers.length) {
-      console.log('🔄 [NEXT] Swipe edilmemiş kullanıcı kalmadı, yeni kullanıcılar getiriliyor');
-      refreshUsers(); // fetchUsers yerine refreshUsers kullan
+      // Eski performSwipe kodu kaldırıldı - Yeni API bekleniyor
+
+  // Yeni Tinder Mantığı: Sonraki kullanıcıyı getir
+  const nextUser = async () => {
+    // Çift çağrım koruması
+    if (isSwipeInProgress) {
+      console.log('🚫 [NEXT] Swipe işlemi devam ediyor, nextUser iptal edildi');
       return;
     }
     
-    // Bir sonraki swipe edilmemiş kullanıcının orijinal listedeki index'ini bul
-    const nextUser = unswipedUsers[nextUnswipedIndex];
-    const nextIndex = users.findIndex(user => user.id === nextUser.id);
+    // Match screen açıksa sonraki kullanıcıya geçme
+    if (showMatchScreen) {
+      console.log('💕 [NEXT] Match screen açık, sonraki kullanıcıya geçilmiyor');
+      return;
+    }
     
-    setCurrentUserIndex(nextIndex);
-    setCurrentPhotoIndex(0);
-    resetAnimations();
+    console.log('🔄 [NEXT] Sonraki kullanıcı getiriliyor...');
     
-    console.log(`🔄 [NEXT] Sonraki kullanıcıya geçildi: ${nextUser.firstName} (ID: ${nextUser.id})`);
+    // Yeni kullanıcıyı getir
+    await getNextUser(false);
     
     // Yeni kullanıcı overlay'ini kapat
     if (showNewUserOverlay) {
       setShowNewUserOverlay(false);
       console.log('🆕 [NEW_USER] Overlay otomatik kapatıldı - swipe yapıldı');
     }
-    
-    // Son 2 kullanıcı kaldığında yeni kullanıcılar getir
-    if (nextIndex >= users.length - 2) {
-      refreshUsers(); // fetchUsers yerine refreshUsers kullan
-    }
   };
 
-  // Animasyonları sıfırla
-  const resetAnimations = () => {
-    'worklet';
-    try {
-      console.log('resetAnimations çağrıldı');
-      translateX.value = withSpring(0, { 
-        damping: 20, 
-        stiffness: 200,
-        mass: 1,
-        restDisplacementThreshold: 0.1,
-        restSpeedThreshold: 0.1
-      });
-      rotate.value = withSpring(0, { 
-        damping: 20, 
-        stiffness: 200,
-        mass: 1,
-        restDisplacementThreshold: 0.1,
-        restSpeedThreshold: 0.1
-      });
-      scale.value = withSpring(1, { 
-        damping: 20, 
-        stiffness: 200,
-        mass: 1,
-        restDisplacementThreshold: 0.1,
-        restSpeedThreshold: 0.1
-      });
-      likeOpacity.value = withSpring(0, { 
-        damping: 20, 
-        stiffness: 200,
-        mass: 1,
-        restDisplacementThreshold: 0.1,
-        restSpeedThreshold: 0.1
-      });
-      dislikeOpacity.value = withSpring(0, { 
-        damping: 20, 
-        stiffness: 200,
-        mass: 1,
-        restDisplacementThreshold: 0.1,
-        restSpeedThreshold: 0.1
-      });
-      console.log('Reset animations başarılı');
-    } catch (error) {
-      console.error('Reset animations hatası:', error);
-    }
-  };
+  // Animasyonları sıfırla - KALDIRILDI
+  // const resetAnimations = () => {
+  //   // Animasyon kodu kaldırıldı
+  // };
 
-  // Eşleşme animasyonu
-  const showMatchAnimation = () => {
-    scale.value = withSpring(1.1, { damping: 15 }, () => {
-      scale.value = withSpring(1);
-    });
-  };
+  // Eşleşme animasyonu - KALDIRILDI
+  // const showMatchAnimation = () => {
+  //   // Animasyon kodu kaldırıldı
+  // };
 
-  // Gesture handler
+  // Swipe Gesture Handler - Tinder Tarzı
   const gestureHandler = useAnimatedGestureHandler({
-    onStart: () => {
-      scale.value = withSpring(0.95);
+    onStart: (_, context: any) => {
+      context.startX = translateX.value;
+      context.startY = translateY.value;
     },
-    onActive: (event) => {
-      translateX.value = event.translationX;
-      // translateY.value = event.translationY; // Yukarı aşağı hareket kaldırıldı
+    onActive: (event, context: any) => {
+      translateX.value = context.startX + event.translationX;
+      translateY.value = context.startY + event.translationY;
       
-      // Rotasyon hesapla
+      // Rotasyon efekti
       rotate.value = interpolate(
         event.translationX,
-        [-width / 2, 0, width / 2],
-        [-15, 0, 15]
+        [-200, 0, 200],
+        [-15, 0, 15],
+        Extrapolate.CLAMP
       );
-
-      // Like/Dislike opacity
-      if (event.translationX > 0) {
+      
+      // Scale efekti
+      scale.value = interpolate(
+        Math.abs(event.translationX),
+        [0, 200],
+        [1, 0.9],
+        Extrapolate.CLAMP
+      );
+      
+      // Like/Dislike overlay opacity
+      if (event.translationX > 50) {
         likeOpacity.value = interpolate(
           event.translationX,
-          [0, width * 0.3],
-          [0, 1]
+          [50, 150],
+          [0, 1],
+          Extrapolate.CLAMP
         );
         dislikeOpacity.value = 0;
-      } else {
+      } else if (event.translationX < -50) {
         dislikeOpacity.value = interpolate(
-          event.translationX,
-          [-width * 0.3, 0],
-          [1, 0]
+          Math.abs(event.translationX),
+          [50, 150],
+          [0, 1],
+          Extrapolate.CLAMP
         );
         likeOpacity.value = 0;
+      } else {
+        likeOpacity.value = 0;
+        dislikeOpacity.value = 0;
       }
     },
     onEnd: (event) => {
-      const threshold = width * 0.75; // Threshold %75'e çıkarıldı - daha kesin swipe gerekli
-      const velocityThreshold = 1000; // Velocity threshold artırıldı - daha hızlı swipe gerekli
+      const shouldSwipeRight = event.translationX > 120;
+      const shouldSwipeLeft = event.translationX < -120;
       
-      // Debug log
-      console.log('Swipe end:', {
-        translationX: event.translationX,
-        velocityX: event.velocityX,
-        threshold,
-        velocityThreshold,
-        willTrigger: Math.abs(event.translationX) > threshold || Math.abs(event.velocityX) > velocityThreshold
-      });
-      
-      // Sadece kesin swipe hareketlerini kabul et
-      const isDistanceSwipe = Math.abs(event.translationX) > threshold;
-      const isVelocitySwipe = Math.abs(event.velocityX) > velocityThreshold;
-      const shouldSwipe = isDistanceSwipe || isVelocitySwipe;
-      
-      if (shouldSwipe && event.translationX > 0) {
-        // LIKE - Sağa kaydırma
-        console.log('LIKE tetiklendi');
-        translateX.value = withTiming(width * 1.5, { duration: 300 });
-        rotate.value = withTiming(30, { duration: 300 });
-        scale.value = withTiming(0.8, { duration: 300 });
+      if (shouldSwipeRight) {
+        // Sağa swipe - LIKE
+        translateX.value = withSpring(500);
+        translateY.value = withSpring(0);
+        rotate.value = withSpring(30);
+        cardOpacity.value = withTiming(0, { duration: 300 });
         
-        // Güvenli swipe çağrısı
-        if (users[currentUserIndex]?.id) {
-          runOnJS(performSwipe)(users[currentUserIndex].id, 'LIKE');
-        }
-      } else if (shouldSwipe && event.translationX < 0) {
-        // DISLIKE - Sola kaydırma
-        console.log('DISLIKE tetiklendi');
-        translateX.value = withTiming(-width * 1.5, { duration: 300 });
-        rotate.value = withTiming(-30, { duration: 300 });
-        scale.value = withTiming(0.8, { duration: 300 });
+        // LIKE işlemini yap
+        runOnJS(performSwipe)(currentUser?.id || 0, 'LIKE');
+      } else if (shouldSwipeLeft) {
+        // Sola swipe - DISLIKE
+        translateX.value = withSpring(-500);
+        translateY.value = withSpring(0);
+        rotate.value = withSpring(-30);
+        cardOpacity.value = withTiming(0, { duration: 300 });
         
-        // Güvenli swipe çağrısı
-        if (users[currentUserIndex]?.id) {
-          runOnJS(performSwipe)(users[currentUserIndex].id, 'DISLIKE');
-        }
+        // DISLIKE işlemini yap
+        runOnJS(performSwipe)(currentUser?.id || 0, 'DISLIKE');
       } else {
-        // Geri dön - card eski pozisyonuna döner
-        console.log('Card geri dönüyor... translationX:', event.translationX, 'threshold:', threshold);
-        console.log('Reset işlemi başlatılıyor...');
-        
-        // Önce animate et, sonra reset fonksiyonunu çağır
-        translateX.value = withSpring(0, { 
-          damping: 20, 
-          stiffness: 200,
-          mass: 1
-        });
-        rotate.value = withSpring(0, { 
-          damping: 20, 
-          stiffness: 200,
-          mass: 1
-        });
-        scale.value = withSpring(1, { 
-          damping: 20, 
-          stiffness: 200,
-          mass: 1
-        });
-        likeOpacity.value = withSpring(0, { 
-          damping: 20, 
-          stiffness: 200,
-          mass: 1
-        });
-        dislikeOpacity.value = withSpring(0, { 
-          damping: 20, 
-          stiffness: 200,
-          mass: 1
-        });
-        
-        console.log('Reset animasyonları tamamlandı');
+        // Geri döndür
+        translateX.value = withSpring(0);
+        translateY.value = withSpring(0);
+        rotate.value = withSpring(0);
+        scale.value = withSpring(1);
+        likeOpacity.value = withTiming(0);
+        dislikeOpacity.value = withTiming(0);
       }
-    },
+    }
   });
 
-  // Animated styles
+  // Animated Styles - Tinder Tarzı
   const cardStyle = useAnimatedStyle(() => ({
     transform: [
       { translateX: translateX.value },
-      // translateY kaldırıldı - sadece yatay hareket
+      { translateY: translateY.value },
       { rotate: `${rotate.value}deg` },
       { scale: scale.value },
     ],
+    opacity: cardOpacity.value,
+    backfaceVisibility: 'hidden',
   }));
 
   const likeStyle = useAnimatedStyle(() => ({
@@ -888,9 +706,19 @@ export default function AstrologyMatchesScreen() {
   useFocusEffect(
     useCallback(() => {
       console.log('AstrologyMatches screen focused - refreshing data');
-      refreshUsers(); // fetchUsers yerine refreshUsers kullan
-      fetchSwipeLimitInfo();
-    }, [])
+      
+      // Match screen açıksa yeni kullanıcı getirme
+      if (showMatchScreen) {
+        console.log('💕 [FOCUS] Match screen açık, yeni kullanıcı getirilmiyor');
+        return;
+      }
+      
+      // Önce swipe edilen kullanıcıları yükle
+      loadSwipedUsersFromStorage();
+      
+      // Sonra diğer verileri yükle
+      getNextUser(false); // Normal mod - yeni kullanıcı getir
+    }, [showMatchScreen])
   );
 
   // Tutorial overlay kontrolü - sadece uygulama kullanıcısı için tek seferlik
@@ -911,16 +739,15 @@ export default function AstrologyMatchesScreen() {
       }
     };
 
-    // Sadece kullanıcılar yüklendikten sonra tutorial'ı kontrol et
-    if (users.length > 0 && !isLoading) {
+    // Sadece kullanıcı yüklendikten sonra tutorial'ı kontrol et
+    if (currentUser && !isLoading) {
       checkTutorialStatus();
     }
-  }, [users, isLoading]);
+  }, [currentUser, isLoading]);
 
-  // Mevcut kullanıcı
-  const currentUser = users[currentUserIndex];
-  const zodiacInfo = currentUser ? getZodiacInfo(currentUser.zodiacSign) : null;
-  const astrologyDetails = currentUser ? ASTROLOGY_DETAILS[currentUser.zodiacSign] : null;
+  // Mevcut kullanıcı - Yeni Tinder Mantığı
+  const zodiacInfo = currentUser ? getZodiacInfo(currentUser.zodiacSign as ZodiacSign) : null;
+  const astrologyDetails = currentUser ? ASTROLOGY_DETAILS[currentUser.zodiacSign as ZodiacSign] : null;
 
   // Burç uyumluluk rengi
   const getCompatibilityColor = (score: number) => {
@@ -950,62 +777,74 @@ export default function AstrologyMatchesScreen() {
     );
   }
 
-  // Swipe limit doldu
-  if (swipeLimitInfo && !swipeLimitInfo.canSwipe && !swipeLimitInfo.isPremium) {
+  // Swipe limit doldu - KALDIRILDI, Yeni API gelecek
+  // if (swipeLimitInfo && !swipeLimitInfo.canSwipe && !swipeLimitInfo.isPremium) {
+  //   // TODO: Yeni limit kontrolü gelecek
+  // }
+
+  // Mevcut kullanıcı swipe edilmiş mi kontrol et - Yeni Tinder Mantığı
+  if (currentUser && isUserSwiped(currentUser.id)) {
+    console.log(`🔄 [UI] Kullanıcı ${currentUser.firstName} (ID: ${currentUser.id}) zaten swipe edilmiş, yeni kullanıcı getiriliyor`);
+    // Otomatik olarak yeni kullanıcı getir
+    useEffect(() => {
+      getNextUser(false);
+    }, []);
     return (
-      <View style={styles.emptyContainer}>
+      <View style={styles.container}>
         <LinearGradient colors={astrologyTheme.gradient as any} style={styles.background} />
-        <Text style={styles.emptyTitle}>⏰ Günlük Limit Doldu</Text>
-        <Text style={styles.emptySubtitle}>
-          {swipeLimitInfo.resetInfo?.resetMessage || 'Günlük swipe limitiniz dolmuş'}
-        </Text>
-        <Text style={styles.limitStatsText}>
-          Bugün {swipeLimitInfo.dailySwipeCount} swipe yaptınız
-        </Text>
-        <TouchableOpacity style={styles.premiumButton} onPress={navigateToPremium}>
-          <Text style={styles.premiumButtonText}>⭐ Premium Ol - Sınırsız Swipe</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.refreshButtonOld} onPress={fetchSwipeLimitInfo}>
-          <Ionicons 
-            name="refresh" 
-            size={16} 
-            color="white"
-            style={{ marginRight: 6 }}
-          />
-          <Text style={styles.refreshButtonText}>Durumu Kontrol Et</Text>
-        </TouchableOpacity>
+        <View style={styles.loadingContainer}>
+          <View style={styles.loadingCard}>
+            <Text style={styles.loadingText}>🌟</Text>
+            <Text style={styles.loadingSubtext}>Yeni yıldızlar yükleniyor...</Text>
+          </View>
+        </View>
       </View>
     );
   }
 
-  // Mevcut kullanıcı swipe edilmiş mi kontrol et
-  if (currentUser && isUserSwiped(currentUser.id)) {
-    console.log(`🔄 [UI] Kullanıcı ${currentUser.firstName} (ID: ${currentUser.id}) zaten swipe edilmiş, sonraki kullanıcıya geçiliyor`);
-    // Otomatik olarak sonraki kullanıcıya geç
-    setTimeout(() => {
-      nextUser();
-    }, 100);
-    return null; // Loading göster
-  }
-
-  // Kullanıcı kalmadı
+  // Kullanıcı kalmadı - Yeni Tinder Mantığı
   if (!currentUser) {
     return (
       <View style={styles.emptyContainer}>
         <LinearGradient colors={astrologyTheme.gradient as any} style={styles.background} />
-        <Text style={styles.emptyTitle}>🌟 Yıldızlar Tükendi</Text>
-        <Text style={styles.emptySubtitle}>
-          Şu an için gösterilecek yeni profil yok. Biraz sonra tekrar deneyin!
-        </Text>
-        <TouchableOpacity style={styles.refreshButtonOld} onPress={refreshUsers}>
-          <Ionicons 
-            name="refresh" 
-            size={16} 
-            color="white"
-            style={{ marginRight: 6 }}
-          />
-          <Text style={styles.refreshButtonText}>Yenile</Text>
-        </TouchableOpacity>
+        
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>✨ Astroloji Eşleşme</Text>
+        </View>
+        
+        {/* Empty State Content */}
+        <View style={styles.emptyContent}>
+          <View style={styles.emptyIconContainer}>
+            <Text style={styles.emptyIcon}>🌟</Text>
+          </View>
+          
+          <Text style={styles.emptyTitle}>Yıldızlar Tükendi</Text>
+          <Text style={styles.emptySubtitle}>
+            Şu an için gösterilecek yeni profil yok.{'\n'}
+            Biraz sonra tekrar deneyin veya refresh yapın!
+          </Text>
+          
+          {/* Refresh Button */}
+          <TouchableOpacity 
+            style={styles.refreshButton} 
+            onPress={() => getNextUser(true)}
+            activeOpacity={0.8}
+          >
+            <Ionicons 
+              name="refresh" 
+              size={20} 
+              color="white"
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.refreshButtonText}>Yenile</Text>
+          </TouchableOpacity>
+          
+          {/* Info Text */}
+          <Text style={styles.emptyInfoText}>
+            💡 Yeni kullanıcılar sürekli ekleniyor
+          </Text>
+        </View>
       </View>
     );
   }
@@ -1014,51 +853,61 @@ export default function AstrologyMatchesScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
-      {/* Arka plan */}
+      {/* Arka plan - Sabit tutarak siyah ekran sorununu önle */}
       <LinearGradient colors={astrologyTheme.gradient as any} style={styles.background} />
+      
+      {/* Ek arka plan koruması */}
+      <View style={styles.backgroundProtection} />
+      
+      {/* Loading overlay - Siyah ekran yerine */}
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingContent}>
+            <Text style={styles.loadingEmoji}>🌟</Text>
+            <Text style={styles.loadingText}>Yeni yıldızlar yükleniyor...</Text>
+          </View>
+        </View>
+      )}
 
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>✨ Astroloji Eşleşme</Text>
       </View>
 
-      {/* Kart Stack */}
+      {/* Kart Stack - Tinder Tarzı Swipe */}
       <View style={styles.cardStack}>
-        {/* Alt kart (sonraki kullanıcı) */}
-        {users[currentUserIndex + 1] && (
-          <View style={[styles.card, styles.cardBehind]}>
-            <Image
-              source={{ uri: users[currentUserIndex + 1].profileImageUrl }}
-              style={styles.cardImage}
-              resizeMode="cover"
-            />
-          </View>
-        )}
+        {/* Ana kart - Swipe Gesture ile */}
+        <GestureHandlerRootView>
+          <RNGHPanGestureHandler onGestureEvent={gestureHandler}>
+            <Animated.View style={[styles.card, cardStyle]}>
+              {/* Like Overlay - Sağa Swipe */}
+              <Animated.View style={[styles.likeOverlay, likeStyle]}>
+                <View style={styles.overlayContent}>
+                  <Ionicons name="heart" size={60} color="#00FF7F" />
+                  <Text style={styles.likeText}>BEĞEN</Text>
+                </View>
+              </Animated.View>
 
-        {/* Ana kart */}
-        <PanGestureHandler onGestureEvent={gestureHandler}>
-          <Animated.View style={[styles.card, cardStyle]}>
-            {/* Like/Dislike Overlays */}
-            <Animated.View style={[styles.likeOverlay, likeStyle]}>
-              <Text style={styles.likeText}>BEĞEN</Text>
-            </Animated.View>
+              {/* Dislike Overlay - Sola Swipe */}
+              <Animated.View style={[styles.dislikeOverlay, dislikeStyle]}>
+                <View style={styles.overlayContent}>
+                  <Ionicons name="close" size={60} color="#FF4757" />
+                  <Text style={styles.dislikeText}>GEÇ</Text>
+                </View>
+              </Animated.View>
 
-            <Animated.View style={[styles.dislikeOverlay, dislikeStyle]}>
-              <Text style={styles.dislikeText}>GEÇE</Text>
-            </Animated.View>
-
-            {/* Scrollable İçerik */}
-            <ScrollView
-              style={styles.cardScrollView}
-              contentContainerStyle={styles.cardScrollContent}
-              showsVerticalScrollIndicator={false}
-              bounces={true}
-            >
+              {/* Scrollable İçerik */}
+              <ScrollView
+                style={styles.cardScrollView}
+                contentContainerStyle={styles.cardScrollContent}
+                showsVerticalScrollIndicator={false}
+                bounces={true}
+              >
               {/* Ana Fotoğraf ve Başlık */}
               <View style={styles.cardHeader}>
                 <Image
                   source={{ 
-                    uri: currentUser.profileImageUrl || `https://picsum.photos/400/600?random=${currentUser.id}` 
+                    uri: currentUser.profileImageUrl || currentUser.photos[0]?.photoUrl || `https://picsum.photos/400/600?random=${currentUser.id}` 
                   }}
                   style={styles.mainPhoto}
                   resizeMode="cover"
@@ -1072,7 +921,7 @@ export default function AstrologyMatchesScreen() {
                   <View style={styles.headerInfo}>
                     <View style={styles.nameSection}>
                       <Text style={styles.userName}>
-                        {currentUser.fullName}, {currentUser.age}
+                        {currentUser.firstName} {currentUser.lastName}, {currentUser.age}
                       </Text>
                       {zodiacInfo && (
                         <Text style={styles.zodiacName}>
@@ -1227,12 +1076,22 @@ export default function AstrologyMatchesScreen() {
                 </Text>
               </View>
 
-              {/* Alt Boşluk */}
-              <View style={styles.bottomSpacing} />
-            </ScrollView>
-          </Animated.View>
-        </PanGestureHandler>
+                          {/* Alt Boşluk */}
+            <View style={styles.bottomSpacing} />
+          </ScrollView>
+            </Animated.View>
+          </RNGHPanGestureHandler>
+        </GestureHandlerRootView>
       </View>
+
+      {/* Swipe Yönlendirme Metni - Tinder Tarzı */}
+      <View style={styles.swipeHint}>
+        <Text style={styles.swipeHintText}>
+          💡 Kartı sağa kaydırarak beğen ❤️, sola kaydırarak geç ❌
+        </Text>
+      </View>
+
+
 
       {/* New User Overlay */}
       {showNewUserOverlay && (
@@ -1244,7 +1103,7 @@ export default function AstrologyMatchesScreen() {
             </Text>
             <Text style={styles.overlaySubtext}>
               • Aşağı kaydırarak burç detaylarını keşfedin{'\n'}
-              • Sağa: Beğen ❤️ • Sola: Geç ❌
+              • Alt kısımdaki butonlarla beğenin ❤️ veya geçin ❌
             </Text>
             <TouchableOpacity
               style={styles.overlayButton}
@@ -1288,7 +1147,7 @@ export default function AstrologyMatchesScreen() {
             id: matchedUserData.id,
             firstName: matchedUserData.firstName,
             lastName: matchedUserData.lastName,
-            profileImageUrl: matchedUserData.profileImageUrl,
+            profileImageUrl: matchedUserData.profileImageUrl || matchedUserData.photos[0]?.photoUrl || null,
             zodiacSign: matchedUserData.zodiacSign
           }}
           onClose={() => {
@@ -1363,17 +1222,50 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
   },
+  backgroundProtection: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: '#8000FF', // Fallback renk
+    zIndex: -1,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(128, 0, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  loadingContent: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 30,
+    borderRadius: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  loadingEmoji: {
+    fontSize: 48,
+    marginBottom: 15,
+  },
+  loadingText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  loadingText: {
-    color: 'white',
-    fontSize: 48,
-    textAlign: 'center',
-    marginBottom: 10,
-  },
+
   loadingSubtext: {
     color: 'white',
     fontSize: 16,
@@ -1404,28 +1296,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 40,
   },
-  emptyTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'white',
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  emptySubtitle: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.8)',
-    textAlign: 'center',
-    marginBottom: 30,
-  },
-  refreshButtonOld: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#8000FF',
-    paddingHorizontal: 30,
-    paddingVertical: 15,
-    borderRadius: 25,
-  },
+
 
   header: {
     alignItems: 'center',
@@ -1440,43 +1311,20 @@ const styles = StyleSheet.create({
     color: 'white',
     textAlign: 'center',
   },
-  refreshButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  refreshButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 4,
-  },
+
 
   cardStack: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
   },
   card: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
     borderRadius: 20,
     backgroundColor: 'white',
-    marginTop: -100, // Card'ı yukarı taşır
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -1484,9 +1332,15 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.3,
     shadowRadius: 20,
-    elevation: 10,
+    elevation: 15,
     overflow: 'hidden',
     position: 'relative',
+    // Arka plan koruması
+    backfaceVisibility: 'hidden',
+    // Android için ek koruma
+    ...(Platform.OS === 'android' && {
+      elevation: 15,
+    }),
   },
   cardBehind: {
     position: 'absolute',
@@ -1500,33 +1354,51 @@ const styles = StyleSheet.create({
   },
   likeOverlay: {
     position: 'absolute',
-    top: 50,
-    left: 30,
-    backgroundColor: 'rgba(0,255,127,0.9)',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 10,
-    transform: [{ rotate: '-20deg' }],
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,255,127,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 20,
+    borderWidth: 4,
+    borderColor: '#00FF7F',
+  },
+  overlayContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   likeText: {
-    color: 'white',
-    fontSize: 20,
+    color: '#00FF7F',
+    fontSize: 32,
     fontWeight: 'bold',
+    marginTop: 10,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
   },
   dislikeOverlay: {
     position: 'absolute',
-    top: 50,
-    right: 30,
-    backgroundColor: 'rgba(255,71,87,0.9)',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 10,
-    transform: [{ rotate: '20deg' }],
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255,71,87,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 20,
+    borderWidth: 4,
+    borderColor: '#FF4757',
   },
   dislikeText: {
-    color: 'white',
-    fontSize: 20,
+    color: '#FF4757',
+    fontSize: 32,
     fontWeight: 'bold',
+    marginTop: 10,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
   },
   cardInfo: {
     position: 'absolute',
@@ -1843,21 +1715,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 1000,
   },
-  overlayContent: {
-    backgroundColor: 'white',
-    margin: 40,
-    padding: 30,
-    borderRadius: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 10,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 15,
-  },
+
   overlayTitle: {
     fontSize: 24,
     fontWeight: 'bold',
@@ -1949,5 +1807,67 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'center',
+  },
+  swipeHint: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    marginBottom: 20,
+  },
+  swipeHintText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 14,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    lineHeight: 20,
+  },
+  emptyContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 30,
+  },
+  emptyIconContainer: {
+    marginBottom: 30,
+  },
+  emptyIcon: {
+    fontSize: 80,
+    textAlign: 'center',
+  },
+  emptyTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: 'white',
+    textAlign: 'center',
+    marginBottom: 15,
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.9)',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 30,
+  },
+  refreshButton: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 30,
+    paddingVertical: 15,
+    borderRadius: 25,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    marginBottom: 20,
+  },
+  refreshButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  emptyInfoText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.7)',
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
 }); 

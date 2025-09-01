@@ -4,7 +4,7 @@ import { ZodiacSign } from '../types/zodiac';
 import { getRefreshToken, getToken, removeAllTokens, saveRefreshToken, saveToken } from '../utils/tokenStorage';
 
 // CLOUDFLARE TUNNEL URL'i - değişebilir
-const CLOUDFLARE_URL = 'https://beans-redeem-cdna-plan.trycloudflare.com';
+const CLOUDFLARE_URL = 'https://came-wizard-density-showers.trycloudflare.com';
 
 // Alternative endpoints (gerektiğinde eklenebilir)
 const FALLBACK_URLS: string[] = [
@@ -638,8 +638,9 @@ export interface UserActivity {
 export interface SwipeLimitInfo {
   isPremium: boolean;
   remainingSwipes: number;
-  dailySwipeCount: number;
-  canSwipe: boolean;
+  dailySwipeCount?: number;
+  canSwipe?: boolean;
+  backwardCompatibility?: boolean;  // API'den gelen gerçek alan
   resetInfo?: {
     nextResetTime: string;
     hoursUntilReset: number;
@@ -702,21 +703,24 @@ export interface DiscoverUser {
 
 export interface DiscoverResponse {
   success: boolean;
-  users: DiscoverUser[];
-  totalCount: number;
-  hasMore: boolean;
-  currentPage: number;
-  limit: number;
-  refresh: boolean;
-  mode: string;
-  userCount: number;
-  cooldownInfo: {
+  user?: DiscoverUser;  // Tek kullanıcı (tekil response için)
+  users?: DiscoverUser[];  // Kullanıcı array'i (çoğul response için)
+  totalCount?: number;
+  totalRemainingUsers?: number;  // API'den gelen gerçek alan
+  hasMore?: boolean;
+  hasMoreUsers?: boolean;  // API'den gelen gerçek alan
+  currentPage?: number;
+  limit?: number;
+  refresh?: boolean;
+  mode?: string;
+  userCount?: number;
+  cooldownInfo?: {
     dislikeCooldownMinutes: number;
     likeCooldownMinutes: number;
     matchExpiryHours: number;
     isPremiumCooldown: boolean;
   };
-  swipeLimitInfo: SwipeLimitInfo;
+  swipeLimitInfo?: SwipeLimitInfo;
   message?: string;
 }
 
