@@ -1209,7 +1209,7 @@ export default function AstrologyMatchesScreen() {
             )}
 
             {/* Fotoğraf Galerisi */}
-            {currentUser.photos && currentUser.photos.length > 1 && (
+            {currentUser.photos && currentUser.photos.length > 0 && (
               <TouchableOpacity 
                 style={styles.photoGalleryContainer}
                 onPress={() => {
@@ -1229,7 +1229,7 @@ export default function AstrologyMatchesScreen() {
                   contentContainerStyle={styles.photoGallery}
                   nestedScrollEnabled={true}
                 >
-                  {currentUser.photos.slice(1).map((photo, index) => (
+                  {currentUser.photos.map((photo, index) => (
                     <View key={photo.id} style={styles.galleryPhotoContainer}>
                       <Image 
                         source={{ uri: photo.imageUrl }} 
@@ -1767,7 +1767,7 @@ export default function AstrologyMatchesScreen() {
             </View>
 
             {/* Thumbnail Gallery */}
-            {currentUser?.photos && currentUser.photos.length > 1 && (
+            {currentUser?.photos && currentUser.photos.length > 0 && (
               <View style={styles.photoGalleryModalThumbnails}>
                 <ScrollView 
                   horizontal 
