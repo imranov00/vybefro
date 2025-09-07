@@ -624,49 +624,8 @@ export default function AstrologyMatchesScreen() {
     <LinearGradient colors={['#8000FF', '#5B00B5', '#3D007A']} style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
-      {/* Header - Swipe Limit Bilgisi ile */}
-      <View style={styles.header}>
-        {swipeLimitInfo && (
-          <View style={styles.swipeLimitHeader}>
-            <View style={styles.swipeLimitInfo}>
-              <Ionicons 
-                name={swipeLimitInfo.isPremium ? "diamond" : "heart"} 
-                size={16} 
-                color={swipeLimitInfo.isPremium ? "#FFD700" : "#8B5CF6"} 
-              />
-              <Text style={styles.swipeLimitText}>
-                {swipeLimitInfo.isPremium 
-                  ? "Sınırsız Swipe" 
-                  : `Kalan: ${Math.max(0, swipeLimitInfo.remainingSwipes)}`
-                }
-              </Text>
-            </View>
-            {!swipeLimitInfo.isPremium && Math.max(0, swipeLimitInfo.remainingSwipes) <= 5 && (
-              <TouchableOpacity 
-                style={styles.premiumUpgradeButton}
-                onPress={goToPremium}
-              >
-                <Text style={styles.premiumUpgradeText}>Premium</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-        
-        {/* Cooldown Bilgisi */}
-        {cooldownInfo && cooldownInfo.likeCooldownMinutes > 0 && (
-          <View style={styles.cooldownInfo}>
-            <Ionicons name="time" size={14} color="#FFB347" />
-            <Text style={styles.cooldownText}>
-              {cooldownInfo.likeCooldownMinutes} dk bekle
-            </Text>
-            {!swipeLimitInfo?.isPremium && (
-              <Text style={styles.premiumCooldownText}>
-                Premium'da daha kısa!
-              </Text>
-            )}
-          </View>
-        )}
-      </View>
+      {/* Header - Boş */}
+      <View style={styles.header} />
 
       {/* Ana Kart - Tam Ekran Scrollable */}
       <View style={styles.cardContainer}>
@@ -1257,7 +1216,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 25,
     paddingTop: 25,
-    paddingBottom: 45,
+    paddingBottom: 65,
   },
   card: {
     backgroundColor: '#1E1B4B',
