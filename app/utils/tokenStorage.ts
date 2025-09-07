@@ -129,6 +129,62 @@ export const hasRefreshToken = async (): Promise<boolean> => {
   }
 };
 
+/**
+ * JWT token'ın süresini kontrol eder
+ * @param token JWT token
+ * @returns token geçerliyse true, süresi dolmuşsa false
+ */
+export const isTokenValid = (token: string): boolean => {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const currentTime = Date.now() / 1000;
+    
+    // Token'ın süresi dolmuş mu kontrol et
+    if (payload.exp && payload.exp < currentTime) {
+      console.log('⚠️ [TOKEN] Token süresi dolmuş');
+      return false;
+    }
+    
+    console.log('✅ [TOKEN] Token geçerli');
+    return true;
+  } catch (error) {
+    console.error('❌ [TOKEN] Token parse hatası:', error);
+    return false;
+  }
+};
+
+/**
+ * Token'ın ne kadar süre sonra dolacağını hesaplar
+ * @param token JWT token
+ * @returns saniye cinsinden kalan süre
+ */
+export const getTokenTimeRemaining = (token: string): number => {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const currentTime = Date.now() / 1000;
+    
+    if (payload.exp) {
+      const remaining = payload.exp - currentTime;
+      return Math.max(0, remaining);
+    }
+    
+    return 0;
+  } catch (error) {
+    console.error('❌ [TOKEN] Token süre hesaplama hatası:', error);
+    return 0;
+  }
+};
+
+/**
+ * Token'ın 5 dakika içinde dolup dolmayacağını kontrol eder
+ * @param token JWT token
+ * @returns 5 dakika içinde dolacaksa true
+ */
+export const isTokenExpiringSoon = (token: string): boolean => {
+  const remaining = getTokenTimeRemaining(token);
+  return remaining < 300; // 5 dakika = 300 saniye
+};
+
 // Default export
 export default {
   getToken,
@@ -139,5 +195,8 @@ export default {
   removeRefreshToken,
   removeAllTokens,
   hasToken,
-  hasRefreshToken
+  hasRefreshToken,
+  isTokenValid,
+  getTokenTimeRemaining,
+  isTokenExpiringSoon
 }; 

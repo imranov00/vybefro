@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
+import { DeviceEventEmitter } from 'react-native';
 import { userApi, UserProfileResponse } from '../services/api';
 import { ZodiacSign } from '../types/zodiac';
 import { getToken } from '../utils/tokenStorage';
@@ -128,9 +129,16 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         setError('Profil bilgileri alınamadı');
         console.warn('API yanıtı boş');
       }
-    } catch (err) {
-      setError('Profil yüklenirken bir hata oluştu');
-      console.error('Profil yükleme hatası:', err);
+    } catch (err: any) {
+      console.error('❌ [PROFILE CONTEXT] Profil yükleme hatası:', err);
+      
+      // Token hatası durumunda özel mesaj
+      if (err.message?.includes('Token bulunamadı') || err.message?.includes('Oturum süresi dolmuş')) {
+        setError('Oturum gerekli - Lütfen giriş yapın');
+        console.warn('⚠️ [PROFILE CONTEXT] Token hatası - Profil yüklenemedi');
+      } else {
+        setError('Profil yüklenirken bir hata oluştu');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -213,6 +221,22 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     };
 
     initializeUser();
+
+    // Login sonrası profil çekme eventini dinle
+    const handleFetchProfileAfterLogin = () => {
+      console.log('📡 [PROFILE CONTEXT] Login sonrası profil çekme eventi alındı');
+      // Kısa bir gecikme ile profil bilgilerini çek (login işleminin tamamlanması için)
+      setTimeout(() => {
+        fetchProfile(true); // Force ile güncelleme
+      }, 500);
+    };
+
+    DeviceEventEmitter.addListener('fetch_profile_after_login', handleFetchProfileAfterLogin);
+
+    // Cleanup
+    return () => {
+      DeviceEventEmitter.removeAllListeners('fetch_profile_after_login');
+    };
   }, []); // Sadece component mount olduğunda çalışır
 
   // Kullanıcı profili değiştiğinde burç seçimini otomatik kaydet

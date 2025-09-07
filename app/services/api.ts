@@ -4,7 +4,7 @@ import { ZodiacSign } from '../types/zodiac';
 import { getRefreshToken, getToken, removeAllTokens, saveRefreshToken, saveToken } from '../utils/tokenStorage';
 
 // CLOUDFLARE TUNNEL URL'i - değişebilir
-const CLOUDFLARE_URL = 'https://came-wizard-density-showers.trycloudflare.com';
+const CLOUDFLARE_URL = 'https://donate-toe-motor-begin.trycloudflare.com';
 
 // Alternative endpoints (gerektiğinde eklenebilir)
 const FALLBACK_URLS: string[] = [
@@ -88,6 +88,12 @@ const updateApiBaseUrl = async () => {
 // İstek/yanıt durumlarını kontrol eden interceptor'lar
 api.interceptors.request.use(
   async (config) => {
+    // config undefined kontrolü ekle
+    if (!config) {
+      console.error('❌ [API] Request interceptor hatası: config undefined');
+      return Promise.reject(new Error('API config undefined'));
+    }
+    
     console.log(`[API REQUEST] ${config.method?.toUpperCase()} ${config.url}`);
     
     // Token gerekli olmayan endpoint'ler veya refresh token istekleri
@@ -218,7 +224,12 @@ api.interceptors.request.use(
 let isRefreshing = false;
 let failedQueue: Array<{ resolve: (value: any) => void; reject: (reason?: any) => void }> = [];
 let refreshAttempts = 0;
-const MAX_REFRESH_ATTEMPTS = 2;
+const MAX_REFRESH_ATTEMPTS = 3; // Biraz daha fazla deneme hakkı
+
+// Otomatik token yenileme için timer
+let autoRefreshTimer: ReturnType<typeof setInterval> | null = null;
+let lastTokenRefreshTime = 0;
+const TOKEN_REFRESH_INTERVAL = 15 * 60 * 1000; // 15 dakika
 
 const processQueue = (error: any, token: string | null = null) => {
   failedQueue.forEach(({ resolve, reject }) => {
@@ -230,6 +241,90 @@ const processQueue = (error: any, token: string | null = null) => {
   });
   
   failedQueue = [];
+};
+
+// Otomatik token yenileme fonksiyonu
+const startAutoTokenRefresh = () => {
+  // Eğer zaten bir timer varsa temizle
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer);
+  }
+  
+  console.log('🔄 [API] Otomatik token yenileme başlatıldı (15 dakika aralıklarla)');
+  
+  autoRefreshTimer = setInterval(async () => {
+    try {
+      const refreshToken = await getRefreshToken();
+      const accessToken = await getToken();
+      
+      // Her iki token da varsa yenileme yap
+      if (refreshToken && accessToken) {
+        console.log('🔄 [API] Otomatik token yenileme başlıyor...');
+        
+        // Token'ın süresi dolmuş mu kontrol et
+        try {
+          const payload = JSON.parse(atob(accessToken.split('.')[1]));
+          const currentTime = Date.now() / 1000;
+          
+          // Token'ın süresi 5 dakika içinde dolacaksa yenile
+          if (payload.exp && (payload.exp - currentTime) < 300) {
+            console.log('⏰ [API] Token süresi yakında dolacak, yenileniyor...');
+            await authApi.refreshToken();
+            lastTokenRefreshTime = Date.now();
+            console.log('✅ [API] Otomatik token yenileme başarılı');
+          } else {
+            console.log('✅ [API] Token henüz geçerli, yenileme gerekmiyor');
+          }
+        } catch (tokenError) {
+          console.error('❌ [API] Token parse hatası:', tokenError);
+          // Token parse edilemiyorsa yenilemeyi dene
+          await authApi.refreshToken();
+          lastTokenRefreshTime = Date.now();
+        }
+      } else {
+        console.log('⚠️ [API] Token bulunamadı, otomatik yenileme durduruluyor');
+        stopAutoTokenRefresh();
+      }
+    } catch (error) {
+      console.error('❌ [API] Otomatik token yenileme hatası:', error);
+      // Hata durumunda timer'ı durdur
+      stopAutoTokenRefresh();
+    }
+  }, TOKEN_REFRESH_INTERVAL);
+};
+
+// Otomatik token yenilemeyi durdur
+const stopAutoTokenRefresh = () => {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer);
+    autoRefreshTimer = null;
+    console.log('🛑 [API] Otomatik token yenileme durduruldu');
+  }
+};
+
+// Token refresh işlemi için yardımcı fonksiyon
+const performTokenRefresh = async (refreshToken: string): Promise<{ token: string; refreshToken?: string }> => {
+  try {
+    console.log('🔄 [API] Token yenileme başlıyor...');
+    
+    const response = await api.post('/api/auth/refresh', { refreshToken }, {
+      timeout: 10000, // 10 saniye timeout
+      metadata: { isRefreshRequest: true }
+    } as any);
+    
+    if (response.data?.token) {
+      console.log('✅ [API] Token başarıyla yenilendi');
+      return {
+        token: response.data.token,
+        refreshToken: response.data.refreshToken
+      };
+    } else {
+      throw new Error('Token yenileme yanıtı geçersiz');
+    }
+  } catch (error) {
+    console.error('❌ [API] Token yenileme hatası:', error);
+    throw error;
+  }
 };
 
 api.interceptors.response.use(
@@ -255,14 +350,20 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     
+    // originalRequest undefined kontrolü ekle
+    if (!originalRequest) {
+      console.error('❌ [API] Response interceptor hatası: originalRequest undefined');
+      return Promise.reject(error);
+    }
+    
     // Refresh token isteği ise döngüye girmesin - direkt hata fırlat
     if (originalRequest.metadata?.isRefreshRequest || originalRequest.url?.includes('/api/auth/refresh')) {
       console.error('❌ [API] Refresh token isteği başarısız:', error.response?.status);
       return Promise.reject(error);
     }
     
-    // 401 veya 403 hatası ve henüz retry yapılmamışsa
-    if ((error.response?.status === 401 || error.response?.status === 403) && !originalRequest._retry) {
+    // 401 hatası ve henüz retry yapılmamışsa (403 swipe limit hatası değil)
+    if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
         // Zaten yenileme yapılıyorsa, kuyruğa ekle
         return new Promise((resolve, reject) => {
@@ -289,30 +390,23 @@ api.interceptors.response.use(
           throw new Error('Oturum süresi dolmuş');
         }
         
-        // Refresh token endpoint'ini çağır - kontrollü şekilde
-        const response = await api.post('/api/auth/refresh', { refreshToken }, {
-          timeout: 5000, // 5 saniye timeout
-          metadata: { isRefreshRequest: true }
-        } as any);
+        // Yardımcı fonksiyonu kullan
+        const refreshResult = await performTokenRefresh(refreshToken);
         
         // Yeni token'ları kaydet
-        if (response.data?.token) {
-          await saveToken(response.data.token);
-          
-          if (response.data?.refreshToken) {
-            await saveRefreshToken(response.data.refreshToken);
-          }
-          
-          // Başarılı kuyruğu işle
-          processQueue(null, response.data.token);
-          
-          // Orijinal isteği yeni token ile tekrar yap
-          originalRequest.headers['Authorization'] = `Bearer ${response.data.token}`;
-          console.log('✅ [API] Token yenilendi, istek tekrarlanıyor');
-          return api(originalRequest);
+        await saveToken(refreshResult.token);
+        
+        if (refreshResult.refreshToken) {
+          await saveRefreshToken(refreshResult.refreshToken);
         }
         
-        throw new Error('Token yenileme başarısız');
+        // Başarılı kuyruğu işle
+        processQueue(null, refreshResult.token);
+        
+        // Orijinal isteği yeni token ile tekrar yap
+        originalRequest.headers['Authorization'] = `Bearer ${refreshResult.token}`;
+        console.log('✅ [API] Token yenilendi, istek tekrarlanıyor');
+        return api(originalRequest);
         
       } catch (refreshError) {
         console.error('❌ [API] Token yenileme hatası:', refreshError);
@@ -366,9 +460,158 @@ api.interceptors.response.use(
     } else {
       console.error('[API ERROR]', error.message);
     }
+    
+    // 403 SWIPE_LIMIT_EXCEEDED için özel hata yönetimi
+    if (error.response?.status === 403 && error.response?.data?.code === 'SWIPE_LIMIT_EXCEEDED') {
+      console.warn('⚠️ [API] Swipe limit doldu - Token silinmeyecek');
+      
+      // Swipe limit hatası için özel error objesi
+      const swipeLimitError = new Error('Swipe limiti doldu') as any;
+      swipeLimitError.isSwipeLimitError = true;
+      swipeLimitError.swipeLimitInfo = error.response?.data?.swipeLimitInfo;
+      swipeLimitError.premiumInfo = error.response?.data?.premiumInfo;
+      swipeLimitError.message = error.response?.data?.message || 'Günlük swipe limitiniz dolmuş';
+      
+      return Promise.reject(swipeLimitError);
+    }
+    
     return Promise.reject(error);
   }
 );
+
+// Backend response formatını normalize eden fonksiyon
+const normalizeDiscoverResponse = (
+  backendResponse: any, 
+  refresh: boolean, 
+  showLikedMe: boolean, 
+  page: number, 
+  limit: number
+): DiscoverResponse => {
+  console.log('🔄 [API] Response normalizasyonu başlıyor:', {
+    hasUser: !!backendResponse.user,
+    hasUsers: !!backendResponse.users,
+    userKeys: Object.keys(backendResponse.user || {}),
+    responseKeys: Object.keys(backendResponse)
+  });
+
+  // Backend'den gelen response formatını kontrol et
+  if (backendResponse.hasOwnProperty('user') && !backendResponse.users) {
+    // Kullanıcı null ise (kullanıcı bulunamadı)
+    if (!backendResponse.user) {
+      console.log('📭 [API] Kullanıcı bulunamadı (user: null)');
+      return {
+        success: backendResponse.success || false,
+        users: [],
+        totalCount: 0,
+        returnedCount: 0,
+        message: backendResponse.message || 'Kullanıcı bulunamadı',
+        hasMore: backendResponse.hasMoreUsers || false,
+        hasMoreUsers: backendResponse.hasMoreUsers || false,
+        cooldownInfo: backendResponse.cooldownInfo ? {
+          canRefresh: true,
+          nextRefreshTime: new Date(Date.now() + (backendResponse.cooldownInfo.likeCooldownMinutes || 10) * 60 * 1000).toISOString(),
+          remainingSeconds: (backendResponse.cooldownInfo.likeCooldownMinutes || 10) * 60,
+          message: `Yenileme için ${backendResponse.cooldownInfo.likeCooldownMinutes || 10} dakika bekleyin`,
+          likeCooldownMinutes: backendResponse.cooldownInfo.likeCooldownMinutes,
+          dislikeCooldownMinutes: backendResponse.cooldownInfo.dislikeCooldownMinutes,
+          isPremiumCooldown: backendResponse.cooldownInfo.isPremiumCooldown
+        } : undefined,
+        swipeLimitInfo: backendResponse.swipeLimitInfo ? {
+          isPremium: backendResponse.swipeLimitInfo.isPremium || false,
+          remainingSwipes: backendResponse.swipeLimitInfo.remainingSwipes || 0,
+          dailySwipeCount: backendResponse.swipeLimitInfo.dailySwipeCount || 0,
+          canSwipe: backendResponse.swipeLimitInfo.canSwipe || false,
+          nextResetTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          resetMessage: 'Günlük swipe limiti yarın sıfırlanacak',
+          isLimitReached: (backendResponse.swipeLimitInfo.remainingSwipes || 0) <= 0,
+          limitMessage: (backendResponse.swipeLimitInfo.remainingSwipes || 0) <= 0 
+            ? 'Günlük swipe limitiniz doldu! Premium üyelik ile sınırsız swipe yapabilirsiniz.' 
+            : `${backendResponse.swipeLimitInfo.remainingSwipes || 0} swipe hakkınız kaldı`,
+          premiumInfo: backendResponse.premiumInfo
+        } : undefined
+      };
+    }
+    
+    // Yeni backend formatı: tek kullanıcı objesi
+    const normalizedUser: DiscoverUser = {
+      id: backendResponse.user.id,
+      username: backendResponse.user.username,
+      firstName: backendResponse.user.firstName,
+      lastName: backendResponse.user.lastName,
+      fullName: backendResponse.user.fullName,
+      birthDate: backendResponse.user.birthDate,
+      age: backendResponse.user.age,
+      gender: backendResponse.user.gender,
+      bio: backendResponse.user.bio,
+      zodiacSign: backendResponse.user.zodiacSign,
+      isPremium: backendResponse.user.isPremium,
+      lastActiveTime: backendResponse.user.lastActiveTime,
+      location: backendResponse.user.location,
+      isVerified: backendResponse.user.isVerified,
+      profileImageUrl: backendResponse.user.profileImageUrl,
+      photos: backendResponse.user.photos || [],
+      photoCount: backendResponse.user.photoCount || 0,
+      // Yeni backend sistemi için ek alanlar
+      compatibilityScore: backendResponse.user.compatibilityScore,
+      compatibilityMessage: backendResponse.user.compatibilityMessage,
+      distanceKm: backendResponse.user.distanceKm,
+      activityStatus: backendResponse.user.activityStatus,
+      lastSeen: backendResponse.user.lastActiveTime,
+      isOnline: backendResponse.user.activityStatus === 'online'
+    };
+
+    console.log('✅ [API] Kullanıcı normalize edildi:', {
+      id: normalizedUser.id,
+      name: normalizedUser.fullName,
+      compatibilityScore: normalizedUser.compatibilityScore,
+      hasPhotos: normalizedUser.photos?.length > 0
+    });
+
+    return {
+      success: backendResponse.success,
+      users: [normalizedUser],
+      totalCount: backendResponse.totalRemainingUsers || 1,
+      returnedCount: 1,
+      message: 'Kullanıcı başarıyla getirildi',
+      hasMore: backendResponse.hasMoreUsers || false,
+      cooldownInfo: {
+        canRefresh: !refresh, // Refresh yapılmışsa tekrar yapılamaz
+        nextRefreshTime: new Date(Date.now() + (backendResponse.cooldownInfo?.likeCooldownMinutes || 10) * 60 * 1000).toISOString(),
+        remainingSeconds: (backendResponse.cooldownInfo?.likeCooldownMinutes || 10) * 60,
+        message: `Yenileme için ${backendResponse.cooldownInfo?.likeCooldownMinutes || 10} dakika bekleyin`
+      },
+      swipeLimitInfo: {
+        isPremium: backendResponse.swipeLimitInfo?.isPremium || false,
+        remainingSwipes: backendResponse.swipeLimitInfo?.remainingSwipes || 0,
+        dailySwipeCount: 0, // Backend'den gelmiyorsa 0
+        canSwipe: (backendResponse.swipeLimitInfo?.remainingSwipes || 0) > 0,
+        nextResetTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 saat sonra
+        resetMessage: 'Günlük swipe limiti yarın sıfırlanacak',
+        // Swipe limit kontrolü için ek alanlar
+        isLimitReached: (backendResponse.swipeLimitInfo?.remainingSwipes || 0) <= 0,
+        limitMessage: (backendResponse.swipeLimitInfo?.remainingSwipes || 0) <= 0 
+          ? 'Günlük swipe limitiniz doldu! Premium üyelik ile sınırsız swipe yapabilirsiniz.' 
+          : `${backendResponse.swipeLimitInfo?.remainingSwipes || 0} swipe hakkınız kaldı`,
+        // Premium bilgileri
+        premiumInfo: backendResponse.premiumInfo
+      }
+    };
+  } else if (backendResponse.users) {
+    // Eski format: users array'i
+    return backendResponse;
+  } else {
+    // Hiç kullanıcı yok
+    console.warn('⚠️ [API] Backend response formatı tanınmadı:', backendResponse);
+    return {
+      success: backendResponse.success || false,
+      users: [],
+      totalCount: 0,
+      returnedCount: 0,
+      message: 'Kullanıcı bulunamadı',
+      hasMore: false
+    };
+  }
+};
 
 // Mock data için fallback fonksiyonları
 const createMockUserProfile = (): UserProfileResponse => ({
@@ -385,6 +628,42 @@ const createMockUserProfile = (): UserProfileResponse => ({
   zodiacSignDisplayName: '♊ İkizler',
   profileImageUrl: null,
   bio: 'Demo kullanıcı profili - Backend bağlantısı kuruluyor...'
+});
+
+// Mock DiscoverResponse için fallback fonksiyon
+const createMockDiscoverResponse = (): DiscoverResponse => ({
+  success: true,
+  users: [
+    {
+      id: 123,
+      username: 'johndoe',
+      firstName: 'John',
+      lastName: 'Doe',
+      fullName: 'John Doe',
+      birthDate: '1995-05-15T00:00:00',
+      age: 28,
+      gender: 'MALE',
+      bio: 'Merhaba! Ben John, yeni insanlarla tanışmayı seviyorum.',
+      zodiacSign: 'TAURUS',
+      isPremium: false,
+      lastActiveTime: '2024-01-15T14:30:00',
+      location: 'İstanbul, Türkiye',
+      isVerified: true,
+      profileImageUrl: 'https://example.com/photos/profile123.jpg',
+      photos: [
+        {
+          id: 456,
+          imageUrl: 'https://example.com/photos/photo1.jpg',
+          isProfilePhoto: true,
+          displayOrder: 1
+        }
+      ],
+      photoCount: 1
+    }
+  ],
+  totalCount: 1,
+  returnedCount: 1,
+  message: 'Mock data başarıyla getirildi'
 });
 
 // API için veri türleri
@@ -570,9 +849,11 @@ export interface PotentialMatch {
 }
 
 export interface SwipeRequest {
-  toUserId?: number;
-  targetUserId?: string;
+  toUserId?: number;      // Backend'de beklenen alan
+  targetUserId?: string;  // Eski sistem için (opsiyonel)
   action: 'LIKE' | 'DISLIKE';
+  // Geriye uyumluluk için
+  userId?: number;        // toUserId ile aynı amaç
 }
 
 export interface SwipeResponse {
@@ -582,6 +863,7 @@ export interface SwipeResponse {
   matchId?: number;
   remainingSwipes?: number;
   message: string;
+  // Eski sistem için
   resetInfo?: {
     nextResetTime: string;
     hoursUntilReset: number;
@@ -589,6 +871,21 @@ export interface SwipeResponse {
     secondsUntilReset: number;
     totalSecondsUntilReset: number;
     resetMessage: string;
+  };
+  // Yeni backend sistemi için
+  swipeLimitInfo?: {
+    isPremium: boolean;
+    remainingSwipes: number;
+    dailySwipeCount: number;
+    canSwipe: boolean;
+    nextResetTime: string;
+    resetMessage: string;
+  };
+  cooldownInfo?: {
+    canRefresh: boolean;
+    nextRefreshTime: string;
+    remainingSeconds: number;
+    message: string;
   };
 }
 
@@ -638,16 +935,21 @@ export interface UserActivity {
 export interface SwipeLimitInfo {
   isPremium: boolean;
   remainingSwipes: number;
-  dailySwipeCount?: number;
-  canSwipe?: boolean;
-  backwardCompatibility?: boolean;  // API'den gelen gerçek alan
-  resetInfo?: {
-    nextResetTime: string;
-    hoursUntilReset: number;
-    minutesUntilReset: number;
-    secondsUntilReset: number;
-    totalSecondsUntilReset: number;
-    resetMessage: string;
+  dailySwipeCount: number;
+  canSwipe: boolean;
+  // Backend'den gelen ek alanlar
+  backwardCompatibility?: boolean;
+  // Swipe limit kontrolü için ek alanlar
+  isLimitReached?: boolean;
+  limitMessage?: string;
+  // Reset bilgileri
+  nextResetTime?: string;
+  resetMessage?: string;
+  // Premium bilgileri
+  premiumInfo?: {
+    benefits: string[];
+    isPremium: boolean;
+    premiumPrice: number;
   };
 }
 
@@ -660,68 +962,74 @@ export interface DiscoverUser {
   birthDate: string;
   age: number;
   gender: string;
-  bio?: string;
-  
+  bio: string;
   zodiacSign: string;
-  zodiacSignDisplay: string;
-  compatibilityScore: number;
-  compatibilityMessage: string;
-  
-  profileImageUrl: string | null;
+  isPremium: boolean;
+  lastActiveTime: string;
+  location: string;
+  isVerified: boolean;
+  profileImageUrl: string;
   photos: Array<{
     id: number;
-    photoUrl: string;
+    imageUrl: string;
+    photoUrl?: string; // Backward compatibility için
     isProfilePhoto: boolean;
     displayOrder: number;
   }>;
   photoCount: number;
-  
-  isPremium: boolean;
-  lastActiveTime: string;
-  activityStatus: string;
-  
-  location: string;
-  distanceKm: number;
-  
-  activities: Array<{
-    type: string;
-    description: string;
-    timestamp: string;
-  }>;
-  
-  totalLikes: number;
-  totalMatches: number;
-  
-  isVerified: boolean;
-  hasInstagram: boolean;
-  hasSpotify: boolean;
-  
-  isNewUser: boolean;
-  hasLikedCurrentUser: boolean;
-  profileCompleteness: string;
+  // Yeni backend sistemi için ek alanlar
+  compatibilityScore?: number;        // Burç uyumluluk skoru
+  compatibilityMessage?: string;      // Uyumluluk mesajı
+  distanceKm?: number;               // Mesafe (km)
+  activityStatus?: 'online' | 'offline' | 'recently'; // Aktiflik durumu
+  lastSeen?: string;                 // Son görülme zamanı
+  isOnline?: boolean;                // Çevrimiçi mi?
+  // Cooldown ve swipe status bilgileri
+  cooldownInfo?: {
+    isExpired: boolean;
+    remainingMessage: string;
+  };
+  swipeStatus?: 'NONE' | 'LIKE' | 'DISLIKE' | 'MATCH';
 }
 
 export interface DiscoverResponse {
   success: boolean;
-  user?: DiscoverUser;  // Tek kullanıcı (tekil response için)
-  users?: DiscoverUser[];  // Kullanıcı array'i (çoğul response için)
-  totalCount?: number;
-  totalRemainingUsers?: number;  // API'den gelen gerçek alan
-  hasMore?: boolean;
-  hasMoreUsers?: boolean;  // API'den gelen gerçek alan
-  currentPage?: number;
-  limit?: number;
-  refresh?: boolean;
-  mode?: string;
-  userCount?: number;
-  cooldownInfo?: {
-    dislikeCooldownMinutes: number;
-    likeCooldownMinutes: number;
-    matchExpiryHours: number;
-    isPremiumCooldown: boolean;
+  users: DiscoverUser[];  // Kullanıcı array'i
+  totalCount: number;
+  returnedCount: number;
+  message: string;
+  hasMore?: boolean; // Yeni backend sistemi için
+  hasMoreUsers?: boolean; // Kullanıcı bitti mi kontrolü
+  cooldownInfo?: {   // Cooldown bilgisi
+    canRefresh: boolean;
+    nextRefreshTime: string;
+    remainingSeconds: number;
+    message: string;
+    // Backend'den gelen ek alanlar
+    likeCooldownMinutes?: number;
+    dislikeCooldownMinutes?: number;
+    isPremiumCooldown?: boolean;
+    matchExpiryHours?: number;
   };
-  swipeLimitInfo?: SwipeLimitInfo;
-  message?: string;
+  swipeLimitInfo?: { // Swipe limit bilgisi
+    isPremium: boolean;
+    remainingSwipes: number;
+    dailySwipeCount: number;
+    canSwipe: boolean;
+    nextResetTime: string;
+    resetMessage: string;
+    // Backend'den gelen ek alanlar
+    backwardCompatibility?: boolean;
+    // Swipe limit kontrolü için ek alanlar
+    isLimitReached?: boolean;
+    limitMessage?: string;
+    // Premium bilgileri
+    premiumInfo?: {
+      benefits: string[];
+      isPremium: boolean;
+      premiumPrice: number;
+    };
+  };
 }
 
 // JWT token'ını decode etmek için basit fonksiyon (debug amaçlı)
@@ -754,7 +1062,8 @@ const createAuthHeader = async () => {
     });
     
     if (!token) {
-      throw new Error('Token bulunamadı');
+      console.warn('⚠️ [API] Token bulunamadı - Kullanıcı giriş yapmamış olabilir');
+      throw new Error('Token bulunamadı - Lütfen giriş yapın');
     }
     
     // Token içeriğini debug et
@@ -816,11 +1125,17 @@ export const authApi = {
     // JWT token ve refresh token varsa saklama işlemi 
     if (response.data?.token) {
       await saveToken(response.data.token);
+      console.log('✅ [API] Login - access token kaydedildi');
     }
     
     if (response.data?.refreshToken) {
       await saveRefreshToken(response.data.refreshToken);
+      console.log('✅ [API] Login - refresh token kaydedildi');
     }
+    
+    // Otomatik token yenilemeyi başlat
+    startAutoTokenRefresh();
+    lastTokenRefreshTime = Date.now();
     
     return response.data;
   },
@@ -834,25 +1149,43 @@ export const authApi = {
         throw new Error('Oturum süresi dolmuş');
       }
       
+      console.log('🔄 [API] Token yenileme başlıyor...');
+      
       const response = await api.post('/api/auth/refresh', { refreshToken }, {
-        timeout: 2000 // 2 saniye timeout (çok agresif)
-      });
+        timeout: 10000, // 10 saniye timeout
+        metadata: { isRefreshRequest: true }
+      } as any);
       
       // Yeni token'ları kaydet
       if (response.data?.token) {
         await saveToken(response.data.token);
+        console.log('✅ [API] Yeni access token kaydedildi');
       }
       
       if (response.data?.refreshToken) {
         await saveRefreshToken(response.data.refreshToken);
+        console.log('✅ [API] Yeni refresh token kaydedildi');
       }
+      
+      // Son yenileme zamanını güncelle
+      lastTokenRefreshTime = Date.now();
       
       console.log('🔄 [API] Token başarıyla yenilendi');
       return response.data;
     } catch (error: any) {
       console.error('❌ [API] Token yenileme hatası:', error);
+      
       // Refresh token geçersizse tüm token'ları temizle
       await removeAllTokens();
+      
+      // Logout alert flag'i set et
+      try {
+        await AsyncStorage.setItem('logout_alert_needed', 'true');
+        console.log('🚨 [API] Logout alert flag set edildi');
+      } catch (alertError) {
+        console.error('❌ [API] Logout alert flag set hatası:', alertError);
+      }
+      
       throw error;
     }
   },
@@ -872,20 +1205,26 @@ export const authApi = {
       const response = await api.post('/api/auth/persistent-login', {
         refreshToken: refreshToken
       }, {
-        timeout: 5000, // 5 saniye timeout
+        timeout: 8000, // 8 saniye timeout
         metadata: { isRefreshRequest: true }
       } as any);
       
       if (response.data?.success && response.data?.token) {
         // Yeni token'ı kaydet
         await saveToken(response.data.token);
+        console.log('✅ [API] Persistent login - access token kaydedildi');
         
         // Refresh token da varsa güncelle
         if (response.data?.refreshToken) {
           await saveRefreshToken(response.data.refreshToken);
+          console.log('✅ [API] Persistent login - refresh token güncellendi');
         }
         
-        console.log('✅ [API] Persistent login başarılı');
+        // Otomatik token yenilemeyi başlat
+        startAutoTokenRefresh();
+        lastTokenRefreshTime = Date.now();
+        
+        console.log('✅ [API] Persistent login başarılı - otomatik yenileme başlatıldı');
         return response.data;
       }
       
@@ -896,6 +1235,14 @@ export const authApi = {
       // Geçersiz refresh token'ı temizle
       await removeAllTokens();
       
+      // Logout alert flag'i set et
+      try {
+        await AsyncStorage.setItem('logout_alert_needed', 'true');
+        console.log('🚨 [API] Persistent login başarısız - logout alert flag set edildi');
+      } catch (alertError) {
+        console.error('❌ [API] Logout alert flag set hatası:', alertError);
+      }
+      
       throw error;
     }
   },
@@ -905,12 +1252,18 @@ export const authApi = {
     try {
       const response = await api.post('/api/auth/logout');
       
+      // Otomatik token yenilemeyi durdur
+      stopAutoTokenRefresh();
+      
       // Çıkış sonrası tüm token'ları temizle
       await removeAllTokens();
       
+      console.log('✅ [API] Logout başarılı - otomatik yenileme durduruldu');
+      
       return response.data;
     } catch (error) {
-      // Hata olsa bile token'ları temizle
+      // Hata olsa bile otomatik yenilemeyi durdur ve token'ları temizle
+      stopAutoTokenRefresh();
       await removeAllTokens();
       throw error;
     }
@@ -1042,9 +1395,17 @@ export const userApi = {
   getDiscoverUsers: async (page: number = 1, limit: number = 10, refresh: boolean = false): Promise<DiscoverResponse> => {
     const authHeader = await createAuthHeader();
     console.log(`🔍 [API] Discover users çağrısı - page: ${page}, limit: ${limit}, refresh: ${refresh}`);
-    const response = await api.get(`/api/swipe/discover?refresh=${refresh}&page=${page}&limit=${limit}`, authHeader);
-    console.log(`✅ [API] Discover users yanıtı - ${response.data.userCount} kullanıcı, hasMore: ${response.data.hasMore}`);
-    return response.data;
+    try {
+      const response = await api.get(`/api/swipes/discover?refresh=${refresh}&page=${page}&limit=${limit}`, authHeader);
+      console.log(`✅ [API] Discover users yanıtı - ${response.data.users?.length || 0} kullanıcı, hasMore: ${response.data.hasMore}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] userApi.getDiscoverUsers hatası:', error);
+      
+      // Hata durumunda mock data döndür (development için)
+      console.warn('⚠️ [API] Mock data döndürülüyor...');
+      return createMockDiscoverResponse();
+    }
   },
 
   getUsersWhoLikedMe: async (page: number, limit: number): Promise<UsersWhoLikedMeResponse> => {
@@ -1115,36 +1476,128 @@ export const premiumApi = {
   }
 };
 
-// Swipe API'leri
-export const swipeApi = {
-  // Yeni discover endpoint - Pagination ve Refresh desteği
-  getDiscoverUsers: async (page: number = 1, limit: number = 10, refresh: boolean = false): Promise<DiscoverResponse> => {
-    console.log('🔄 [API] getDiscoverUsers çağrısı:', { page, limit, refresh });
+// Swipe cleanup API'leri
+export const swipeCleanupApi = {
+  // Swipe kayıtlarını temizle (2 günlük otomatik)
+  async cleanupSwipes(): Promise<{ success: boolean; deletedCount: number; message: string }> {
+    console.log('🔄 [API] Swipe cleanup çağrısı (2 günlük)');
     const authHeader = await createAuthHeader();
     try {
-      console.log('🔍 [API] Discover isteği gönderiliyor...');
-      const response = await api.get(`/api/swipes/discover?page=${page}&limit=${limit}&refresh=${refresh}`, authHeader);
+      const response = await api.post('/api/swipes/cleanup', {}, authHeader);
+      console.log('✅ [API] Swipe cleanup yanıtı:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] Swipe cleanup hatası:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Özel gün sayısı ile swipe kayıtlarını temizle
+  async cleanupSwipesByDays(daysOld: number): Promise<{ success: boolean; deletedCount: number; message: string }> {
+    console.log(`🔄 [API] Swipe cleanup çağrısı (${daysOld} günlük)`);
+    const authHeader = await createAuthHeader();
+    try {
+      const response = await api.post(`/api/swipes/cleanup?daysOld=${daysOld}`, {}, authHeader);
+      console.log('✅ [API] Swipe cleanup yanıtı:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] Swipe cleanup hatası:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Kaç kayıt silineceğini öğren
+  async getCleanupStats(daysOld: number = 2): Promise<{ oldSwipesCount: number; message: string }> {
+    console.log(`🔄 [API] Swipe cleanup stats çağrısı (${daysOld} günlük)`);
+    const authHeader = await createAuthHeader();
+    try {
+      const response = await api.get(`/api/swipes/cleanup/stats?daysOld=${daysOld}`, authHeader);
+      console.log('✅ [API] Swipe cleanup stats yanıtı:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] Swipe cleanup stats hatası:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+};
+
+// Swipe API'leri - Yeni Backend Sistemi
+export const swipeApi = {
+  // Ana discover endpoint - Yeni backend sistemi (15'li batch desteği)
+  getDiscoverUsers: async (
+    refresh: boolean = false, 
+    showLikedMe: boolean = false, 
+    page: number = 1, 
+    limit: number = 15
+  ): Promise<DiscoverResponse> => {
+    console.log('🔄 [API] getDiscoverUsers çağrısı:', { refresh, showLikedMe, page, limit });
+    const authHeader = await createAuthHeader();
+    
+    try {
+      // Yeni backend endpoint'i kullan (15'li batch desteği)
+      const url = `/api/swipes/discover?refresh=${refresh}&showLikedMe=${showLikedMe}&page=${page}&limit=${limit}&batchSize=15`;
+      console.log('🔍 [API] Discover isteği gönderiliyor (15\'li batch):', url);
+      
+      const response = await api.get(url, authHeader);
+      
+      // Backend'den gelen response formatını normalize et
+      const normalizedResponse = normalizeDiscoverResponse(response.data, refresh, showLikedMe, page, limit);
+      
       console.log('✅ [API] getDiscoverUsers yanıtı:', {
-        success: response.data.success,
-        userCount: response.data.users?.length || 0,
-        totalCount: response.data.totalCount,
-        hasMore: response.data.hasMore,
-        message: response.data.message,
+        success: normalizedResponse.success,
+        userCount: normalizedResponse.users?.length || 0,
+        totalCount: normalizedResponse.totalCount,
+        returnedCount: normalizedResponse.returnedCount,
+        hasMore: normalizedResponse.hasMore,
+        cooldownInfo: normalizedResponse.cooldownInfo,
+        swipeLimitInfo: normalizedResponse.swipeLimitInfo,
+        refresh: refresh,
+        showLikedMe: showLikedMe,
         page: page,
         limit: limit,
-        refresh: refresh,
-        endpoint: `GET /api/swipes/discover?page=${page}&limit=${limit}&refresh=${refresh}`
+        endpoint: url
       });
-      return response.data;
+      
+      return normalizedResponse;
     } catch (error: any) {
       console.error('❌ [API] getDiscoverUsers hatası:', {
         message: error.message,
         status: error.response?.status,
         data: error.response?.data,
-        requestParams: { page, limit, refresh }
+        requestParams: { refresh, showLikedMe, page, limit }
       });
-      throw error;
+      
+      // Token hatası ise kullanıcıyı bilgilendir
+      if (error.message.includes('Token bulunamadı') || error.message.includes('Oturum süresi dolmuş')) {
+        console.warn('⚠️ [API] Token hatası - Kullanıcı giriş yapmamış');
+        throw new Error('Lütfen önce giriş yapın');
+      }
+      
+      // Diğer hatalarda mock data döndür (development için)
+      console.warn('⚠️ [API] Mock data döndürülüyor...');
+      return createMockDiscoverResponse();
     }
+  },
+
+  // Normal discover - İlk giriş için
+  getNormalDiscover: async (page: number = 1, limit: number = 10): Promise<DiscoverResponse> => {
+    return swipeApi.getDiscoverUsers(false, false, page, limit);
+  },
+
+  // Yenileme - Cooldown süresi geçmiş kullanıcılar için
+  getRefreshDiscover: async (page: number = 1, limit: number = 10): Promise<DiscoverResponse> => {
+    return swipeApi.getDiscoverUsers(true, false, page, limit);
+  },
+
+  // Premium özellik - Beni beğenenleri gör
+  getLikedMeDiscover: async (page: number = 1, limit: number = 10): Promise<DiscoverResponse> => {
+    return swipeApi.getDiscoverUsers(false, true, page, limit);
+  },
+
+  // Eski endpoint'ler - Geriye uyumluluk için
+  getAllUsers: async (limit: number = 20): Promise<DiscoverResponse> => {
+    console.log('🔄 [API] getAllUsers çağrısı (eski endpoint):', { limit });
+    return swipeApi.getNormalDiscover(1, limit);
   },
 
   // Potansiyel eşleşmeleri getir - Ana endpoint
@@ -1157,40 +1610,18 @@ export const swipeApi = {
       return response.data;
     } catch (error: any) {
       console.error('❌ [API] getPotentialMatches hatası:', error.response?.data || error.message);
-      throw error;
+      
+      // Hata durumunda boş response döndür
+      console.warn('⚠️ [API] Boş response döndürülüyor...');
+      return {
+        users: [],
+        totalCount: 0,
+        hasMore: false
+      };
     }
   },
 
-  // Alternatif endpoint - Tüm kullanıcıları getir
-  getAllUsers: async (page: number = 1, limit: number = 10): Promise<PotentialMatchesResponse> => {
-    console.log('🔄 [API] getAllUsers çağrısı:', { page, limit });
-    const authHeader = await createAuthHeader();
-    try {
-      const response = await api.get(`/api/users?page=${page}&limit=${limit}`, authHeader);
-      console.log('✅ [API] getAllUsers yanıtı:', response.data);
-      
-      // Response formatını PotentialMatchesResponse'a uyarla
-      if (response.data.users) {
-        return {
-          users: response.data.users.map((user: any) => ({
-            ...user,
-            photos: user.photos || (user.profileImageUrl ? [user.profileImageUrl] : []),
-            compatibilityScore: user.compatibilityScore || 50,
-            compatibilityDescription: user.compatibilityDescription || 'Uyumluluk hesaplanıyor...',
-            distance: user.distance || 0,
-            isOnline: user.isOnline || false
-          })),
-          totalCount: response.data.totalCount || response.data.users.length,
-          hasMore: response.data.hasMore || false
-        };
-      }
-      
-      return { users: [], totalCount: 0, hasMore: false };
-    } catch (error: any) {
-      console.error('❌ [API] getAllUsers hatası:', error.response?.data || error.message);
-      throw error;
-    }
-  },
+
 
   // Başka bir alternatif - Discover endpoint (Eski)
   getDiscoverUsersOld: async (page: number = 1, limit: number = 10): Promise<PotentialMatchesResponse> => {
@@ -1223,7 +1654,7 @@ export const swipeApi = {
     }
   },
 
-  // Swipe işlemi yap
+  // Swipe işlemi yap - Yeni backend sistemi
   swipe: async (swipeData: SwipeRequest): Promise<SwipeResponse> => {
     console.log('🔄 [API] swipe çağrısı:', swipeData);
     const authHeader = await createAuthHeader();
@@ -1246,12 +1677,38 @@ export const swipeApi = {
     }
     
     try {
-      const response = await api.post('/api/swipes', swipeData, authHeader);
+      // Backend'de toUserId alanı bekleniyor
+      const requestData = {
+        action: swipeData.action,
+        toUserId: swipeData.userId || swipeData.toUserId // Backend formatına uygun
+      };
+      
+      console.log('📤 [API] Swipe request data:', requestData);
+      
+      const response = await api.post('/api/swipes', requestData, authHeader);
       console.log('✅ [API] swipe yanıtı:', response.data);
       
-      // Swipe limiti bilgisini log'la
+      // Yeni backend sistemi yanıt bilgilerini log'la
+      if (response.data.swipeLimitInfo) {
+        console.log('📊 [API] Swipe limit bilgisi:', {
+          isPremium: response.data.swipeLimitInfo.isPremium,
+          remainingSwipes: response.data.swipeLimitInfo.remainingSwipes,
+          canSwipe: response.data.swipeLimitInfo.canSwipe,
+          nextResetTime: response.data.swipeLimitInfo.nextResetTime
+        });
+      }
+      
+      if (response.data.cooldownInfo) {
+        console.log('⏰ [API] Cooldown bilgisi:', {
+          canRefresh: response.data.cooldownInfo.canRefresh,
+          nextRefreshTime: response.data.cooldownInfo.nextRefreshTime,
+          remainingSeconds: response.data.cooldownInfo.remainingSeconds
+        });
+      }
+      
+      // Eski sistem uyumluluğu için
       if (response.data.remainingSwipes !== undefined) {
-        console.log('📊 [API] Kalan swipe hakkı:', response.data.remainingSwipes);
+        console.log('📊 [API] Kalan swipe hakkı (eski sistem):', response.data.remainingSwipes);
       }
       
       return response.data;
@@ -1319,7 +1776,13 @@ export const swipeApi = {
       return response.data;
     } catch (error: any) {
       console.error('❌ [API] getHighCompatibilityMatches hatası:', error.response?.data || error.message);
-      throw error;
+      
+      // Hata durumunda boş response döndür
+      console.warn('⚠️ [API] Boş response döndürülüyor...');
+      return {
+        matches: [],
+        totalCount: 0
+      };
     }
   },
 
@@ -1333,7 +1796,17 @@ export const swipeApi = {
       return response.data;
     } catch (error: any) {
       console.error('❌ [API] getUsersWhoLikedMe hatası:', error.response?.data || error.message);
-      throw error;
+      
+      // Hata durumunda boş response döndür
+      console.warn('⚠️ [API] Boş response döndürülüyor...');
+      return {
+        success: true,
+        users: [],
+        totalCount: 0,
+        hasMore: false,
+        currentPage: 1,
+        limit: limit
+      };
     }
   },
 
@@ -1347,7 +1820,115 @@ export const swipeApi = {
       return response.data;
     } catch (error: any) {
       console.error('❌ [API] getSwipeLimitInfo hatası:', error.response?.data || error.message);
-      throw error;
+      
+      // Hata durumunda default değerler döndür
+      console.warn('⚠️ [API] Default değerler döndürülüyor...');
+      return {
+        isPremium: false,
+        remainingSwipes: 0,
+        dailySwipeCount: 0,
+        canSwipe: false
+      };
+    }
+  },
+
+  // Yeni backend sistemi için yardımcı fonksiyonlar
+  // Cooldown durumunu kontrol et
+  getCooldownInfo: async (): Promise<{ canRefresh: boolean; nextRefreshTime: string; remainingSeconds: number; message: string }> => {
+    console.log('🔄 [API] getCooldownInfo çağrısı');
+    try {
+      // Discover endpoint'inden cooldown bilgisini al
+      const response = await swipeApi.getDiscoverUsers(false, false, 1, 1);
+      return response.cooldownInfo || {
+        canRefresh: true,
+        nextRefreshTime: new Date().toISOString(),
+        remainingSeconds: 0,
+        message: 'Yenileme hazır'
+      };
+    } catch (error) {
+      console.error('❌ [API] getCooldownInfo hatası:', error);
+      return {
+        canRefresh: true,
+        nextRefreshTime: new Date().toISOString(),
+        remainingSeconds: 0,
+        message: 'Yenileme hazır'
+      };
+    }
+  },
+
+  // Premium durumunu kontrol et
+  isPremiumUser: async (): Promise<boolean> => {
+    try {
+      const limitInfo = await swipeApi.getSwipeLimitInfo();
+      return limitInfo.isPremium;
+    } catch (error) {
+      console.error('❌ [API] isPremiumUser hatası:', error);
+      return false;
+    }
+  },
+
+  // Swipe yapılabilir mi kontrol et
+  canSwipe: async (): Promise<boolean> => {
+    try {
+      const limitInfo = await swipeApi.getSwipeLimitInfo();
+      return limitInfo.canSwipe;
+    } catch (error) {
+      console.error('❌ [API] canSwipe hatası:', error);
+      return false;
+    }
+  },
+
+  // Swipe limit durumunu detaylı kontrol et
+  getSwipeLimitStatus: async (): Promise<{
+    canSwipe: boolean;
+    remainingSwipes: number;
+    isLimitReached: boolean;
+    limitMessage: string;
+    isPremium: boolean;
+    nextResetTime: string;
+  }> => {
+    try {
+      const limitInfo = await swipeApi.getSwipeLimitInfo();
+      return {
+        canSwipe: limitInfo.canSwipe,
+        remainingSwipes: limitInfo.remainingSwipes,
+        isLimitReached: limitInfo.isLimitReached || false,
+        limitMessage: limitInfo.limitMessage || `Kalan swipe: ${limitInfo.remainingSwipes}`,
+        isPremium: limitInfo.isPremium,
+        nextResetTime: limitInfo.nextResetTime || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      };
+    } catch (error) {
+      console.error('❌ [API] getSwipeLimitStatus hatası:', error);
+      return {
+        canSwipe: false,
+        remainingSwipes: 0,
+        isLimitReached: true,
+        limitMessage: 'Swipe limit bilgisi alınamadı',
+        isPremium: false,
+        nextResetTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      };
+    }
+  },
+
+  // Swipe limit uyarısı göster
+  showSwipeLimitWarning: async (): Promise<void> => {
+    try {
+      const status = await swipeApi.getSwipeLimitStatus();
+      
+      if (status.isLimitReached) {
+        console.warn('⚠️ [SWIPE] Limit doldu:', status.limitMessage);
+        
+        // Burada kullanıcıya uyarı gösterilebilir
+        // Örneğin: Alert, Modal, Toast mesajı
+        // showAlert('Swipe Limiti', status.limitMessage);
+      } else if (status.remainingSwipes <= 5) {
+        console.warn('⚠️ [SWIPE] Limit az kaldı:', status.limitMessage);
+        
+        // Burada kullanıcıya uyarı gösterilebilir
+        // showAlert('Swipe Limiti', status.limitMessage);
+      }
+    } catch (error) {
+      console.error('❌ [API] showSwipeLimitWarning hatası:', error);
     }
   }
 };
@@ -1493,7 +2074,12 @@ export const matchApi = {
       return response.data;
     } catch (error: any) {
       console.error('❌ [API] getMatches hatası:', error.response?.data || error.message);
-      throw error;
+      
+      // Hata durumunda boş response döndür
+      console.warn('⚠️ [API] Boş response döndürülüyor...');
+      return {
+        matches: []
+      };
     }
   },
 
@@ -1507,7 +2093,9 @@ export const matchApi = {
       return response.data;
     } catch (error: any) {
       console.error('❌ [API] getMatchDetail hatası:', error.response?.data || error.message);
-      throw error;
+      
+      // Hata durumunda hata fırlat (bu fonksiyon için gerekli)
+      throw new Error('Eşleşme detayı alınamadı');
     }
   },
 
@@ -1521,7 +2109,9 @@ export const matchApi = {
       return response.data;
     } catch (error: any) {
       console.error('❌ [API] deleteMatch hatası:', error.response?.data || error.message);
-      throw error;
+      
+      // Hata durumunda hata fırlat (bu fonksiyon için gerekli)
+      throw new Error('Eşleşme silinemedi');
     }
   }
 };
@@ -1829,5 +2419,8 @@ export const chatApi = {
     }
   }
 };
+
+// Otomatik token yenileme fonksiyonlarını export et
+export { startAutoTokenRefresh, stopAutoTokenRefresh };
 
 export default api; 

@@ -2,14 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useRef, useState } from 'react';
 import {
-    Dimensions,
-    NativeScrollEvent,
-    NativeSyntheticEvent,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Dimensions,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { DiscoverUser } from '../../services/api';
 import { getCompatibilityColor, getCompatibilityLabel } from '../../types/compatibility';
@@ -99,8 +99,10 @@ const UserDetailPanel: React.FC<UserDetailPanelProps> = ({
   const zodiacDescription = getZodiacDescription(user.zodiacSign);
   const zodiacElement = getZodiacElement(user.zodiacSign);
   const zodiacPlanet = getZodiacPlanet(user.zodiacSign);
-  const compatibilityColor = getCompatibilityColor(user.compatibilityScore);
-  const compatibilityLabel = getCompatibilityLabel(user.compatibilityScore);
+  // Yeni backend sistemi için uyumluluk skoru kontrolü
+  const compatibilityScore = user.compatibilityScore || 0;
+  const compatibilityColor = getCompatibilityColor(compatibilityScore);
+  const compatibilityLabel = getCompatibilityLabel(compatibilityScore);
 
   // Panel durumuna göre içerik
   const isMinimized = panelState === PanelState.CLOSED;
@@ -151,16 +153,18 @@ const UserDetailPanel: React.FC<UserDetailPanelProps> = ({
                 <Text style={styles.userName}>{user.firstName}, {user.age}</Text>
                 <Text style={styles.userZodiac}>{zodiacDisplay}</Text>
                 
-                {/* Uyumluluk */}
-                <View style={[
-                  styles.compatibilityBadge,
-                  { backgroundColor: compatibilityColor }
-                ]}>
-                  <Ionicons name="star" size={16} color="white" />
-                  <Text style={styles.compatibilityScore}>
-                    %{user.compatibilityScore} {compatibilityLabel}
-                  </Text>
-                </View>
+                {/* Uyumluluk - Yeni backend sistemi */}
+                {compatibilityScore > 0 && (
+                  <View style={[
+                    styles.compatibilityBadge,
+                    { backgroundColor: compatibilityColor }
+                  ]}>
+                    <Ionicons name="star" size={16} color="white" />
+                    <Text style={styles.compatibilityScore}>
+                      %{compatibilityScore} {compatibilityLabel}
+                    </Text>
+                  </View>
+                )}
               </View>
               <TouchableOpacity style={styles.closeButtonHeader} onPress={onClose}>
                 <Ionicons name="close" size={24} color="rgba(255, 255, 255, 0.7)" />
@@ -176,16 +180,21 @@ const UserDetailPanel: React.FC<UserDetailPanelProps> = ({
             </View>
           )}
 
-          {/* Uyumluluk Analizi */}
-          {user.compatibilityDescription && (
+          {/* Uyumluluk Analizi - Yeni backend sistemi */}
+          {user.compatibilityMessage && compatibilityScore > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
                 <Ionicons name="heart" size={16} color="#B57EDC" /> Uyumluluk Analizi
               </Text>
               <View style={styles.compatibilityCard}>
                 <Text style={styles.compatibilityDescription}>
-                  {user.compatibilityDescription}
+                  {user.compatibilityMessage}
                 </Text>
+                <View style={styles.compatibilityScoreDisplay}>
+                  <Text style={styles.compatibilityScoreText}>
+                    Uyumluluk Skoru: %{compatibilityScore}
+                  </Text>
+                </View>
               </View>
             </View>
           )}
@@ -254,27 +263,36 @@ const UserDetailPanel: React.FC<UserDetailPanelProps> = ({
             </Text>
             
             <View style={styles.statsGrid}>
-              {user.distance && (
+              {/* Mesafe - Yeni backend sistemi */}
+              {user.distanceKm && (
                 <View style={styles.statItem}>
                   <Ionicons name="location-outline" size={20} color="#B57EDC" />
-                  <Text style={styles.statValue}>{user.distance}km</Text>
+                  <Text style={styles.statValue}>{user.distanceKm}km</Text>
                   <Text style={styles.statLabel}>Uzaklık</Text>
                 </View>
               )}
               
+              {/* Aktiflik Durumu - Yeni backend sistemi */}
               <View style={styles.statItem}>
                 <Ionicons name="time-outline" size={20} color="#B57EDC" />
-                <Text style={styles.statValue}>Aktif</Text>
+                <Text style={styles.statValue}>
+                  {user.isOnline ? 'Çevrimiçi' : 
+                   user.activityStatus === 'online' ? 'Şimdi' : 
+                   user.activityStatus === 'recently' ? 'Az önce' : 'Geçmişte'}
+                </Text>
                 <Text style={styles.statLabel}>
-                  {user.isOnline ? 'Şimdi' : 'Geçmişte'}
+                  {user.isOnline ? 'Şu anda aktif' : 'Son aktivite'}
                 </Text>
               </View>
               
-              <View style={styles.statItem}>
-                <Ionicons name="star" size={20} color="#B57EDC" />
-                <Text style={styles.statValue}>{user.compatibilityScore}%</Text>
-                <Text style={styles.statLabel}>Uyumluluk</Text>
-              </View>
+              {/* Uyumluluk Skoru - Yeni backend sistemi */}
+              {compatibilityScore > 0 && (
+                <View style={styles.statItem}>
+                  <Ionicons name="star" size={20} color="#B57EDC" />
+                  <Text style={styles.statValue}>{compatibilityScore}%</Text>
+                  <Text style={styles.statLabel}>Uyumluluk</Text>
+                </View>
+              )}
             </View>
           </View>
 
@@ -425,6 +443,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
     marginLeft: 6,
+  },
+  compatibilityScoreDisplay: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+  },
+  compatibilityScoreText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: 'white',
+    textAlign: 'center',
   },
   closeButtonHeader: {
     padding: 8,

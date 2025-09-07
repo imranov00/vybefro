@@ -1,16 +1,15 @@
-import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  DeviceEventEmitter,
+  Animated,
   Dimensions,
   Image,
+  Modal,
   Platform,
   ScrollView,
   StatusBar,
@@ -19,1250 +18,1021 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { GestureHandlerRootView, PanGestureHandler as RNGHPanGestureHandler } from 'react-native-gesture-handler';
-import Animated, {
-  Extrapolate,
-  interpolate,
-  runOnJS,
-  useAnimatedGestureHandler,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming
-} from 'react-native-reanimated';
-import AstrologyMatchScreen from '../components/match/AstrologyMatchScreen';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useAuth } from '../context/AuthContext';
 import { useProfile } from '../context/ProfileContext';
-import { DiscoverResponse, DiscoverUser } from '../services/api';
+import { swipeApi } from '../services/api';
 import { getZodiacInfo, ZodiacSign } from '../types/zodiac';
-
-// Yeni Tinder Mantığı API Types - API servis dosyasından import ediliyor
-
-// Swipe edilen kullanıcıları cooldown süresi boyunca gizle
-const DISLIKE_COOLDOWN = 10 * 60 * 1000; // 10 dakika (milisaniye)
-const LIKE_COOLDOWN = 10 * 60 * 1000; // 10 dakika (milisaniye)
-const MATCH_EXPIRY = 36 * 60 * 60 * 1000; // 36 saat (milisaniye)
+import { getDailyZodiacCommentByString } from '../types/zodiacDailyComments';
 
 const { width, height } = Dimensions.get('window');
-const CARD_WIDTH = width * 0.85; // Ekranı kaplamasın
-const CARD_HEIGHT = height * 0.7; // Ekranı kaplamasın
 
-// Swipe API Types
-interface SwipeUser {
+// API Response Types - Backend'den gelen veri yapısı
+interface DiscoverUserDTO {
   id: number;
   username: string;
   firstName: string;
   lastName: string;
   fullName: string;
+  birthDate: string;
   age: number;
   gender: string;
   bio: string;
-  zodiacSign: ZodiacSign;
+  zodiacSign: string;
   zodiacSignDisplay: string;
   compatibilityScore: number;
   compatibilityMessage: string;
   profileImageUrl: string;
-  photos: Array<{
-    id: number;
-    photoUrl: string;
-    isProfilePhoto: boolean;
-    displayOrder: number;
-  }>;
+  photos: UserPhotoDTO[];
   photoCount: number;
   isPremium: boolean;
   lastActiveTime: string;
   activityStatus: string;
   location: string;
-  distanceKm: number;
+  activities: UserActivityDTO[];
   isVerified: boolean;
-  hasInstagram: boolean;
-  hasSpotify: boolean;
   isNewUser: boolean;
-  hasLikedCurrentUser?: boolean;
+  hasLikedCurrentUser: boolean;
   profileCompleteness: string;
 }
 
+interface UserPhotoDTO {
+  id: number;
+  imageUrl: string;
+  isProfilePhoto: boolean;
+  uploadedAt: string;
+  displayOrder: number;
+}
 
+interface UserActivityDTO {
+  id: number;
+  activityType: string;
+  details: string;
+  activityDate: string;
+}
 
-// Detaylı astrolojik veriler
-const ASTROLOGY_DETAILS: Record<ZodiacSign, {
-  sun: { positive: string[]; negative: string[] };
-  moon: ZodiacSign;
-  rising: ZodiacSign;  
-  venus: ZodiacSign;
-  mars: ZodiacSign;
-  element: string;
-  quality: string;
-  rulingPlanet: string;
-}> = {
-  [ZodiacSign.ARIES]: {
-    sun: { positive: ["Liderlik ruhu", "Cesur ve kararlı", "Enerjik yapı", "Girişimci ruh"], negative: ["Aceleci davranış", "Sabırsızlık", "Öfkeli anlar", "Dikkatli olmama"] },
-    moon: ZodiacSign.SCORPIO, rising: ZodiacSign.LEO, venus: ZodiacSign.TAURUS, mars: ZodiacSign.ARIES,
-    element: "Ateş", quality: "Kardinal", rulingPlanet: "Mars"
-  },
-  [ZodiacSign.TAURUS]: {
-    sun: { positive: ["Kararlı yapı", "Güvenilir kişi", "Sanatsal yetenek", "Praktik zeka"], negative: ["İnatçı davranış", "Değişime direnç", "Maddi kaygılar", "Yavaş hareket"] },
-    moon: ZodiacSign.CANCER, rising: ZodiacSign.VIRGO, venus: ZodiacSign.TAURUS, mars: ZodiacSign.CAPRICORN,
-    element: "Toprak", quality: "Sabit", rulingPlanet: "Venüs"
-  },
-  [ZodiacSign.GEMINI]: {
-    sun: { positive: ["İletişim becerisi", "Hızlı öğrenme", "Çok yönlülük", "Sosyal yapı"], negative: ["Kararsızlık", "Yüzeysellik", "Odaklanamama", "Değişkenlik"] },
-    moon: ZodiacSign.AQUARIUS, rising: ZodiacSign.SAGITTARIUS, venus: ZodiacSign.GEMINI, mars: ZodiacSign.VIRGO,
-    element: "Hava", quality: "Değişken", rulingPlanet: "Merkür"
-  },
-  [ZodiacSign.CANCER]: {
-    sun: { positive: ["Duygusal zeka", "Koruyucu yapı", "Sezgisel güç", "Şefkatli ruh"], negative: ["Aşırı duyarlılık", "Geçmişe takılma", "Kaygı durumu", "Kapanık tavır"] },
-    moon: ZodiacSign.PISCES, rising: ZodiacSign.SCORPIO, venus: ZodiacSign.CANCER, mars: ZodiacSign.TAURUS,
-    element: "Su", quality: "Kardinal", rulingPlanet: "Ay"
-  },
-  [ZodiacSign.LEO]: {
-    sun: { positive: ["Doğal liderlik", "Yaratıcılık", "Cömert kalp", "İlham verici"], negative: ["Egoist davranış", "Dikkat arayışı", "Kibirli tavır", "Eleştiriye tahammülsüzlük"] },
-    moon: ZodiacSign.ARIES, rising: ZodiacSign.LEO, venus: ZodiacSign.LIBRA, mars: ZodiacSign.LEO,
-    element: "Ateş", quality: "Sabit", rulingPlanet: "Güneş"
-  },
-  [ZodiacSign.VIRGO]: {
-    sun: { positive: ["Detay odaklı", "Analitik zeka", "Yardımsever", "Mükemmeliyetçi"], negative: ["Aşırı eleştiri", "Endişeli yapı", "Takıntılı davranış", "Kendini suçlama"] },
-    moon: ZodiacSign.TAURUS, rising: ZodiacSign.CAPRICORN, venus: ZodiacSign.VIRGO, mars: ZodiacSign.GEMINI,
-    element: "Toprak", quality: "Değişken", rulingPlanet: "Merkür"
-  },
-  [ZodiacSign.LIBRA]: {
-    sun: { positive: ["Adalet duygusu", "Estetik anlayış", "Diplomasi", "Uyumlu yapı"], negative: ["Kararsızlık", "Çelişkili tavır", "Çatışmadan kaçma", "Başkalarına bağımlılık"] },
-    moon: ZodiacSign.GEMINI, rising: ZodiacSign.AQUARIUS, venus: ZodiacSign.LIBRA, mars: ZodiacSign.LIBRA,
-    element: "Hava", quality: "Kardinal", rulingPlanet: "Venüs"
-  },
-  [ZodiacSign.SCORPIO]: {
-    sun: { positive: ["Güçlü sezgi", "Derin analiz", "Sadakat", "Dönüşüm gücü"], negative: ["Kıskançlık", "İntikam alma", "Gizli saklama", "Aşırı şüphecilik"] },
-    moon: ZodiacSign.CANCER, rising: ZodiacSign.SCORPIO, venus: ZodiacSign.SCORPIO, mars: ZodiacSign.SCORPIO,
-    element: "Su", quality: "Sabit", rulingPlanet: "Plüton"
-  },
-  [ZodiacSign.SAGITTARIUS]: {
-    sun: { positive: ["Özgürlük sevgisi", "Felsefik bakış", "İyimserlik", "Macera ruhu"], negative: ["Sorumsuz davranış", "Taktik eksikliği", "Kaba konuşma", "Sabırsızlık"] },
-    moon: ZodiacSign.ARIES, rising: ZodiacSign.GEMINI, venus: ZodiacSign.SAGITTARIUS, mars: ZodiacSign.SAGITTARIUS,
-    element: "Ateş", quality: "Değişken", rulingPlanet: "Jüpiter"
-  },
-  [ZodiacSign.CAPRICORN]: {
-    sun: { positive: ["Disiplinli yapı", "Hedef odaklı", "Sorumluluk sahibi", "Dayanıklılık"], negative: ["Katı kurallar", "Pesimist bakış", "Duygusuz görünme", "Aşırı ciddiyet"] },
-    moon: ZodiacSign.VIRGO, rising: ZodiacSign.TAURUS, venus: ZodiacSign.CAPRICORN, mars: ZodiacSign.CAPRICORN,
-    element: "Toprak", quality: "Kardinal", rulingPlanet: "Satürn"
-  },
-  [ZodiacSign.AQUARIUS]: {
-    sun: { positive: ["Özgün düşünce", "Yenilikçilik", "Hümanizm", "Bağımsızlık"], negative: ["Soğuk davranış", "İsyankarlık", "Öngörülemezlik", "Mesafeli tavır"] },
-    moon: ZodiacSign.LIBRA, rising: ZodiacSign.AQUARIUS, venus: ZodiacSign.AQUARIUS, mars: ZodiacSign.AQUARIUS,
-    element: "Hava", quality: "Sabit", rulingPlanet: "Uranüs"
-  },
-  [ZodiacSign.PISCES]: {
-    sun: { positive: ["Empati yetisi", "Hayal gücü", "Spiritüel bağ", "Şefkat dolu"], negative: ["Aşırı duygusallık", "Kaçış eğilimi", "Sınır belirsizliği", "Mağduriyet"] },
-    moon: ZodiacSign.SCORPIO, rising: ZodiacSign.CANCER, venus: ZodiacSign.PISCES, mars: ZodiacSign.CANCER,
-    element: "Su", quality: "Değişken", rulingPlanet: "Neptün"
-  }
-};
+interface SwipeResponse {
+  success: boolean;
+  isMatch: boolean;
+  status: string;
+  matchId?: number;
+  message: string;
+  remainingSwipes: number;
+  resetInfo?: any;
+}
+
+interface SwipeLimitInfo {
+  isPremium: boolean;
+  remainingSwipes: number;
+  dailySwipeCount: number;
+  canSwipe: boolean;
+  resetInfo?: any;
+}
+
+interface DiscoverResponse {
+  success: boolean;
+  user: DiscoverUserDTO | null;
+  hasMoreUsers: boolean;
+  refresh: boolean;
+  showLikedMe: boolean;
+  totalRemainingUsers: number;
+  cooldownInfo: any;
+  swipeLimitInfo: SwipeLimitInfo;
+  code?: string; // Swipe limit exceeded durumu için
+}
 
 export default function AstrologyMatchesScreen() {
-  const colorScheme = useColorScheme();
+  const router = useRouter();
   const { isPremium } = useAuth();
   const { userProfile } = useProfile();
-  const router = useRouter();
   
-  // State - Yeni Tinder Mantığı
-  const [currentUser, setCurrentUser] = useState<DiscoverUser | null>(null);
+  // 15'li batch sistemi için state'ler
+  const [userBatch, setUserBatch] = useState<DiscoverUserDTO[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [swipeLimitInfo, setSwipeLimitInfo] = useState<DiscoverResponse['swipeLimitInfo'] | null>(null);
   const [isSwipeInProgress, setIsSwipeInProgress] = useState(false);
-  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
-  const [showDetailView, setShowDetailView] = useState(false);
-  const [showNewUserOverlay, setShowNewUserOverlay] = useState(false);
-  const [errorToast, setErrorToast] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
-  
-  // Swipe Limit State
-  const [swipeLimitDetails, setSwipeLimitDetails] = useState<any>(null);
+  const [swipeLimitInfo, setSwipeLimitInfo] = useState<SwipeLimitInfo | null>(null);
   const [showLimitOverlay, setShowLimitOverlay] = useState(false);
-  
-  // Swipe edilmiş kullanıcıları timestamp ve action ile takip et
-  const [swipedUsers, setSwipedUsers] = useState<Map<number, { timestamp: number; action: 'LIKE' | 'DISLIKE' | 'MATCH' }>>(new Map());
-  
-  // Match Screen State
   const [showMatchScreen, setShowMatchScreen] = useState(false);
-  const [matchedUserData, setMatchedUserData] = useState<DiscoverUser | null>(null);
-  const [matchResponse, setMatchResponse] = useState<any>(null);
-  const [isClosing, setIsClosing] = useState(false);
+  const [matchedUser, setMatchedUser] = useState<DiscoverUserDTO | null>(null);
+  const [showZodiacModal, setShowZodiacModal] = useState(false);
+  const [cooldownInfo, setCooldownInfo] = useState<any>(null);
+  const [hasMoreUsers, setHasMoreUsers] = useState(true);
+  const [seenUsers, setSeenUsers] = useState<Set<number>>(new Set());
+  const [isPreloading, setIsPreloading] = useState(false);
 
-  // Logout event listener - cache temizleme
-  useEffect(() => {
-    const logoutListener = DeviceEventEmitter.addListener('user_logout', (data) => {
-      console.log('🗑️ [ASTROLOGY MATCHES] Logout event alındı:', data.reason);
-      
-      // Tüm state'leri temizle
-      setCurrentUser(null);
-      setSwipedUsers(new Map());
-      setCurrentPhotoIndex(0);
-      setShowDetailView(false);
-      setShowNewUserOverlay(false);
-      setShowMatchScreen(false);
-      setMatchedUserData(null);
-      setMatchResponse(null);
-      setIsClosing(false);
-      setErrorToast({ show: false, message: '' });
-      
-      // AsyncStorage'dan swipe edilen kullanıcıları temizle
-      clearSwipedUsersFromStorage();
-      
-      console.log('✅ [ASTROLOGY MATCHES] Tüm state\'ler ve storage temizlendi');
-    });
+  // Swipe animasyonları için
+  const translateX = useRef(new Animated.Value(0)).current;
+  const rotate = useRef(new Animated.Value(0)).current;
+  const scale = useRef(new Animated.Value(1)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
 
-    return () => {
-      logoutListener.remove();
-    };
+  
+
+  // Swipe limit bilgilerini getir
+  const fetchSwipeLimitInfo = useCallback(async () => {
+    try {
+      const data = await swipeApi.getSwipeLimitInfo();
+      setSwipeLimitInfo(data);
+      
+      // Premium kullanıcılar için swipe limit kontrolü yapma
+      if (!data.canSwipe && !data.isPremium) {
+        setShowLimitOverlay(true);
+      }
+    } catch (error) {
+      console.error('Swipe limit bilgisi alınamadı:', error);
+    }
   }, []);
 
-  // Otomatik burç seçimi - kullanıcı profili yüklendiğinde
-  useEffect(() => {
-    const setAutoZodiacSelection = async () => {
-      if (userProfile?.zodiacSign) {
-        try {
-          await AsyncStorage.setItem('user_zodiac_selection', userProfile.zodiacSign);
-          console.log('✨ [ASTROLOGY MATCHES] Kullanıcının burcu otomatik seçildi:', userProfile.zodiacSign);
-        } catch (error) {
-          console.error('❌ [ASTROLOGY MATCHES] Burç seçimi kaydetme hatası:', error);
-        }
-      }
-    };
-
-    setAutoZodiacSelection();
-  }, [userProfile?.zodiacSign]);
-
-  // Debug: Match screen state'lerini takip et
-  useEffect(() => {
-    console.log('🎬 [RENDER] Match screen state değişimi:', {
-      showMatchScreen,
-      hasMatchedUserData: !!matchedUserData,
-      hasUserProfile: !!userProfile,
-      shouldRender: showMatchScreen && matchedUserData && userProfile,
-      userProfileId: userProfile?.id,
-      matchedUserId: matchedUserData?.id,
-      currentTime: new Date().toLocaleTimeString()
-    });
-    
-    if (showMatchScreen && matchedUserData && userProfile) {
-      console.log('✅ [RENDER] Tüm koşullar sağlandı - AstrologyMatchScreen render edilmeli!');
-    } else if (showMatchScreen) {
-      console.log('❌ [RENDER] Match screen true ama veriler eksik:', {
-        showMatchScreen,
-        hasMatchedUserData: !!matchedUserData,
-        hasUserProfile: !!userProfile,
-        matchedUserData: matchedUserData,
-        userProfile: userProfile
-      });
-    }
-  }, [showMatchScreen, matchedUserData, userProfile]);
-
-  // Swipe Animation Values - Tinder Tarzı
-  const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
-  const rotate = useSharedValue(0);
-  const scale = useSharedValue(1);
-  const likeOpacity = useSharedValue(0);
-  const dislikeOpacity = useSharedValue(0);
-  const cardOpacity = useSharedValue(1);
-
-  // Astroloji tema renkleri
-  const astrologyTheme = {
-    primary: '#8000FF',
-    secondary: '#5B00B5',
-    accent: '#FFD700',
-    gradient: ['#8000FF', '#5B00B5', '#3D007A'],
-    cardBg: 'rgba(128, 0, 255, 0.1)',
-    likeColor: '#00FF7F',
-    dislikeColor: '#FF4757',
-    matchColor: '#FFD700',
-  };
-
-  // Toast notification göster - Kaldırıldı
-  const showErrorToast = (message: string) => {
-    // Hiçbir şey yapma - sessizce geç
-    console.log('🔇 [TOAST] Toast gösterilmedi:', message);
-  };
-
-  // Yeni Tinder Mantığı: Tek kullanıcı getir
-  const getNextUser = async (refresh: boolean = false) => {
+  // 15'li batch yükleme fonksiyonu
+  const loadUserBatch = useCallback(async (refresh: boolean = false) => {
     try {
       setIsLoading(true);
-      console.log(`🔍 [DISCOVER] ${refresh ? 'Refresh' : 'Normal'} mod - API isteği yapılıyor`);
+      console.log('🔄 [BATCH] 15 kullanıcılı batch yükleniyor...');
       
-      // API servis dosyasındaki swipeApi.getDiscoverUsers kullan
-      const { swipeApi } = await import('../services/api');
-      const data = await swipeApi.getDiscoverUsers(1, 1, refresh);
+      const data = await swipeApi.getDiscoverUsers(refresh, false, 1, 15);
       
-      console.log(`📡 [API] Response alındı:`, data);
-      
-      if (data.success && data.user) {
-        // API'den gelen tekil user'ı kullan
-        const user = data.user;
+      if (data.success && data.users && data.users.length > 0) {
+        // Duplicate kullanıcıları filtrele
+        const filteredUsers = data.users.filter(user => !seenUsers.has(user.id));
         
-        // Match screen açıksa yeni kullanıcı getirme
-        if (showMatchScreen) {
-          console.log('💕 [DISCOVER] Match screen açık, yeni kullanıcı getirilmiyor');
-          return;
-        }
-        
-        // Bu kullanıcı daha önce swipe edilmiş mi kontrol et
-        if (isUserSwiped(user.id)) {
-          console.log(`🔄 [DISCOVER] Kullanıcı ${user.firstName} (ID: ${user.id}) zaten swipe edilmiş, yeni kullanıcı getiriliyor`);
-          // Recursive olarak yeni kullanıcı getir
-          if (refresh) {
-            // Refresh modunda ise tekrar dene
-            setTimeout(() => getNextUser(true), 1000);
-          } else {
-            // Normal modda ise yeni kullanıcı getir
-            setTimeout(() => getNextUser(false), 1000);
+        if (filteredUsers.length > 0) {
+          // Kullanıcıları batch formatına dönüştür
+          const batchUsers: DiscoverUserDTO[] = filteredUsers.map(user => ({
+            id: user.id,
+            username: user.username,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            fullName: user.fullName,
+            birthDate: user.birthDate,
+            age: user.age,
+            gender: user.gender,
+            bio: user.bio,
+            zodiacSign: user.zodiacSign,
+            zodiacSignDisplay: user.zodiacSign,
+            compatibilityScore: user.compatibilityScore || 0,
+            compatibilityMessage: user.compatibilityMessage || 'Uyumluluk hesaplanıyor...',
+            profileImageUrl: user.profileImageUrl,
+            photos: user.photos.map(photo => ({
+              id: photo.id,
+              imageUrl: photo.imageUrl,
+              isProfilePhoto: photo.isProfilePhoto,
+              uploadedAt: new Date().toISOString(),
+              displayOrder: photo.displayOrder
+            })),
+            photoCount: user.photoCount,
+            isPremium: user.isPremium,
+            lastActiveTime: user.lastActiveTime,
+            activityStatus: user.activityStatus || 'offline',
+            location: user.location,
+            activities: [],
+            isVerified: user.isVerified,
+            isNewUser: false,
+            hasLikedCurrentUser: false,
+            profileCompleteness: '100%'
+          }));
+          
+          setUserBatch(batchUsers);
+          setCurrentIndex(0);
+          setHasMoreUsers(data.hasMoreUsers || false);
+          
+          console.log(`✅ [BATCH] ${batchUsers.length} kullanıcı yüklendi`);
+        } else {
+          console.log('⚠️ [BATCH] Tüm kullanıcılar daha önce görülmüş, yeni batch gerekli');
+          // Tüm kullanıcılar duplicate ise yeni batch getir
+          if (data.hasMoreUsers) {
+            await loadUserBatch(true); // Refresh ile yeni batch
+            return;
           }
-          return;
         }
         
-        // API servis dosyasındaki DiscoverUser tipine uygun hale getir
-        const compatibleUser: DiscoverUser = {
-          ...user,
-          bio: user.bio || '',
-          zodiacSign: user.zodiacSign as ZodiacSign
-        };
-        setCurrentUser(compatibleUser);
-        
-        // Swipe limit bilgisi varsa set et
         if (data.swipeLimitInfo) {
           setSwipeLimitInfo(data.swipeLimitInfo);
+          // Premium kullanıcılar için swipe limit kontrolü yapma
+          if (!data.swipeLimitInfo.canSwipe && !data.swipeLimitInfo.isPremium) {
+            setShowLimitOverlay(true);
+          }
         }
         
-        // Yeni kullanıcı geldiğinde animasyon değerlerini sıfırla
-        translateX.value = 0;
-        translateY.value = 0;
-        rotate.value = 0;
-        scale.value = 1;
-        cardOpacity.value = 1;
-        likeOpacity.value = 0;
-        dislikeOpacity.value = 0;
-        
-        console.log(`✅ [DISCOVER] Kullanıcı bulundu: ${user.firstName} ${user.lastName} (${data.totalRemainingUsers || 0} kullanıcı kaldı)`);
-        if (data.swipeLimitInfo) {
-          console.log(`📊 [DISCOVER] Swipe limit: ${data.swipeLimitInfo.remainingSwipes} kaldı`);
+        if (data.cooldownInfo) {
+          setCooldownInfo(data.cooldownInfo);
         }
       } else {
-        setCurrentUser(null);
-        console.log('❌ [DISCOVER] Gösterilecek kullanıcı yok:', data.message);
+        setUserBatch([]);
+        setHasMoreUsers(false);
+        if (data.swipeLimitInfo && !data.swipeLimitInfo.canSwipe && !data.swipeLimitInfo.isPremium) {
+          setShowLimitOverlay(true);
+        }
       }
-      
-    } catch (error: any) {
-      console.error('❌ [DISCOVER] API hatası:', error);
-      
-      // Network hatası durumunda kullanıcıyı bilgilendir
-      if (error.message.includes('fetch')) {
-        Alert.alert('Bağlantı Hatası', 'Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol edin.');
-      } else {
-        Alert.alert('Hata', 'Kullanıcı yüklenirken bir hata oluştu: ' + error.message);
-      }
-      
-      setCurrentUser(null);
+    } catch (error) {
+      console.error('❌ [BATCH] Batch yükleme hatası:', error);
+      Alert.alert('Hata', 'Kullanıcılar yüklenirken bir hata oluştu');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [seenUsers]);
 
-  // Refresh fonksiyonu kaldırıldı - doğrudan getNextUser(true) kullanılıyor
+  // Mevcut kullanıcıyı al
+  const currentUser = userBatch[currentIndex] || null;
 
-  // AsyncStorage'a swipe edilen kullanıcıları kaydet
-  const saveSwipedUsersToStorage = async (userId: number, timestamp: number, action: 'LIKE' | 'DISLIKE' | 'MATCH') => {
-    try {
-      const key = `swiped_user_${userId}`;
-      const data = JSON.stringify({ timestamp, action });
-      await AsyncStorage.setItem(key, data);
-      console.log(`💾 [STORAGE] Kullanıcı ${userId} ${action} olarak kaydedildi`);
-    } catch (error) {
-      console.error(`❌ [STORAGE] Kullanıcı ${userId} kaydetme hatası:`, error);
+  // Sıradaki kullanıcıya geç
+  const showNextUser = useCallback(() => {
+    if (currentIndex < userBatch.length - 1) {
+      // Batch içinde sıradaki kullanıcı
+      setCurrentIndex(currentIndex + 1);
+      
+      // Preloading: Son 3 kullanıcı kaldığında yeni batch'i önceden yükle
+      if (currentIndex >= userBatch.length - 3 && hasMoreUsers && !isPreloading) {
+        preloadNextBatch();
+      }
+    } else if (hasMoreUsers) {
+      // Batch bitti, yeni batch getir
+      loadNextBatch();
+    } else {
+      // Tüm kullanıcılar bitti
+      setUserBatch([]);
+      setCurrentIndex(0);
     }
-  };
+  }, [currentIndex, userBatch.length, hasMoreUsers, isPreloading]);
 
-  // AsyncStorage'dan swipe edilen kullanıcıları yükle
-  const loadSwipedUsersFromStorage = async () => {
+  // Yeni batch getir
+  const loadNextBatch = useCallback(async () => {
     try {
-      const swipedUsersMap = new Map<number, { timestamp: number; action: 'LIKE' | 'DISLIKE' | 'MATCH' }>();
+      setIsLoading(true);
+      console.log('🔄 [BATCH] Yeni batch yükleniyor...');
       
-      // Tüm swipe edilen kullanıcıları AsyncStorage'dan al
-      const keys = await AsyncStorage.getAllKeys();
-      const swipedKeys = keys.filter(key => key.startsWith('swiped_user_'));
+      const data = await swipeApi.getDiscoverUsers(false, false, 1, 15);
       
-      for (const key of swipedKeys) {
-        const userId = parseInt(key.replace('swiped_user_', ''));
-        const dataStr = await AsyncStorage.getItem(key);
+      if (data.success && data.users && data.users.length > 0) {
+        // Duplicate kullanıcıları filtrele
+        const filteredUsers = data.users.filter(user => !seenUsers.has(user.id));
         
-        if (dataStr) {
-          try {
-            const data = JSON.parse(dataStr);
-            const { timestamp, action } = data;
-            
-            // Cooldown süresi geçmiş mi kontrol et
-            const cooldownDuration = action === 'MATCH' ? MATCH_EXPIRY : 
-                                   action === 'LIKE' ? LIKE_COOLDOWN : DISLIKE_COOLDOWN;
-            
-            if (Date.now() - timestamp <= cooldownDuration) {
-              swipedUsersMap.set(userId, { timestamp, action });
-            } else {
-              // Süresi dolmuş, AsyncStorage'dan sil
-              await AsyncStorage.removeItem(key);
-              console.log(`🗑️ [STORAGE] Cooldown süresi dolmuş kullanıcı ${userId} silindi`);
-            }
-          } catch (parseError) {
-            console.error(`❌ [STORAGE] Kullanıcı ${userId} veri parse hatası:`, parseError);
-            // Eski format, sil
-            await AsyncStorage.removeItem(key);
+        if (filteredUsers.length > 0) {
+          const batchUsers: DiscoverUserDTO[] = filteredUsers.map(user => ({
+            id: user.id,
+            username: user.username,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            fullName: user.fullName,
+            birthDate: user.birthDate,
+            age: user.age,
+            gender: user.gender,
+            bio: user.bio,
+            zodiacSign: user.zodiacSign,
+            zodiacSignDisplay: user.zodiacSign,
+            compatibilityScore: user.compatibilityScore || 0,
+            compatibilityMessage: user.compatibilityMessage || 'Uyumluluk hesaplanıyor...',
+            profileImageUrl: user.profileImageUrl,
+            photos: user.photos.map(photo => ({
+              id: photo.id,
+              imageUrl: photo.imageUrl,
+              isProfilePhoto: photo.isProfilePhoto,
+              uploadedAt: new Date().toISOString(),
+              displayOrder: photo.displayOrder
+            })),
+            photoCount: user.photoCount,
+            isPremium: user.isPremium,
+            lastActiveTime: user.lastActiveTime,
+            activityStatus: user.activityStatus || 'offline',
+            location: user.location,
+            activities: [],
+            isVerified: user.isVerified,
+            isNewUser: false,
+            hasLikedCurrentUser: false,
+            profileCompleteness: '100%'
+          }));
+          
+          setUserBatch(batchUsers);
+          setCurrentIndex(0);
+          setHasMoreUsers(data.hasMoreUsers || false);
+          
+          console.log(`✅ [BATCH] Yeni ${batchUsers.length} kullanıcı yüklendi`);
+        } else {
+          // Tüm kullanıcılar duplicate ise yeni batch getir
+          if (data.hasMoreUsers) {
+            await loadNextBatch();
+            return;
+          } else {
+            setUserBatch([]);
+            setHasMoreUsers(false);
           }
         }
-      }
-      
-      setSwipedUsers(swipedUsersMap);
-      console.log(`📱 [STORAGE] ${swipedUsersMap.size} aktif swipe edilen kullanıcı yüklendi`);
-    } catch (error) {
-      console.error('❌ [STORAGE] Swipe edilen kullanıcıları yükleme hatası:', error);
-    }
-  };
-
-  // AsyncStorage'dan swipe edilen kullanıcıları temizle
-  const clearSwipedUsersFromStorage = async () => {
-    try {
-      const keys = await AsyncStorage.getAllKeys();
-      const swipedKeys = keys.filter(key => key.startsWith('swiped_user_'));
-      
-      for (const key of swipedKeys) {
-        await AsyncStorage.removeItem(key);
-      }
-      
-      console.log(`🗑️ [STORAGE] ${swipedKeys.length} swipe edilen kullanıcı storage'dan temizlendi`);
-    } catch (error) {
-      console.error('❌ [STORAGE] Swipe edilen kullanıcıları temizleme hatası:', error);
-    }
-  };
-
-  // Swipe edilmiş kullanıcı ID'sini timestamp ve action ile kaydet
-  const markUserAsSwiped = (userId: number, action: 'LIKE' | 'DISLIKE' | 'MATCH') => {
-    const timestamp = Date.now();
-    setSwipedUsers(prev => new Map(prev).set(userId, { timestamp, action }));
-    
-    // AsyncStorage'a da kaydet
-    saveSwipedUsersToStorage(userId, timestamp, action);
-    
-    console.log(`✅ [SWIPE_TRACK] Kullanıcı ${userId} ${action} olarak işaretlendi (timestamp: ${timestamp})`);
-  };
-
-  // Kullanıcının swipe edilip edilmediğini kontrol et (cooldown kontrolü ile)
-  const isUserSwiped = (userId: number): boolean => {
-    const swipeData = swipedUsers.get(userId);
-    if (!swipeData) return false;
-    
-    const { timestamp, action } = swipeData;
-    
-    // Cooldown süresi geçmiş mi kontrol et
-    const cooldownDuration = action === 'MATCH' ? MATCH_EXPIRY : 
-                           action === 'LIKE' ? LIKE_COOLDOWN : DISLIKE_COOLDOWN;
-    
-    const isExpired = Date.now() - timestamp > cooldownDuration;
-    if (isExpired) {
-      // Süresi dolmuş, Map'ten kaldır
-      setSwipedUsers(prev => {
-        const newMap = new Map(prev);
-        newMap.delete(userId);
-        return newMap;
-      });
-      return false;
-    }
-    
-    return true;
-  };
-
-  // Swipe edilmemiş kullanıcıları filtrele - KALDIRILDI (Tinder mantığında gerekli değil)
-  // const getUnswipedUsers = (): SwipeUser[] => {
-  //   return users.filter(user => !isUserSwiped(user.id));
-  // };
-
-  // Swipe limit bilgisi getir - KALDIRILDI, Yeni API gelecek
-  // const fetchSwipeLimitInfo = async () => {
-  //   // TODO: Yeni API entegrasyonu gelecek
-  // };
-
-  // Swipe limit bilgilerini çek
-  const fetchSwipeLimitInfo = async () => {
-    try {
-      const { swipeApi } = await import('../services/api');
-      const limitInfo = await swipeApi.getSwipeLimitInfo();
-      console.log('📊 [SWIPE LIMIT] Limit bilgileri alındı:', limitInfo);
-      setSwipeLimitDetails(limitInfo);
-      
-      // Swipe yapılamıyorsa overlay'i göster
-      if (!limitInfo.canSwipe) {
-        setShowLimitOverlay(true);
+      } else {
+        setUserBatch([]);
+        setHasMoreUsers(false);
       }
     } catch (error) {
-      console.error('❌ [SWIPE LIMIT] Limit bilgileri alınamadı:', error);
+      console.error('❌ [BATCH] Yeni batch yükleme hatası:', error);
+    } finally {
+      setIsLoading(false);
     }
-  };
+  }, [seenUsers]);
 
-  // Premium sayfasına yönlendir
-  const navigateToPremium = () => {
-    console.log('🎖️ [PREMIUM] Premium sayfasına yönlendiriliyor');
-    router.push('/(profile)/premiumScreen');
-  };
-
-  // Swipe işlemi - Yeni Tinder Mantığı
-  const performSwipe = async (toUserId: number, action: 'LIKE' | 'DISLIKE') => {
+  // Preloading: Son 3 kullanıcı kaldığında yeni batch'i önceden yükle
+  const preloadNextBatch = useCallback(async () => {
+    if (isPreloading || !hasMoreUsers) return;
+    
     try {
-      // Çift çağrım koruması
-      if (isSwipeInProgress) {
-        console.log('🚫 [SWIPE] Zaten swipe işlemi devam ediyor');
-        return;
-      }
+      setIsPreloading(true);
+      console.log('🔄 [PRELOAD] Yeni batch önceden yükleniyor...');
       
-      // Swipe limit kontrolü
-      if (swipeLimitDetails && !swipeLimitDetails.canSwipe) {
-        console.log('⏰ [SWIPE] Swipe limiti dolmuş, limit overlay gösteriliyor');
-        setShowLimitOverlay(true);
-        return;
-      }
+      const data = await swipeApi.getDiscoverUsers(false, false, 1, 15);
       
+      if (data.success && data.users && data.users.length > 0) {
+        const filteredUsers = data.users.filter(user => !seenUsers.has(user.id));
+        
+        if (filteredUsers.length > 0) {
+          const batchUsers: DiscoverUserDTO[] = filteredUsers.map(user => ({
+            id: user.id,
+            username: user.username,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            fullName: user.fullName,
+            birthDate: user.birthDate,
+            age: user.age,
+            gender: user.gender,
+            bio: user.bio,
+            zodiacSign: user.zodiacSign,
+            zodiacSignDisplay: user.zodiacSign,
+            compatibilityScore: user.compatibilityScore || 0,
+            compatibilityMessage: user.compatibilityMessage || 'Uyumluluk hesaplanıyor...',
+            profileImageUrl: user.profileImageUrl,
+            photos: user.photos.map(photo => ({
+              id: photo.id,
+              imageUrl: photo.imageUrl,
+              isProfilePhoto: photo.isProfilePhoto,
+              uploadedAt: new Date().toISOString(),
+              displayOrder: photo.displayOrder
+            })),
+            photoCount: user.photoCount,
+            isPremium: user.isPremium,
+            lastActiveTime: user.lastActiveTime,
+            activityStatus: user.activityStatus || 'offline',
+            location: user.location,
+            activities: [],
+            isVerified: user.isVerified,
+            isNewUser: false,
+            hasLikedCurrentUser: false,
+            profileCompleteness: '100%'
+          }));
+          
+          // Preloaded batch'i state'e ekle (mevcut batch'in sonuna ekle)
+          setUserBatch(prevBatch => [...prevBatch, ...batchUsers]);
+          setHasMoreUsers(data.hasMoreUsers || false);
+          
+          console.log(`✅ [PRELOAD] ${batchUsers.length} kullanıcı önceden yüklendi`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ [PRELOAD] Preload hatası:', error);
+    } finally {
+      setIsPreloading(false);
+    }
+  }, [seenUsers, hasMoreUsers, isPreloading]);
+
+  // Swipe işlemi
+  const performSwipe = async (action: 'LIKE' | 'DISLIKE') => {
+    if (!currentUser || isSwipeInProgress) return;
+    
+    try {
       setIsSwipeInProgress(true);
-      console.log(`🔄 [SWIPE] ${action} işlemi başlatılıyor - API isteği yapılıyor`);
       
-      // API servis dosyasındaki swipeApi.swipe kullan
-      const { swipeApi } = await import('../services/api');
       const swipeData = {
-        toUserId,
-        action: action as 'LIKE' | 'DISLIKE'
+        toUserId: currentUser.id,
+        action: action
       };
       
-      const swipeResult = await swipeApi.swipe(swipeData);
-      console.log(`📡 [SWIPE] API response:`, swipeResult);
+      const data = await swipeApi.swipe(swipeData);
       
-      // Match kontrolü yap
-      if (swipeResult.success && swipeResult.isMatch) {
-        console.log('💕 [MATCH] EŞLEŞME BULUNDU! Match screen açılıyor...');
+      if (data.success) {
+        // Kullanıcıyı görüldü olarak işaretle
+        setSeenUsers(prev => new Set([...prev, currentUser.id]));
         
-        // Önce kullanıcıyı swipe edildi olarak işaretle
-        markUserAsSwiped(toUserId, action);
+        if (data.isMatch) {
+          // Eşleşme bulundu!
+          setMatchedUser(currentUser);
+          setShowMatchScreen(true);
+        } else {
+          // Sonraki kullanıcıya geç
+          showNextUser();
+        }
         
-        // Match data'sını set et
-        setMatchedUserData(currentUser);
-        setMatchResponse(swipeResult);
-        
-        // Match screen'i göster
-        setShowMatchScreen(true);
-        
-        // Match screen'de kal, sonraki kullanıcıya geçme
-        return;
+        // Swipe limit bilgilerini güncelle
+        await fetchSwipeLimitInfo();
       }
-      
-      // Match yoksa normal akış
-      console.log('💔 [SWIPE] Match bulunamadı, sonraki kullanıcıya geçiliyor');
-      
-      // Kullanıcıyı swipe edildi olarak işaretle
-      markUserAsSwiped(toUserId, action);
-      
-      // Sonraki kullanıcıya geç
-      await nextUser();
-      
     } catch (error: any) {
-      console.error('❌ [SWIPE] API hatası:', error);
+      console.error('Swipe hatası:', error);
       
-      // Duplicate swipe hatası - kullanıcıyı bilgilendir ve sonraki kullanıcıya geç
-      if (error.message.includes('zaten bir swipe kaydınız var')) {
-        console.log('🔄 [SWIPE] Kullanıcı zaten swipe edilmiş, sonraki kullanıcıya geçiliyor');
-        
-        // Kullanıcıyı swipe edildi olarak işaretle
-        markUserAsSwiped(toUserId, action);
-        
-        // Sonraki kullanıcıya geç
-        await nextUser();
-        return;
-      }
-      
-      // Network hatası durumunda kullanıcıyı bilgilendir
-      if (error.message.includes('fetch')) {
-        Alert.alert('Bağlantı Hatası', 'Swipe işlemi yapılamadı. Lütfen internet bağlantınızı kontrol edin.');
-      } else {
-        Alert.alert('Hata', 'Swipe işlemi sırasında bir hata oluştu: ' + error.message);
+      // Swipe limit hatası kontrolü (sadece premium olmayan kullanıcılar için)
+      if (error.message && error.message.includes('limit') && !isPremium) {
+        setShowLimitOverlay(true);
+      } 
+      // Duplicate swipe hatası (artık çok az görülecek)
+      else if (error.message && error.message.includes('zaten bir swipe kaydınız var')) {
+        console.log('Bu kullanıcı için zaten swipe yapılmış, sıradakine geçiliyor...');
+        // Kullanıcıyı görüldü olarak işaretle ve sıradakine geç
+        setSeenUsers(prev => new Set([...prev, currentUser.id]));
+        showNextUser();
+        return; // Hata fırlatma, normal akışa devam et
+      } 
+      // Diğer hatalar
+      else {
+        Alert.alert('Hata', error.message || 'Swipe işlemi sırasında bir hata oluştu');
       }
     } finally {
       setIsSwipeInProgress(false);
     }
   };
 
-      // Eski performSwipe kodu kaldırıldı - Yeni API bekleniyor
+  // Swipe animasyonlarını sıfırla
+  const resetAnimations = () => {
+    translateX.setValue(0);
+    rotate.setValue(0);
+    scale.setValue(1);
+    opacity.setValue(1);
+  };
 
-  // Yeni Tinder Mantığı: Sonraki kullanıcıyı getir
-  const nextUser = async () => {
-    // Çift çağrım koruması
-    if (isSwipeInProgress) {
-      console.log('🚫 [NEXT] Swipe işlemi devam ediyor, nextUser iptal edildi');
-      return;
-    }
-    
-    // Match screen açıksa sonraki kullanıcıya geçme
-    if (showMatchScreen) {
-      console.log('💕 [NEXT] Match screen açık, sonraki kullanıcıya geçilmiyor');
-      return;
-    }
-    
-    console.log('🔄 [NEXT] Sonraki kullanıcı getiriliyor...');
-    
-    // Yeni kullanıcıyı getir
-    await getNextUser(false);
-    
-    // Yeni kullanıcı overlay'ini kapat
-    if (showNewUserOverlay) {
-      setShowNewUserOverlay(false);
-      console.log('🆕 [NEW_USER] Overlay otomatik kapatıldı - swipe yapıldı');
+  // Swipe işlemi tamamlandığında
+  const handleSwipeComplete = async (action: 'LIKE' | 'DISLIKE') => {
+    try {
+      await performSwipe(action);
+    } catch (error) {
+      console.log('Swipe tamamlanamadı, animasyonlar sıfırlanıyor...');
+    } finally {
+      resetAnimations();
     }
   };
 
-  // Animasyonları sıfırla - KALDIRILDI
-  // const resetAnimations = () => {
-  //   // Animasyon kodu kaldırıldı
-  // };
-
-  // Eşleşme animasyonu - KALDIRILDI
-  // const showMatchAnimation = () => {
-  //   // Animasyon kodu kaldırıldı
-  // };
-
-  // Swipe Gesture Handler - Tinder Tarzı
-  const gestureHandler = useAnimatedGestureHandler({
-    onStart: (_, context: any) => {
-      context.startX = translateX.value;
-      context.startY = translateY.value;
-    },
-    onActive: (event, context: any) => {
-      translateX.value = context.startX + event.translationX;
-      translateY.value = context.startY + event.translationY;
-      
-      // Rotasyon efekti
-      rotate.value = interpolate(
-        event.translationX,
-        [-200, 0, 200],
-        [-15, 0, 15],
-        Extrapolate.CLAMP
-      );
-      
-      // Scale efekti
-      scale.value = interpolate(
-        Math.abs(event.translationX),
-        [0, 200],
-        [1, 0.9],
-        Extrapolate.CLAMP
-      );
-      
-      // Like/Dislike overlay opacity
-      if (event.translationX > 50) {
-        likeOpacity.value = interpolate(
-          event.translationX,
-          [50, 150],
-          [0, 1],
-          Extrapolate.CLAMP
-        );
-        dislikeOpacity.value = 0;
-      } else if (event.translationX < -50) {
-        dislikeOpacity.value = interpolate(
-          Math.abs(event.translationX),
-          [50, 150],
-          [0, 1],
-          Extrapolate.CLAMP
-        );
-        likeOpacity.value = 0;
-      } else {
-        likeOpacity.value = 0;
-        dislikeOpacity.value = 0;
-      }
-    },
-    onEnd: (event) => {
-      const shouldSwipeRight = event.translationX > 120;
-      const shouldSwipeLeft = event.translationX < -120;
-      
-      if (shouldSwipeRight) {
-        // Sağa swipe - LIKE
-        translateX.value = withSpring(500);
-        translateY.value = withSpring(0);
-        rotate.value = withSpring(30);
-        cardOpacity.value = withTiming(0, { duration: 300 });
-        
-        // LIKE işlemini yap
-        runOnJS(performSwipe)(currentUser?.id || 0, 'LIKE');
-      } else if (shouldSwipeLeft) {
-        // Sola swipe - DISLIKE
-        translateX.value = withSpring(-500);
-        translateY.value = withSpring(0);
-        rotate.value = withSpring(-30);
-        cardOpacity.value = withTiming(0, { duration: 300 });
-        
-        // DISLIKE işlemini yap
-        runOnJS(performSwipe)(currentUser?.id || 0, 'DISLIKE');
-      } else {
-        // Geri döndür
-        translateX.value = withSpring(0);
-        translateY.value = withSpring(0);
-        rotate.value = withSpring(0);
-        scale.value = withSpring(1);
-        likeOpacity.value = withTiming(0);
-        dislikeOpacity.value = withTiming(0);
-      }
-    }
-  });
-
-  // Animated Styles - Tinder Tarzı
-  const cardStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-      { rotate: `${rotate.value}deg` },
-      { scale: scale.value },
-    ],
-    opacity: cardOpacity.value,
-    backfaceVisibility: 'hidden',
-  }));
-
-  const likeStyle = useAnimatedStyle(() => ({
-    opacity: likeOpacity.value,
-  }));
-
-  const dislikeStyle = useAnimatedStyle(() => ({
-    opacity: dislikeOpacity.value,
-  }));
-
-  // Sayfa her fokuslandığında fresh data çek
-  useFocusEffect(
-    useCallback(() => {
-      console.log('AstrologyMatches screen focused - refreshing data');
-      
-      // Match screen açıksa yeni kullanıcı getirme
-      if (showMatchScreen) {
-        console.log('💕 [FOCUS] Match screen açık, yeni kullanıcı getirilmiyor');
-        return;
-      }
-      
-      // Önce swipe edilen kullanıcıları yükle
-      loadSwipedUsersFromStorage();
-      
-      // Swipe limit bilgilerini çek
-      fetchSwipeLimitInfo();
-      
-      // Sonra diğer verileri yükle
-      getNextUser(false); // Normal mod - yeni kullanıcı getir
-    }, [])
+  // Pan gesture handler
+  const onGestureEvent = Animated.event(
+    [{ nativeEvent: { translationX: translateX } }],
+    { useNativeDriver: true }
   );
 
-  // Swipe limit bilgilerini periyodik olarak güncelle (her 30 saniyede)
-  useEffect(() => {
-    const limitUpdateInterval = setInterval(() => {
-      if (!showMatchScreen && swipeLimitDetails) {
-        fetchSwipeLimitInfo();
-      }
-    }, 30000); // 30 saniye
-
-    return () => clearInterval(limitUpdateInterval);
-  }, []);
-
-  // Swipe edilmiş kullanıcıları otomatik olarak temizle ve yeni kullanıcı getir
-  useEffect(() => {
-    if (currentUser && isUserSwiped(currentUser.id)) {
-      console.log(`🔄 [AUTO_CLEANUP] Kullanıcı ${currentUser.firstName} (ID: ${currentUser.id}) zaten swipe edilmiş, yeni kullanıcı getiriliyor`);
+  const onHandlerStateChange = (event: any) => {
+    if (event.nativeEvent.state === State.END) {
+      const { translationX, velocityX } = event.nativeEvent;
       
-      // Kısa bir gecikme ile yeni kullanıcı getir
-      const timer = setTimeout(() => {
-        getNextUser(false);
-      }, 1000);
+      // Swipe threshold (minimum kaydırma mesafesi)
+      const threshold = 100;
       
-      return () => clearTimeout(timer);
-    }
-  }, [currentUser?.id]);
-
-  // Tutorial overlay kontrolü - sadece uygulama kullanıcısı için tek seferlik
-  useEffect(() => {
-    const checkTutorialStatus = async () => {
-      try {
-        const tutorialShown = await AsyncStorage.getItem('astrology_tutorial_shown');
-        if (!tutorialShown) {
-          console.log('🎓 [TUTORIAL] İlk kez astrology-matches sayfası açılıyor, tutorial gösteriliyor');
-          setShowNewUserOverlay(true);
-          // Tutorial gösterildi olarak işaretle
-          await AsyncStorage.setItem('astrology_tutorial_shown', 'true');
+      if (Math.abs(translationX) > threshold || Math.abs(velocityX) > 500) {
+        if (translationX > 0) {
+          // Sağa swipe - LIKE
+          Animated.parallel([
+            Animated.timing(translateX, {
+              toValue: width,
+              duration: 200,
+              useNativeDriver: true,
+            }),
+            Animated.timing(rotate, {
+              toValue: 1,
+              duration: 200,
+              useNativeDriver: true,
+            }),
+            Animated.timing(opacity, {
+              toValue: 0,
+              duration: 200,
+              useNativeDriver: true,
+            }),
+          ]).start(() => {
+            handleSwipeComplete('LIKE');
+          });
         } else {
-          console.log('🎓 [TUTORIAL] Tutorial daha önce gösterilmiş, atlanıyor');
+          // Sola swipe - DISLIKE
+          Animated.parallel([
+            Animated.timing(translateX, {
+              toValue: -width,
+              duration: 200,
+              useNativeDriver: true,
+            }),
+            Animated.timing(rotate, {
+              toValue: -1,
+              duration: 200,
+              useNativeDriver: true,
+            }),
+            Animated.timing(opacity, {
+              toValue: 0,
+              duration: 200,
+              useNativeDriver: true,
+            }),
+          ]).start(() => {
+            handleSwipeComplete('DISLIKE');
+          });
         }
-      } catch (error) {
-        console.error('❌ [TUTORIAL] Tutorial status kontrolü hatası:', error);
+      } else {
+        // Geri dön
+        Animated.parallel([
+          Animated.spring(translateX, {
+            toValue: 0,
+            useNativeDriver: true,
+          }),
+          Animated.spring(rotate, {
+            toValue: 0,
+            useNativeDriver: true,
+          }),
+          Animated.spring(scale, {
+            toValue: 1,
+            useNativeDriver: true,
+          }),
+        ]).start();
       }
-    };
-
-    // Sadece kullanıcı yüklendikten sonra tutorial'ı kontrol et
-    if (currentUser && !isLoading) {
-      checkTutorialStatus();
     }
-  }, [currentUser, isLoading]);
-
-  // Mevcut kullanıcı - Yeni Tinder Mantığı
-  const zodiacInfo = currentUser ? getZodiacInfo(currentUser.zodiacSign as ZodiacSign) : null;
-  const astrologyDetails = currentUser ? ASTROLOGY_DETAILS[currentUser.zodiacSign as ZodiacSign] : null;
-
-  // Burç uyumluluk rengi
-  const getCompatibilityColor = (score: number) => {
-    if (score >= 80) return '#00FF7F'; // Yeşil
-    if (score >= 60) return '#FFD700'; // Altın
-    if (score >= 40) return '#FF8C00'; // Turuncu
-    return '#FF4757'; // Kırmızı
   };
 
+  // Premium sayfasına git
+  const goToPremium = () => {
+    router.push('/(profile)/premiumScreen');
+  };
+
+  // Match screen'i kapat
+  const closeMatchScreen = () => {
+    setShowMatchScreen(false);
+    setMatchedUser(null);
+    showNextUser();
+  };
+
+  // Chat'e git
+  const goToChat = () => {
+    setShowMatchScreen(false);
+    setMatchedUser(null);
+    router.push('/chat');
+  };
+
+  // Sayfa her fokuslandığında veri çek
+  useFocusEffect(
+    useCallback(() => {
+      // Eğer batch boşsa yeni batch yükle
+      if (userBatch.length === 0) {
+        loadUserBatch(false);
+      }
+      fetchSwipeLimitInfo();
+    }, [loadUserBatch, fetchSwipeLimitInfo, userBatch.length])
+  );
+
   // Loading state
-  if (isLoading) {
+  if (isLoading && !currentUser) {
     return (
       <LinearGradient colors={['#8000FF', '#5B00B5', '#3D007A']} style={styles.container}>
         <StatusBar barStyle="light-content" backgroundColor="#8000FF" />
-        
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>🌟 Astroloji Eşleşme</Text>
-        </View>
-
         <View style={styles.loadingContainer}>
-          <View style={styles.loadingCard}>
-            <Text style={styles.loadingText}>🌟</Text>
-            <Text style={styles.loadingSubtext}>Yıldızlar senin için uyumlu kişileri arıyor...</Text>
-          </View>
+          <ActivityIndicator size="large" color="white" />
+          <Text style={styles.loadingText}>Yıldızlar yükleniyor...</Text>
         </View>
       </LinearGradient>
     );
   }
 
-  // Swipe limit doldu - KALDIRILDI, Yeni API gelecek
-  // if (swipeLimitInfo && !swipeLimitInfo.canSwipe && !swipeLimitInfo.isPremium) {
-  //   // TODO: Yeni limit kontrolü gelecek
-  // }
-
-  // Mevcut kullanıcı swipe edilmiş mi kontrol et - Yeni Tinder Mantığı
-  if (currentUser && isUserSwiped(currentUser.id)) {
-    console.log(`🔄 [UI] Kullanıcı ${currentUser.firstName} (ID: ${currentUser.id}) zaten swipe edilmiş, yeni kullanıcı getiriliyor`);
-    return (
-      <View style={styles.container}>
-        <LinearGradient colors={astrologyTheme.gradient as any} style={styles.background} />
-        <View style={styles.loadingContainer}>
-          <View style={styles.loadingCard}>
-            <Text style={styles.loadingText}>🌟</Text>
-            <Text style={styles.loadingSubtext}>Yeni yıldızlar yükleniyor...</Text>
-          </View>
-        </View>
-      </View>
-    );
-  }
-
-  // Kullanıcı kalmadı - Yeni Tinder Mantığı
+  // Kullanıcı yoksa empty state
   if (!currentUser) {
     return (
-      <View style={styles.emptyContainer}>
-        <LinearGradient colors={astrologyTheme.gradient as any} style={styles.background} />
+      <LinearGradient colors={['#8000FF', '#5B00B5', '#3D007A']} style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#8000FF" />
         
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>✨ Astroloji Eşleşme</Text>
-        </View>
+        <View style={styles.header} />
         
-        {/* Empty State Content */}
-        <View style={styles.emptyContent}>
-          <View style={styles.emptyIconContainer}>
-            <Text style={styles.emptyIcon}>🌟</Text>
-          </View>
-          
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyIcon}>🌟</Text>
           <Text style={styles.emptyTitle}>Yıldızlar Tükendi</Text>
           <Text style={styles.emptySubtitle}>
             Şu an için gösterilecek yeni profil yok.{'\n'}
-            Biraz sonra tekrar deneyin veya refresh yapın!
+            Biraz sonra tekrar deneyin!
           </Text>
           
-          {/* Refresh Button */}
           <TouchableOpacity 
             style={styles.refreshButton} 
-            onPress={() => getNextUser(true)}
-            activeOpacity={0.8}
+            onPress={() => loadUserBatch(true)}
           >
-            <Ionicons 
-              name="refresh" 
-              size={20} 
-              color="white"
-              style={{ marginRight: 8 }}
-            />
+            <Ionicons name="refresh" size={22} color="white" style={{ marginRight: 10 }} />
             <Text style={styles.refreshButtonText}>Yenile</Text>
           </TouchableOpacity>
-          
-          {/* Info Text */}
-          <Text style={styles.emptyInfoText}>
-            💡 Yeni kullanıcılar sürekli ekleniyor
-          </Text>
         </View>
-      </View>
+      </LinearGradient>
     );
   }
 
+  const zodiacInfo = getZodiacInfo(currentUser.zodiacSign as ZodiacSign);
+  
+  // Debug: zodiacInfo kontrolü
+  console.log('🔮 [ZODIAC] Debug bilgileri:', {
+    currentUserZodiacSign: currentUser.zodiacSign,
+    zodiacInfo: zodiacInfo,
+    showZodiacModal: showZodiacModal
+  });
+
   return (
-    <View style={styles.container}>
+    <LinearGradient colors={['#8000FF', '#5B00B5', '#3D007A']} style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
-      {/* Arka plan - Sabit tutarak siyah ekran sorununu önle */}
-      <LinearGradient colors={astrologyTheme.gradient as any} style={styles.background} />
-      
-      {/* Ek arka plan koruması */}
-      <View style={styles.backgroundProtection} />
-      
-      {/* Loading overlay - Siyah ekran yerine */}
-      {isLoading && (
-        <View style={styles.loadingOverlay}>
-          <View style={styles.loadingContent}>
-            <Text style={styles.loadingEmoji}>🌟</Text>
-            <Text style={styles.loadingText}>Yeni yıldızlar yükleniyor...</Text>
-          </View>
-        </View>
-      )}
-
-      {/* Header */}
+      {/* Header - Swipe Limit Bilgisi ile */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>✨ Astroloji Eşleşme</Text>
-      </View>
-
-      {/* Kart Stack - Tinder Tarzı Swipe */}
-      <View style={styles.cardStack}>
-        {/* Ana kart - Swipe Gesture ile */}
-        <GestureHandlerRootView>
-          <RNGHPanGestureHandler onGestureEvent={gestureHandler}>
-            <Animated.View style={[styles.card, cardStyle]}>
-              {/* Like Overlay - Sağa Swipe */}
-              <Animated.View style={[styles.likeOverlay, likeStyle]}>
-                <View style={styles.overlayContent}>
-                  <Ionicons name="heart" size={60} color="#00FF7F" />
-                  <Text style={styles.likeText}>BEĞEN</Text>
-                </View>
-              </Animated.View>
-
-              {/* Dislike Overlay - Sola Swipe */}
-              <Animated.View style={[styles.dislikeOverlay, dislikeStyle]}>
-                <View style={styles.overlayContent}>
-                  <Ionicons name="close" size={60} color="#FF4757" />
-                  <Text style={styles.dislikeText}>GEÇ</Text>
-                </View>
-              </Animated.View>
-
-              {/* Scrollable İçerik */}
-              <ScrollView
-                style={styles.cardScrollView}
-                contentContainerStyle={styles.cardScrollContent}
-                showsVerticalScrollIndicator={false}
-                bounces={true}
+        {swipeLimitInfo && (
+          <View style={styles.swipeLimitHeader}>
+            <View style={styles.swipeLimitInfo}>
+              <Ionicons 
+                name={swipeLimitInfo.isPremium ? "diamond" : "heart"} 
+                size={16} 
+                color={swipeLimitInfo.isPremium ? "#FFD700" : "#8B5CF6"} 
+              />
+              <Text style={styles.swipeLimitText}>
+                {swipeLimitInfo.isPremium 
+                  ? "Sınırsız Swipe" 
+                  : `Kalan: ${Math.max(0, swipeLimitInfo.remainingSwipes)}`
+                }
+              </Text>
+            </View>
+            {!swipeLimitInfo.isPremium && Math.max(0, swipeLimitInfo.remainingSwipes) <= 5 && (
+              <TouchableOpacity 
+                style={styles.premiumUpgradeButton}
+                onPress={goToPremium}
               >
-              {/* Ana Fotoğraf ve Başlık */}
-              <View style={styles.cardHeader}>
-                <Image
-                  source={{ 
-                    uri: currentUser.profileImageUrl || currentUser.photos[0]?.photoUrl || `https://picsum.photos/400/600?random=${currentUser.id}` 
-                  }}
-                  style={styles.mainPhoto}
-                  resizeMode="cover"
-                />
-                
-                {/* Üst Bilgi Bandı */}
-                <LinearGradient
-                  colors={['transparent', 'rgba(0,0,0,0.6)']}
-                  style={styles.headerOverlay}
-                >
-                  <View style={styles.headerInfo}>
-                    <View style={styles.nameSection}>
-                      <Text style={styles.userName}>
-                        {currentUser.firstName} {currentUser.lastName}, {currentUser.age}
-                      </Text>
-                      {zodiacInfo && (
-                        <Text style={styles.zodiacName}>
-                          {zodiacInfo.emoji} {zodiacInfo.turkishName}
-                        </Text>
-                      )}
-                    </View>
-                    
-                    <View style={[
-                      styles.compatibilityBadge,
-                      { backgroundColor: getCompatibilityColor(currentUser.compatibilityScore) }
-                    ]}>
-                      <Text style={styles.compatibilityScore}>
-                        %{currentUser.compatibilityScore}
-                      </Text>
-                    </View>
-                  </View>
-                </LinearGradient>
-              </View>
-
-              {/* Bio */}
-              {currentUser.bio && (
-                <View style={styles.bioSection}>
-                  <Text style={styles.sectionTitle}>✨ Hakkımda</Text>
-                  <Text style={styles.bioText}>{currentUser.bio}</Text>
-                </View>
-              )}
-
-              {/* Astroloji Detayları - Güneş Burcu */}
-              {astrologyDetails && (
-                <View style={styles.astrologySection}>
-                  <Text style={styles.sectionTitle}>🌟 Astroloji Haritası</Text>
-                  
-                  {/* Güneş Burcu */}
-                  <View style={styles.zodiacCard}>
-                    <View style={styles.zodiacHeader}>
-                      <Text style={styles.zodiacIcon}>☀️</Text>
-                      <Text style={styles.zodiacTitle}>Güneş Burcu</Text>
-                      <Text style={styles.zodiacSubtitle}>{zodiacInfo?.turkishName}</Text>
-                    </View>
-                    
-                    <View style={styles.traitsList}>
-                      <Text style={styles.traitsTitle}>✅ Olumlu Özellikler:</Text>
-                      {astrologyDetails.sun.positive.map((trait, index) => (
-                        <Text key={index} style={styles.traitItem}>• {trait}</Text>
-                      ))}
-                      
-                      <Text style={styles.traitsTitle}>⚠️ Dikkat Edilmesi Gerekenler:</Text>
-                      {astrologyDetails.sun.negative.map((trait, index) => (
-                        <Text key={index} style={styles.traitItem}>• {trait}</Text>
-                      ))}
-                    </View>
-                  </View>
-                </View>
-              )}
-
-              {/* 1. Ek Fotoğraf */}
-              {currentUser.photos && currentUser.photos.length > 1 && currentUser.photos[1] && (
-                <View style={styles.singlePhotoContainer}>
-                  <Image
-                    source={{ uri: currentUser.photos[1].photoUrl }}
-                    style={styles.singlePhoto}
-                    resizeMode="cover"
-                  />
-                </View>
-              )}
-
-              {/* Astroloji Detayları - Ay ve Yükselen */}
-              {astrologyDetails && (
-                <View style={styles.astrologySection}>
-                  {/* Ay Burcu */}
-                  <View style={styles.zodiacCard}>
-                    <View style={styles.zodiacHeader}>
-                      <Text style={styles.zodiacIcon}>🌙</Text>
-                      <Text style={styles.zodiacTitle}>Ay Burcu</Text>
-                      <Text style={styles.zodiacSubtitle}>{getZodiacInfo(astrologyDetails.moon)?.turkishName}</Text>
-                    </View>
-                    <Text style={styles.zodiacDescription}>
-                      Duygusal dünyasını ve iç dünyasını etkileyen burç
-                    </Text>
-                  </View>
-
-                  {/* Yükselen Burcu */}
-                  <View style={styles.zodiacCard}>
-                    <View style={styles.zodiacHeader}>
-                      <Text style={styles.zodiacIcon}>⬆️</Text>
-                      <Text style={styles.zodiacTitle}>Yükselen Burcu</Text>
-                      <Text style={styles.zodiacSubtitle}>{getZodiacInfo(astrologyDetails.rising)?.turkishName}</Text>
-                    </View>
-                    <Text style={styles.zodiacDescription}>
-                      Dış dünyaya karşı sergilediği kişilik ve davranış tarzı
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              {/* 2. Ek Fotoğraf */}
-              {currentUser.photos && currentUser.photos.length > 2 && currentUser.photos[2] && (
-                <View style={styles.singlePhotoContainer}>
-                  <Image
-                    source={{ uri: currentUser.photos[2].photoUrl }}
-                    style={styles.singlePhoto}
-                    resizeMode="cover"
-                  />
-                </View>
-              )}
-
-              {/* Astroloji Detayları - Venüs, Mars, Element */}
-              {astrologyDetails && (
-                <View style={styles.astrologySection}>
-                  {/* Venüs */}
-                  <View style={styles.zodiacCard}>
-                    <View style={styles.zodiacHeader}>
-                      <Text style={styles.zodiacIcon}>💖</Text>
-                      <Text style={styles.zodiacTitle}>Venüs</Text>
-                      <Text style={styles.zodiacSubtitle}>{getZodiacInfo(astrologyDetails.venus)?.turkishName}</Text>
-                    </View>
-                    <Text style={styles.zodiacDescription}>
-                      Aşk hayatı, estetik anlayışı ve ilişki tarzı
-                    </Text>
-                  </View>
-
-                  {/* Mars */}
-                  <View style={styles.zodiacCard}>
-                    <View style={styles.zodiacHeader}>
-                      <Text style={styles.zodiacIcon}>🔥</Text>
-                      <Text style={styles.zodiacTitle}>Mars</Text>
-                      <Text style={styles.zodiacSubtitle}>{getZodiacInfo(astrologyDetails.mars)?.turkishName}</Text>
-                    </View>
-                    <Text style={styles.zodiacDescription}>
-                      Enerji kaynağı, motivasyon ve tutkulu yanları
-                    </Text>
-                  </View>
-
-                  {/* Element ve Kalite */}
-                  <View style={styles.elementCard}>
-                    <Text style={styles.elementTitle}>🌟 Element ve Kalite</Text>
-                    <View style={styles.elementRow}>
-                      <Text style={styles.elementItem}>Element: {astrologyDetails.element}</Text>
-                      <Text style={styles.elementItem}>Kalite: {astrologyDetails.quality}</Text>
-                    </View>
-                    <Text style={styles.elementItem}>Yönetici Gezegen: {astrologyDetails.rulingPlanet}</Text>
-                  </View>
-                </View>
-              )}
-
-              {/* Uyumluluk Mesajı */}
-              <View style={styles.compatibilitySection}>
-                <Text style={styles.sectionTitle}>💫 Uyumluluk Analizi</Text>
-                <Text style={styles.compatibilityMessage}>
-                  {currentUser.compatibilityMessage}
-                </Text>
-              </View>
-
-                          {/* Alt Boşluk */}
-            <View style={styles.bottomSpacing} />
-          </ScrollView>
-            </Animated.View>
-          </RNGHPanGestureHandler>
-        </GestureHandlerRootView>
+                <Text style={styles.premiumUpgradeText}>Premium</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+        
+        {/* Cooldown Bilgisi */}
+        {cooldownInfo && cooldownInfo.likeCooldownMinutes > 0 && (
+          <View style={styles.cooldownInfo}>
+            <Ionicons name="time" size={14} color="#FFB347" />
+            <Text style={styles.cooldownText}>
+              {cooldownInfo.likeCooldownMinutes} dk bekle
+            </Text>
+            {!swipeLimitInfo?.isPremium && (
+              <Text style={styles.premiumCooldownText}>
+                Premium'da daha kısa!
+              </Text>
+            )}
+          </View>
+        )}
       </View>
 
-      {/* Swipe Yönlendirme Metni - Tinder Tarzı */}
+      {/* Ana Kart - Tam Ekran Scrollable */}
+      <View style={styles.cardContainer}>
+        <PanGestureHandler
+          onGestureEvent={onGestureEvent}
+          onHandlerStateChange={onHandlerStateChange}
+        >
+          <Animated.View
+            style={[
+              styles.card,
+              {
+                transform: [
+                  { translateX: translateX },
+                  { 
+                    rotate: rotate.interpolate({
+                      inputRange: [-1, 1],
+                      outputRange: ['-15deg', '15deg'],
+                    })
+                  },
+                  { scale: scale }
+                ],
+                opacity: opacity,
+              }
+            ]}
+          >
+            {/* Swipe Overlay - LIKE */}
+            <Animated.View
+              style={[
+                styles.swipeOverlay,
+                styles.likeOverlay,
+                {
+                  opacity: translateX.interpolate({
+                    inputRange: [0, width / 2],
+                    outputRange: [0, 1],
+                    extrapolate: 'clamp',
+                  }),
+                }
+              ]}
+            >
+              <Text style={styles.swipeOverlayText}>❤️ LIKE</Text>
+            </Animated.View>
+
+            {/* Swipe Overlay - DISLIKE */}
+            <Animated.View
+              style={[
+                styles.swipeOverlay,
+                styles.dislikeOverlay,
+                {
+                  opacity: translateX.interpolate({
+                    inputRange: [-width / 2, 0],
+                    outputRange: [1, 0],
+                    extrapolate: 'clamp',
+                  }),
+                }
+              ]}
+            >
+              <Text style={styles.swipeOverlayText}>❌ PASS</Text>
+            </Animated.View>
+          {/* Premium Badge */}
+          {currentUser.isPremium && (
+            <View style={styles.premiumBadge}>
+              <LinearGradient 
+                colors={['#FFD700', '#FFA500', '#FF8C00']} 
+                style={styles.premiumBadgeGradient}
+              >
+                <Ionicons name="diamond" size={18} color="white" />
+                <Text style={styles.premiumBadgeText}>PREMIUM</Text>
+              </LinearGradient>
+            </View>
+          )}
+
+          {/* Tek ScrollView ile tüm içerik - Fotoğraf ve bilgiler birlikte */}
+          <ScrollView 
+            style={styles.mainScrollView}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContentContainer}
+            bounces={true}
+            nestedScrollEnabled={true}
+          >
+            {/* Ana Fotoğraf */}
+            <View style={styles.photoContainer}>
+              <Image 
+                source={{ 
+                  uri: currentUser.profileImageUrl || 
+                        (currentUser.photos.length > 0 ? currentUser.photos[0].imageUrl : 'https://picsum.photos/400/600?random=1')
+                }} 
+                style={styles.mainPhoto} 
+              />
+              
+              {/* Fotoğraf Overlay - Gradient */}
+              <LinearGradient 
+                colors={['transparent', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.7)']} 
+                style={styles.photoOverlay}
+              />
+              
+              {/* İsim ve Burç Bilgileri - Ayrı overlay */}
+              <View style={styles.nameOverlay}>
+                <View style={styles.nameRow}>
+                  <Text style={styles.userName} numberOfLines={1}>
+                    {currentUser.firstName} {currentUser.lastName}, {currentUser.age}
+                  </Text>
+                  {zodiacInfo && (
+                    <TouchableOpacity 
+                      onPress={() => {
+                        console.log('🔮 [ZODIAC] Burç simgesine tıklandı:', zodiacInfo);
+                        setShowZodiacModal(true);
+                      }}
+                      style={styles.zodiacBadge}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.zodiacEmoji}>{zodiacInfo.emoji}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+
+              {/* Uyumluluk Skoru - Ayrı overlay */}
+              <View style={styles.userInfoOverlay}>
+                <View style={styles.compatibilityContainer}>
+                  <Text style={styles.compatibilityLabel}>✨ Uyumluluk</Text>
+                  <View style={[
+                    styles.compatibilityScore,
+                    { backgroundColor: currentUser.compatibilityScore >= 80 ? '#00D4AA' : 
+                                       currentUser.compatibilityScore >= 60 ? '#FFB347' : '#FF6B9D' }
+                  ]}>
+                    <Text style={styles.compatibilityText}>%{currentUser.compatibilityScore}</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* Bio Section */}
+            {currentUser.bio && (
+              <View style={styles.bioContainer}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="chatbubble-ellipses" size={22} color="#8B5CF6" />
+                  <Text style={styles.sectionTitle}>Hakkında</Text>
+                </View>
+                <Text style={styles.bioText}>{currentUser.bio}</Text>
+              </View>
+            )}
+
+            {/* Burç Özellikleri */}
+            {zodiacInfo && (
+              <View style={styles.zodiacContainer}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="planet" size={22} color="#8B5CF6" />
+                  <Text style={styles.sectionTitle}>Burç Özellikleri</Text>
+                </View>
+                
+                <View style={styles.zodiacFeatures}>
+                  <View style={styles.featureItem}>
+                    <View style={styles.featureIcon}>
+                      <Ionicons name="flame" size={18} color="#EF4444" />
+                    </View>
+                    <View style={styles.featureContent}>
+                      <Text style={styles.featureLabel}>Element</Text>
+                      <Text style={styles.featureValue}>{zodiacInfo.element}</Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.featureItem}>
+                    <View style={styles.featureIcon}>
+                      <Ionicons name="planet" size={18} color="#8B5CF6" />
+                    </View>
+                    <View style={styles.featureContent}>
+                      <Text style={styles.featureLabel}>Yönetici Gezegen</Text>
+                      <Text style={styles.featureValue}>{zodiacInfo.planet}</Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.featureItem}>
+                    <View style={styles.featureIcon}>
+                      <Ionicons name="star" size={18} color="#F59E0B" />
+                    </View>
+                    <View style={styles.featureContent}>
+                      <Text style={styles.featureLabel}>Kalite</Text>
+                      <Text style={styles.featureValue}>Sabit</Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.featureItem}>
+                    <View style={styles.featureIcon}>
+                      <Ionicons name="heart" size={18} color="#EC4899" />
+                    </View>
+                    <View style={styles.featureContent}>
+                      <Text style={styles.featureLabel}>Polarite</Text>
+                      <Text style={styles.featureValue}>Pozitif</Text>
+                    </View>
+                  </View>
+                </View>
+                
+                {/* Burç Açıklaması */}
+                <View style={styles.zodiacDescriptionContainer}>
+                  <Text style={styles.zodiacDescriptionText}>
+                    {zodiacInfo.description}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Kişilik Özellikleri */}
+            {zodiacInfo && (
+              <View style={styles.personalityContainer}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="person" size={22} color="#8B5CF6" />
+                  <Text style={styles.sectionTitle}>Kişilik Özellikleri</Text>
+                </View>
+                
+                <View style={styles.personalityTraits}>
+                  <View style={styles.traitRow}>
+                    <View style={styles.traitItem}>
+                      <Ionicons name="flash" size={16} color="#F59E0B" />
+                      <Text style={styles.traitText}>Enerjik</Text>
+                    </View>
+                    <View style={styles.traitItem}>
+                      <Ionicons name="heart" size={10} color="#EC4899" />
+                      <Text style={styles.traitText}>Romantik</Text>
+                    </View>
+                    <View style={styles.traitItem}>
+                      <Ionicons name="bulb" size={16} color="#8B5CF6" />
+                      <Text style={styles.traitText}>Yaratıcı</Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.traitRow}>
+                    <View style={styles.traitItem}>
+                      <Ionicons name="people" size={16} color="#10B981" />
+                      <Text style={styles.traitText}>Sosyal</Text>
+                    </View>
+                    <View style={styles.traitItem}>
+                      <Ionicons name="shield-checkmark" size={16} color="#3B82F6" />
+                      <Text style={styles.traitText}>Güvenilir</Text>
+                    </View>
+                    <View style={styles.traitItem}>
+                      <Ionicons name="star" size={16} color="#F59E0B" />
+                      <Text style={styles.traitText}>Lider</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* Uyumluluk Analizi */}
+            {currentUser.compatibilityMessage && (
+              <View style={styles.compatibilityMessageContainer}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="sparkles" size={22} color="#8B5CF6" />
+                  <Text style={styles.sectionTitle}>💫 Uyumluluk Analizi</Text>
+                </View>
+                
+                {/* Uyumluluk Skoru Görsel */}
+                <View style={styles.compatibilityScoreVisual}>
+                  <View style={styles.scoreCircle}>
+                    <Text style={styles.scorePercentage}>%{currentUser.compatibilityScore}</Text>
+                    <Text style={styles.scoreLabel}>Uyumluluk</Text>
+                  </View>
+                  <View style={styles.scoreDetails}>
+                    <View style={styles.scoreBar}>
+                      <View 
+                        style={[
+                          styles.scoreBarFill, 
+                          { 
+                            width: `${currentUser.compatibilityScore}%`,
+                            backgroundColor: currentUser.compatibilityScore >= 80 ? '#00D4AA' : 
+                                           currentUser.compatibilityScore >= 60 ? '#FFB347' : '#FF6B9D'
+                          }
+                        ]} 
+                      />
+                    </View>
+                    <Text style={styles.scoreDescription}>
+                      {currentUser.compatibilityScore >= 80 ? 'Mükemmel Uyum' : 
+                       currentUser.compatibilityScore >= 60 ? 'Yüksek Uyum' : 
+                       currentUser.compatibilityScore >= 40 ? 'Orta Uyum' : 'Düşük Uyum'}
+                    </Text>
+                  </View>
+                </View>
+                
+                <View style={styles.compatibilityMessageBox}>
+                  <Text style={styles.compatibilityMessageText}>
+                    {currentUser.compatibilityMessage}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Fotoğraf Galerisi */}
+            {currentUser.photos && currentUser.photos.length > 1 && (
+              <View style={styles.photoGalleryContainer}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="images" size={22} color="#8B5CF6" />
+                  <Text style={styles.sectionTitle}>Fotoğraf Galerisi</Text>
+                </View>
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.photoGallery}
+                  nestedScrollEnabled={true}
+                >
+                  {currentUser.photos.slice(1).map((photo, index) => (
+                    <View key={photo.id} style={styles.galleryPhotoContainer}>
+                      <Image 
+                        source={{ uri: photo.imageUrl }} 
+                        style={styles.galleryPhoto} 
+                      />
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
+            {/* Profil Tamamlanma */}
+            <View style={styles.profileCompletenessContainer}>
+              <View style={styles.completenessBar}>
+                <View style={styles.completenessFill} />
+              </View>
+              <Text style={styles.profileCompletenessText}>
+                Profil Tamamlanma: {currentUser.profileCompleteness}
+              </Text>
+            </View>
+          </ScrollView>
+          </Animated.View>
+        </PanGestureHandler>
+      </View>
+
+      {/* Swipe Yönlendirmesi - Sadece metin */}
       <View style={styles.swipeHint}>
         <Text style={styles.swipeHintText}>
-          💡 Kartı sağa kaydırarak beğen ❤️, sola kaydırarak geç ❌
+          💡 Kartı sağa kaydır ❤️, sola kaydır ❌
         </Text>
       </View>
 
-
-
-      {/* New User Overlay */}
-      {showNewUserOverlay && (
-        <View style={styles.newUserOverlay}>
-          <View style={styles.overlayContent}>
-            <Text style={styles.overlayTitle}>🌟 Astroloji Eşleşme'ye Hoş Geldiniz!</Text>
-            <Text style={styles.overlayText}>
-              Burç uyumluluğuna göre size en uygun eşleşmeleri buluyoruz
-            </Text>
-            <Text style={styles.overlaySubtext}>
-              • Aşağı kaydırarak burç detaylarını keşfedin{'\n'}
-              • Alt kısımdaki butonlarla beğenin ❤️ veya geçin ❌
-            </Text>
-            <TouchableOpacity
-              style={styles.overlayButton}
-              onPress={() => {
-          console.log('🎓 [TUTORIAL] Tutorial kapatıldı');
-          setShowNewUserOverlay(false);
-        }}
-            >
-              <Text style={styles.overlayButtonText}>Başlayalım!</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
-      {/* Swipe Progress */}
+      {/* Loading Overlay */}
       {isSwipeInProgress && (
-        <View style={styles.swipeProgress}>
-          <ActivityIndicator size="small" color={astrologyTheme.accent} />
-          <Text style={styles.swipeProgressText}>İşleniyor...</Text>
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingContent}>
+            <ActivityIndicator size="large" color="#8000FF" />
+            <Text style={styles.loadingOverlayText}>İşleniyor...</Text>
+          </View>
         </View>
       )}
 
       {/* Swipe Limit Overlay */}
-      {showLimitOverlay && swipeLimitDetails && (
+      {showLimitOverlay && (
         <View style={styles.limitOverlay}>
           <LinearGradient colors={['#FF6B6B', '#FF8E53']} style={styles.limitOverlayGradient}>
             <View style={styles.limitOverlayContent}>
-              {/* Header */}
-              <View style={styles.limitHeader}>
-                <Text style={styles.limitIcon}>⏰</Text>
-                <Text style={styles.limitTitle}>Swipe Limiti Doldu</Text>
-                <Text style={styles.limitSubtitle}>
-                  Günlük swipe hakkınız tükendi
-                </Text>
-              </View>
-
-              {/* Limit Bilgileri */}
-              <View style={styles.limitInfoContainer}>
-                <View style={styles.limitInfoRow}>
-                  <Text style={styles.limitInfoLabel}>Günlük Limit:</Text>
-                  <Text style={styles.limitInfoValue}>20 swipe</Text>
-                </View>
-                <View style={styles.limitInfoRow}>
-                  <Text style={styles.limitInfoLabel}>Kullanılan:</Text>
-                  <Text style={styles.limitInfoValue}>{swipeLimitDetails.dailySwipeCount || 0} swipe</Text>
-                </View>
-                <View style={styles.limitInfoRow}>
-                  <Text style={styles.limitInfoLabel}>Kalan:</Text>
-                  <Text style={styles.limitInfoValue}>{swipeLimitDetails.remainingSwipes || 0} swipe</Text>
-                </View>
-              </View>
-
-              {/* Reset Timer */}
-              {swipeLimitDetails.resetInfo && (
-                <View style={styles.resetTimerContainer}>
-                  <Text style={styles.resetTimerTitle}>🔄 Ne Zaman Yenilenecek?</Text>
-                  <View style={styles.resetTimer}>
-                    <View style={styles.timerUnit}>
-                      <Text style={styles.timerValue}>
-                        {swipeLimitDetails.resetInfo.hoursUntilReset || 0}
-                      </Text>
-                      <Text style={styles.timerLabel}>Saat</Text>
-                    </View>
-                    <Text style={styles.timerSeparator}>:</Text>
-                    <View style={styles.timerUnit}>
-                      <Text style={styles.timerValue}>
-                        {swipeLimitDetails.resetInfo.minutesUntilReset || 0}
-                      </Text>
-                      <Text style={styles.timerLabel}>Dakika</Text>
-                    </View>
-                    <Text style={styles.timerSeparator}>:</Text>
-                    <View style={styles.timerUnit}>
-                      <Text style={styles.timerValue}>
-                        {swipeLimitDetails.resetInfo.secondsUntilReset || 0}
-                      </Text>
-                      <Text style={styles.timerLabel}>Saniye</Text>
-                    </View>
-                  </View>
-                  <Text style={styles.resetMessage}>
-                    {swipeLimitDetails.resetInfo.resetMessage || 'Gece 00:00\'da yenilenecek'}
-                  </Text>
-                </View>
-              )}
-
-              {/* Premium CTA */}
-              <View style={styles.premiumCtaContainer}>
-                <Text style={styles.premiumCtaTitle}>🚀 Premium Avantajları</Text>
-                <Text style={styles.premiumCtaText}>
-                  Premium üye olun, sınırsız swipe yapın!
-                </Text>
-                <TouchableOpacity
-                  style={styles.premiumCtaButton}
-                  onPress={() => {
-                    setShowLimitOverlay(false);
-                    navigateToPremium();
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.premiumCtaButtonText}>Premium Ol</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Kapat Butonu */}
+              <Text style={styles.limitIcon}>⏰</Text>
+              <Text style={styles.limitTitle}>Swipe Limiti Doldu</Text>
+              <Text style={styles.limitSubtitle}>
+                Günlük swipe hakkınız tükendi
+              </Text>
+              
+              <TouchableOpacity
+                style={styles.premiumCtaButton}
+                onPress={() => {
+                  setShowLimitOverlay(false);
+                  goToPremium();
+                }}
+              >
+                <Text style={styles.premiumCtaButtonText}>Premium Ol</Text>
+              </TouchableOpacity>
+              
               <TouchableOpacity
                 style={styles.limitCloseButton}
                 onPress={() => setShowLimitOverlay(false)}
-                activeOpacity={0.8}
               >
                 <Text style={styles.limitCloseButtonText}>Tamam</Text>
               </TouchableOpacity>
@@ -1271,88 +1041,147 @@ export default function AstrologyMatchesScreen() {
         </View>
       )}
 
-      {/* Error Toast - Kaldırıldı */}
-      {/* {errorToast.show && (
-        <View style={styles.errorToast}>
-          <Text style={styles.errorToastText}>⚠️ {errorToast.message}</Text>
-        </View>
-      )} */}
+      {/* Burç Bilgi Modal */}
+      <Modal
+        visible={showZodiacModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {
+          console.log('🔮 [ZODIAC] Modal kapatılıyor');
+          setShowZodiacModal(false);
+        }}
+        statusBarTranslucent={true}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowZodiacModal(false)}
+        >
+          <View style={styles.zodiacModalContainer}>
+            <LinearGradient
+              colors={['rgba(139, 92, 246, 0.95)', 'rgba(124, 58, 237, 0.95)']}
+              style={styles.zodiacModalContent}
+            >
+              {zodiacInfo ? (
+                <>
+                  <View style={styles.zodiacModalHeader}>
+                    <Text style={styles.zodiacModalEmoji}>{zodiacInfo.emoji}</Text>
+                    <Text style={styles.zodiacModalTitle}>{zodiacInfo.turkishName}</Text>
+                  </View>
+                  
+                  <View style={styles.zodiacModalInfo}>
+                    <View style={styles.zodiacModalRow}>
+                      <Text style={styles.zodiacModalLabel}>Element:</Text>
+                      <Text style={styles.zodiacModalValue}>{zodiacInfo.element}</Text>
+                    </View>
+                    <View style={styles.zodiacModalRow}>
+                      <Text style={styles.zodiacModalLabel}>Yönetici Gezegen:</Text>
+                      <Text style={styles.zodiacModalValue}>{zodiacInfo.planet}</Text>
+                    </View>
+                    <View style={styles.zodiacModalRow}>
+                      <Text style={styles.zodiacModalLabel}>Kalite:</Text>
+                      <Text style={styles.zodiacModalValue}>Sabit</Text>
+                    </View>
+                    <View style={styles.zodiacModalRow}>
+                      <Text style={styles.zodiacModalLabel}>Polarite:</Text>
+                      <Text style={styles.zodiacModalValue}>Pozitif</Text>
+                    </View>
+                  </View>
+                  
+                  {/* Günlük Burç Yorumu */}
+                  <View style={styles.zodiacModalDescription}>
+                    <Text style={styles.zodiacModalDayTitle}>
+                      {getDailyZodiacCommentByString(currentUser.zodiacSign).day} Günlük Yorumu
+                    </Text>
+                    <Text style={styles.zodiacModalDescriptionText}>
+                      {getDailyZodiacCommentByString(currentUser.zodiacSign).comment}
+                    </Text>
+                    <View style={styles.zodiacModalMoodContainer}>
+                      <Text style={styles.zodiacModalMoodLabel}>Ruh Hali:</Text>
+                      <Text style={styles.zodiacModalMoodText}>
+                        {getDailyZodiacCommentByString(currentUser.zodiacSign).mood}
+                      </Text>
+                    </View>
+                    <View style={styles.zodiacModalAdviceContainer}>
+                      <Text style={styles.zodiacModalAdviceLabel}>Tavsiye:</Text>
+                      <Text style={styles.zodiacModalAdviceText}>
+                        {getDailyZodiacCommentByString(currentUser.zodiacSign).advice}
+                      </Text>
+                    </View>
+                  </View>
+                  
+                  {/* Kişilik Özellikleri */}
+                  <View style={styles.zodiacModalTraits}>
+                    <Text style={styles.zodiacModalTraitsTitle}>Temel Özellikler</Text>
+                    <View style={styles.zodiacModalTraitsGrid}>
+                      <View style={styles.zodiacModalTraitItem}>
+                        <Ionicons name="flash" size={14} color="#F59E0B" />
+                        <Text style={styles.zodiacModalTraitText}>Enerjik</Text>
+                      </View>
+                      <View style={styles.zodiacModalTraitItem}>
+                        <Ionicons name="heart" size={14} color="#EC4899" />
+                        <Text style={styles.zodiacModalTraitText}>Romantik</Text>
+                      </View>
+                      <View style={styles.zodiacModalTraitItem}>
+                        <Ionicons name="bulb" size={14} color="#8B5CF6" />
+                        <Text style={styles.zodiacModalTraitText}>Yaratıcı</Text>
+                      </View>
+                      <View style={styles.zodiacModalTraitItem}>
+                        <Ionicons name="people" size={14} color="#10B981" />
+                        <Text style={styles.zodiacModalTraitText}>Sosyal</Text>
+                      </View>
+                    </View>
+                  </View>
+                  
+                  <TouchableOpacity 
+                    style={styles.zodiacModalCloseButton}
+                    onPress={() => setShowZodiacModal(false)}
+                  >
+                    <Text style={styles.zodiacModalCloseText}>Kapat</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <View style={styles.zodiacModalHeader}>
+                  <Text style={styles.zodiacModalTitle}>Burç Bilgisi Bulunamadı</Text>
+                  <Text style={styles.zodiacModalDescriptionText}>
+                    {currentUser.zodiacSign} burcu için bilgi bulunamadı.
+                  </Text>
+                </View>
+              )}
+            </LinearGradient>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Match Screen */}
-      {showMatchScreen && matchedUserData && userProfile && !isClosing && (
-        <AstrologyMatchScreen
-          currentUser={{
-            id: userProfile.id || 0,
-            firstName: userProfile.firstName || 'Kullanıcı',
-            lastName: userProfile.lastName || '',
-            profileImageUrl: userProfile.profileImage || null,
-            zodiacSign: userProfile.zodiacSign || 'ARIES'
-          }}
-          matchedUser={{
-            id: matchedUserData.id,
-            firstName: matchedUserData.firstName,
-            lastName: matchedUserData.lastName,
-            profileImageUrl: matchedUserData.profileImageUrl || matchedUserData.photos[0]?.photoUrl || null,
-            zodiacSign: matchedUserData.zodiacSign
-          }}
-          onClose={() => {
-            console.log('🔴 [MATCH] Match screen kapatılıyor');
-            try {
-              setIsClosing(true);
-              // State'leri sırayla güncelle
-              setShowMatchScreen(false);
+      {showMatchScreen && matchedUser && (
+        <View style={styles.matchOverlay}>
+          <LinearGradient colors={['#FFD700', '#FFA500']} style={styles.matchOverlayGradient}>
+            <View style={styles.matchOverlayContent}>
+              <Text style={styles.matchIcon}>🎉</Text>
+              <Text style={styles.matchTitle}>Eşleşme!</Text>
+              <Text style={styles.matchSubtitle}>
+                {matchedUser.firstName} ile eşleştiniz!
+              </Text>
               
-              // Kısa bir gecikme ile diğer state'leri temizle
-              setTimeout(() => {
-                setMatchedUserData(null);
-                setMatchResponse(null);
-                setIsClosing(false);
-                console.log('✅ [MATCH] Match screen state\'leri temizlendi');
-              }, 100);
+              <TouchableOpacity
+                style={styles.matchChatButton}
+                onPress={goToChat}
+              >
+                <Text style={styles.matchChatButtonText}>Sohbet Et</Text>
+              </TouchableOpacity>
               
-              console.log('✅ [MATCH] Match screen başarıyla kapatıldı');
-            } catch (error) {
-              console.error('❌ [MATCH] Match screen kapatma hatası:', error);
-              // Fallback: Force close
-              setShowMatchScreen(false);
-              setMatchedUserData(null);
-              setMatchResponse(null);
-              setIsClosing(false);
-            }
-          }}
-          onStartChat={() => {
-            console.log('💬 [MATCH] Sohbet başlatılıyor');
-            try {
-              setIsClosing(true);
-              // Önce match screen'i kapat
-              setShowMatchScreen(false);
-              
-              // Kısa bir gecikme ile state'leri temizle ve navigation yap
-              setTimeout(() => {
-                setMatchedUserData(null);
-                setMatchResponse(null);
-                setIsClosing(false);
-                
-                // Chat ekranına yönlendir
-                router.push('/chat' as any);
-                
-                console.log('✅ [MATCH] Chat ekranına yönlendirildi');
-              }, 150);
-              
-            } catch (error) {
-              console.error('❌ [MATCH] Sohbet başlatma hatası:', error);
-              // Fallback: Force close ve navigation
-              setShowMatchScreen(false);
-              setMatchedUserData(null);
-              setMatchResponse(null);
-              setIsClosing(false);
-              router.push('/chat' as any);
-              Alert.alert('Hata', 'Chat ekranına yönlendirilemedi');
-            }
-          }}
-        />
+              <TouchableOpacity
+                style={styles.matchCloseButton}
+                onPress={closeMatchScreen}
+              >
+                <Text style={styles.matchCloseButtonText}>Devam Et</Text>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
+        </View>
       )}
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -1360,21 +1189,563 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  background: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
+  header: {
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: 15,
+    paddingHorizontal: 20,
   },
-  backgroundProtection: {
+  swipeLimitHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  swipeLimitInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  swipeLimitText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  premiumUpgradeButton: {
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.4)',
+  },
+  premiumUpgradeText: {
+    color: '#FFD700',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  cooldownInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 179, 71, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 15,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 179, 71, 0.3)',
+  },
+  cooldownText: {
+    color: '#FFB347',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  premiumCooldownText: {
+    color: '#FFD700',
+    fontSize: 10,
+    fontWeight: '500',
+    marginLeft: 8,
+    fontStyle: 'italic',
+  },
+
+  cardContainer: {
+    flex: 1,
+    paddingHorizontal: 25,
+    paddingTop: 25,
+    paddingBottom: 45,
+  },
+  card: {
+    backgroundColor: '#1E1B4B',
+    borderRadius: 30,
+    overflow: 'hidden',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 15 },
+    shadowOpacity: 0.25,
+    shadowRadius: 25,
+    elevation: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.3)',
+    flex: 1,
+  },
+  // Premium Badge
+  premiumBadge: {
     position: 'absolute',
+    top: 15,
+    right: 15,
+    zIndex: 10,
+  },
+  premiumBadgeGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  premiumBadgeText: {
+    color: 'white',
+    fontSize: 13,
+    fontWeight: 'bold',
+    marginLeft: 5,
+    letterSpacing: 0.5,
+  },
+  // Photo Container
+  photoContainer: {
+    height: 400,
+  },
+  mainPhoto: {
+    width: '100%',
+    height: 400,
+    resizeMode: 'cover',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+  },
+  photoOverlay: {
+    position: 'absolute',
+    bottom: 0,
     left: 0,
     right: 0,
+    height: 240,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+  },
+  nameOverlay: {
+    position: 'absolute',
+    bottom: -35,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 25,
+    paddingVertical: 15,
+    zIndex: 6,
+  },
+  userInfoOverlay: {
+    position: 'absolute',
+    bottom: 250,
+    left: 0,
+    right: 0,
+    padding: 25,
+    paddingBottom: 30,
+    paddingTop: 50,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    zIndex: 5,
+  },
+  // Scrollable Content
+  scrollableContent: {
+    flex: 1,
+    backgroundColor: '#1E1B4B',
+  },
+  scrollContentContainer: {
+    paddingBottom: 100,
+    paddingTop: 0,
+  },
+  // Section Headers
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    marginTop: 0,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#E2E8F0',
+    marginLeft: 12,
+  },
+  // Zodiac Features
+  zodiacFeatures: {
+    marginTop: -5,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+    padding: 22,
+    borderRadius: 15,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.3)',
+  },
+  featureIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 18,
+  },
+  featureContent: {
+    flex: 1,
+  },
+  featureLabel: {
+    fontSize: 14,
+    color: '#CBD5E1',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  featureValue: {
+    fontSize: 18,
+    color: '#F1F5F9',
+    fontWeight: 'bold',
+  },
+  nameRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  userName: {
+    fontSize: 30,
+    fontWeight: 'bold',
+    color: 'white',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+    letterSpacing: 0.5,
+  },
+  zodiacBadge: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(139, 92, 246, 0.9)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 10,
+  },
+  zodiacEmoji: {
+    fontSize: 28,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  zodiacName: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    textShadowColor: 'rgba(0,0,0,0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  compatibilityContainer: {
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  compatibilityLabel: {
+    fontSize: 20,
+    color: 'white',
+    marginBottom: 12,
+    fontWeight: 'bold',
+    letterSpacing: 0.8,
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  compatibilityScore: {
+    paddingHorizontal: 30,
+    paddingVertical: 14,
+    borderRadius: 25,
+    minWidth: 100,
+    alignItems: 'center',
+    shadowColor: 'rgba(0,0,0,0.3)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  compatibilityText: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  bioContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 25,
+    backgroundColor: 'rgba(139, 92, 246, 0.05)',
+    marginHorizontal: 20,
+    marginTop: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.15)',
+    paddingTop: 15,
+  },
+
+  bioText: {
+    fontSize: 16,
+    color: '#E2E8F0',
+    lineHeight: 26,
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    padding: 10,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.2)',
+  },
+  zodiacContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 25,
+    backgroundColor: 'rgba(139, 92, 246, 0.05)',
+    marginHorizontal: 20,
+    marginTop: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.15)',
+    paddingTop: 15,
+  },
+  zodiacDescriptionContainer: {
+    marginTop: 15,
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    padding: 15,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.2)',
+  },
+  zodiacDescriptionText: {
+    fontSize: 15,
+    color: '#E2E8F0',
+    lineHeight: 22,
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+
+
+  compatibilityMessageContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 25,
+    backgroundColor: 'rgba(139, 92, 246, 0.05)',
+    marginHorizontal: 20,
+    marginTop: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.15)',
+    paddingTop: 15,
+  },
+  compatibilityScoreVisual: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 10,
+  },
+  scoreCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: 'rgba(139, 92, 246, 0.4)',
+    marginRight: 20,
+  },
+  scorePercentage: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#8B5CF6',
+  },
+  scoreLabel: {
+    fontSize: 10,
+    color: '#CBD5E1',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  scoreDetails: {
+    flex: 1,
+  },
+  scoreBar: {
+    height: 8,
+    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    borderRadius: 4,
+    marginBottom: 8,
+    overflow: 'hidden',
+  },
+  scoreBarFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  scoreDescription: {
+    fontSize: 14,
+    color: '#E2E8F0',
+    fontWeight: '600',
+  },
+
+  compatibilityMessageBox: {
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+    padding: 22,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.3)',
+  },
+  compatibilityMessageText: {
+    fontSize: 17,
+    color: '#E2E8F0',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    lineHeight: 26,
+  },
+  // Photo Gallery
+  photoGalleryContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 25,
+    backgroundColor: 'rgba(139, 92, 246, 0.05)',
+    marginHorizontal: 20,
+    marginTop: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.15)',
+    paddingTop: 15,
+  },
+  photoGallery: {
+    paddingRight: 30,
+  },
+  galleryPhotoContainer: {
+    marginRight: 20,
+    borderRadius: 15,
+    overflow: 'hidden',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    borderWidth: 2,
+    borderColor: 'rgba(139, 92, 246, 0.3)',
+  },
+  galleryPhoto: {
+    width: 100,
+    height: 100,
+    borderRadius: 15,
+  },
+  profileCompletenessContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 30,
+    alignItems: 'center',
+    backgroundColor: 'rgba(139, 92, 246, 0.05)',
+    marginHorizontal: 20,
+    marginTop: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.15)',
+    paddingTop: 15,
+  },
+  completenessBar: {
+    width: '100%',
+    height: 8,
+    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    borderRadius: 4,
+    marginBottom: 15,
+    overflow: 'hidden',
+  },
+  completenessFill: {
+    height: '100%',
+    backgroundColor: '#8B5CF6',
+    borderRadius: 4,
+    width: '100%',
+  },
+  profileCompletenessText: {
+    fontSize: 14,
+    color: '#CBD5E1',
+    fontStyle: 'italic',
+    fontWeight: '500',
+  },
+  // Kişilik Özellikleri Stilleri
+  personalityContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 25,
+    backgroundColor: 'rgba(139, 92, 246, 0.05)',
+    marginHorizontal: 20,
+    marginTop: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.15)',
+    paddingTop: 15,
+  },
+  personalityTraits: {
+    marginTop: 5,
+  },
+  traitRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  traitItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.2)',
+    flex: 1,
+    marginHorizontal: 4,
+  },
+  traitText: {
+    fontSize: 12,
+    color: '#E2E8F0',
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  // Swipe Overlay Stilleri
+  swipeOverlay: {
+    position: 'absolute',
     top: 0,
+    left: 0,
+    right: 0,
     bottom: 0,
-    backgroundColor: '#8000FF', // Fallback renk
-    zIndex: -1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+    borderRadius: 30,
+  },
+  likeOverlay: {
+    backgroundColor: 'rgba(0, 212, 170, 0.8)',
+  },
+  dislikeOverlay: {
+    backgroundColor: 'rgba(255, 107, 157, 0.8)',
+  },
+  swipeOverlayText: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: 'white',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+
+  swipeHint: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginHorizontal: 20,
+    borderRadius: 15,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  swipeHintText: {
+    color: 'rgba(255,255,255,0.95)',
+    fontSize: 15,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
   loadingOverlay: {
     position: 'absolute',
@@ -1382,640 +1753,99 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(128, 0, 255, 0.9)',
+    backgroundColor: 'rgba(139, 92, 246, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 1000,
   },
   loadingContent: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    padding: 30,
-    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    padding: 40,
+    borderRadius: 25,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(139, 92, 246, 0.2)',
   },
-  loadingEmoji: {
-    fontSize: 48,
-    marginBottom: 15,
-  },
-  loadingText: {
-    color: 'white',
-    fontSize: 16,
+  loadingOverlayText: {
+    marginTop: 20,
+    fontSize: 18,
+    color: '#8B5CF6',
     fontWeight: '600',
-    textAlign: 'center',
+    letterSpacing: 0.3,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-
-  loadingSubtext: {
+  loadingText: {
     color: 'white',
-    fontSize: 16,
-    textAlign: 'center',
-    opacity: 0.8,
-  },
-  loadingCard: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    padding: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    marginHorizontal: 40,
-  },
-  swipeCounter: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  swipeCountText: {
-    color: 'white',
-    fontSize: 14,
+    fontSize: 22,
+    marginTop: 30,
     fontWeight: '600',
+    letterSpacing: 0.5,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-
-
-  header: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingBottom: 20,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: 'white',
-    textAlign: 'center',
-  },
-
-
-  cardStack: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-  },
-  card: {
-    width: CARD_WIDTH,
-    height: CARD_HEIGHT,
-    borderRadius: 20,
-    backgroundColor: 'white',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 10,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 15,
-    overflow: 'hidden',
-    position: 'relative',
-    // Arka plan koruması
-    backfaceVisibility: 'hidden',
-    // Android için ek koruma
-    ...(Platform.OS === 'android' && {
-      elevation: 15,
-    }),
-  },
-  cardBehind: {
-    position: 'absolute',
-    transform: [{ scale: 0.95 }],
-    opacity: 0.5,
-  },
-  cardImage: {
-    width: '100%',
-    height: '100%',
-    position: 'absolute',
-  },
-  likeOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,255,127,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 20,
-    borderWidth: 4,
-    borderColor: '#00FF7F',
-  },
-  overlayContent: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  likeText: {
-    color: '#00FF7F',
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginTop: 10,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
-  },
-  dislikeOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(255,71,87,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 20,
-    borderWidth: 4,
-    borderColor: '#FF4757',
-  },
-  dislikeText: {
-    color: '#FF4757',
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginTop: 10,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
-  },
-  cardInfo: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 20,
-    paddingTop: 40,
-  },
-  compatibilityHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  compatibilityBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    alignItems: 'center',
-    minWidth: 80,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  compatibilityScore: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  compatibilityLabel: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  zodiacInfo: {
-    alignItems: 'center',
-  },
-  zodiacEmoji: {
-    fontSize: 30,
-    marginBottom: 4,
-  },
-  zodiacName: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  userInfo: {
-    gap: 8,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  userName: {
-    color: 'white',
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  location: {
-    color: 'rgba(255,255,255,0.9)',
-    fontSize: 16,
-  },
-  compatibility: {
-    color: '#FFD700',
-    fontSize: 16,
-    fontWeight: '600',
-    fontStyle: 'italic',
-  },
-  bio: {
-    color: 'rgba(255,255,255,0.9)',
-    fontSize: 16,
-    lineHeight: 22,
-  },
-  activityStatus: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 14,
-  },
-  photoIndicator: {
-    position: 'absolute',
-    top: 20,
-    left: 20,
-    right: 20,
-    flexDirection: 'row',
-    gap: 4,
-  },
-  photoDot: {
-    flex: 1,
-    height: 3,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    borderRadius: 2,
-  },
-  photoDotActive: {
-    backgroundColor: 'white',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
-    paddingTop: 20,
-    gap: 20,
-  },
-  actionButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  dislikeButton: {
-    backgroundColor: 'white',
-    borderWidth: 2,
-    borderColor: '#FF4757',
-  },
-  superLikeButton: {
-    backgroundColor: 'white',
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    borderWidth: 2,
-    borderColor: '#FFD700',
-  },
-  likeButton: {
-    backgroundColor: 'white',
-    borderWidth: 2,
-    borderColor: '#00FF7F',
-  },
-  swipeProgress: {
-    position: 'absolute',
-    bottom: 50,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 8,
-  },
-  swipeProgressText: {
-    color: 'white',
-    fontSize: 14,
-  },
-  // Yeni SwipeCard Style'ları
-  cardScrollView: {
-    flex: 1,
-  },
-  cardScrollContent: {
-    flexGrow: 1,
-  },
-  cardHeader: {
-    position: 'relative',
-  },
-  mainPhoto: {
-    width: '100%',
-    height: 300,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-  },
-  headerOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-  },
-  headerInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  nameSection: {
-    flex: 1,
-  },
-  singlePhotoContainer: {
-    marginVertical: 20,
-    paddingHorizontal: 20,
-  },
-  singlePhoto: {
-    width: '100%',
-    height: 300,
-    borderRadius: 20,
-  },
-  sectionTitle: {
-    color: '#8000FF',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  bioSection: {
-    padding: 20,
-    paddingTop: 0,
-  },
-  bioText: {
-    color: '#333',
-    fontSize: 16,
-    lineHeight: 24,
-  },
-  astrologySection: {
-    padding: 20,
-    paddingTop: 0,
-    gap: 15,
-  },
-  zodiacCard: {
-    backgroundColor: 'rgba(128,0,255,0.1)',
-    borderRadius: 15,
-    padding: 15,
-    borderWidth: 1,
-    borderColor: 'rgba(128,0,255,0.2)',
-  },
-  zodiacHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 10,
-  },
-  zodiacIcon: {
-    fontSize: 24,
-  },
-  zodiacTitle: {
-    color: '#8000FF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  zodiacSubtitle: {
-    color: '#5B00B5',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  zodiacDescription: {
-    color: '#666',
-    fontSize: 14,
-    fontStyle: 'italic',
-  },
-  traitsList: {
-    gap: 8,
-  },
-  traitsTitle: {
-    color: '#8000FF',
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginTop: 5,
-  },
-  traitItem: {
-    color: '#666',
-    fontSize: 14,
-    paddingLeft: 10,
-  },
-  elementCard: {
-    backgroundColor: 'rgba(255,215,0,0.1)',
-    borderRadius: 15,
-    padding: 15,
-    borderWidth: 1,
-    borderColor: 'rgba(255,215,0,0.3)',
-  },
-  elementTitle: {
-    color: '#FFD700',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  elementRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 5,
-  },
-  elementItem: {
-    color: '#B8860B',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  compatibilitySection: {
-    padding: 20,
-    paddingTop: 0,
-  },
-  compatibilityMessage: {
-    color: '#8000FF',
-    fontSize: 16,
-    fontStyle: 'italic',
-    textAlign: 'center',
-    backgroundColor: 'rgba(128,0,255,0.1)',
-    padding: 15,
-    borderRadius: 15,
-  },
-  bottomSpacing: {
-    height: 30,
-  },
-  // New User Overlay Styles
-  newUserOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000,
-  },
-
-  overlayTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#8000FF',
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  overlayText: {
-    fontSize: 18,
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 10,
-    fontWeight: '600',
-  },
-  overlaySubtext: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 25,
-    lineHeight: 22,
-  },
-  overlayButton: {
-    backgroundColor: '#8000FF',
-    paddingHorizontal: 30,
-    paddingVertical: 12,
-    borderRadius: 25,
-    shadowColor: '#8000FF',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  overlayButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  errorToast: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 120 : 100,
-    left: 20,
-    right: 20,
-    backgroundColor: 'rgba(255, 71, 87, 0.95)',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 25,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-    zIndex: 1001,
-  },
-  errorToastText: {
-    color: 'white',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  limitStatsText: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
-    textAlign: 'center',
-    marginBottom: 20,
-    fontStyle: 'italic',
-  },
-  premiumButton: {
-    backgroundColor: '#FFD700',
-    paddingHorizontal: 30,
-    paddingVertical: 15,
-    borderRadius: 25,
-    marginBottom: 15,
-    shadowColor: '#FFD700',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  premiumButtonText: {
-    color: '#8000FF',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  swipeHint: {
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    marginBottom: 20,
-  },
-  swipeHintText: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 14,
-    textAlign: 'center',
-    fontStyle: 'italic',
-    lineHeight: 20,
-  },
-  emptyContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 30,
-  },
-  emptyIconContainer: {
-    marginBottom: 30,
+    paddingHorizontal: 45,
   },
   emptyIcon: {
-    fontSize: 80,
-    textAlign: 'center',
+    fontSize: 100,
+    marginBottom: 40,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 4 },
+    textShadowRadius: 8,
   },
   emptyTitle: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
     color: 'white',
     textAlign: 'center',
-    marginBottom: 15,
+    marginBottom: 20,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+    letterSpacing: 0.5,
   },
   emptySubtitle: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.9)',
+    fontSize: 18,
+    color: 'rgba(255,255,255,0.95)',
     textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 30,
+    lineHeight: 28,
+    marginBottom: 40,
+    fontWeight: '500',
+    letterSpacing: 0.2,
   },
   refreshButton: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 30,
-    paddingVertical: 15,
-    borderRadius: 25,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 40,
+    paddingVertical: 20,
+    borderRadius: 30,
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.3)',
-    marginBottom: 20,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 12,
   },
   refreshButtonText: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
+    letterSpacing: 0.5,
   },
-  emptyInfoText: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-  // Swipe Limit Overlay Styles
   limitOverlay: {
     position: 'absolute',
     top: 0,
@@ -2036,154 +1866,347 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   limitOverlayContent: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
     margin: 30,
-    padding: 30,
-    borderRadius: 25,
+    padding: 35,
+    borderRadius: 30,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 10,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 15,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 15 },
+    shadowOpacity: 0.4,
+    shadowRadius: 25,
+    elevation: 20,
     maxWidth: 350,
-  },
-  limitHeader: {
-    alignItems: 'center',
-    marginBottom: 25,
+    borderWidth: 2,
+    borderColor: 'rgba(139, 92, 246, 0.2)',
   },
   limitIcon: {
-    fontSize: 50,
-    marginBottom: 15,
+    fontSize: 60,
+    marginBottom: 20,
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 4 },
+    textShadowRadius: 8,
   },
   limitTitle: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: 'bold',
-    color: '#FF6B6B',
+    color: '#EF4444',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
+    letterSpacing: 0.5,
   },
   limitSubtitle: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 17,
+    color: '#374151',
     textAlign: 'center',
+    marginBottom: 30,
+    fontWeight: '500',
+    lineHeight: 24,
   },
-  limitInfoContainer: {
-    width: '100%',
-    marginBottom: 25,
+  premiumCtaButton: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 35,
+    paddingVertical: 15,
+    borderRadius: 30,
+    marginBottom: 18,
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
-  limitInfoRow: {
+  premiumCtaButtonText: {
+    color: 'white',
+    fontSize: 17,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  limitCloseButton: {
+    paddingHorizontal: 35,
+    paddingVertical: 15,
+    borderRadius: 25,
+    borderWidth: 2,
+    borderColor: '#EF4444',
+    backgroundColor: 'rgba(239, 68, 68, 0.05)',
+  },
+  limitCloseButtonText: {
+    color: '#EF4444',
+    fontSize: 17,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  matchOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1000,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  matchOverlayGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  matchOverlayContent: {
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+    margin: 30,
+    padding: 35,
+    borderRadius: 30,
+    alignItems: 'center',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 15 },
+    shadowOpacity: 0.4,
+    shadowRadius: 25,
+    elevation: 20,
+    maxWidth: 350,
+    borderWidth: 2,
+    borderColor: 'rgba(139, 92, 246, 0.2)',
+  },
+  matchIcon: {
+    fontSize: 70,
+    marginBottom: 20,
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 4 },
+    textShadowRadius: 8,
+  },
+  matchTitle: {
+    fontSize: 30,
+    fontWeight: 'bold',
+    color: '#F59E0B',
+    textAlign: 'center',
+    marginBottom: 10,
+    letterSpacing: 0.5,
+  },
+  matchSubtitle: {
+    fontSize: 19,
+    color: '#374151',
+    textAlign: 'center',
+    marginBottom: 30,
+    fontWeight: '500',
+    lineHeight: 26,
+  },
+  matchChatButton: {
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 35,
+    paddingVertical: 15,
+    borderRadius: 30,
+    marginBottom: 18,
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  matchChatButtonText: {
+    color: '#8B5CF6',
+    fontSize: 17,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  matchCloseButton: {
+    paddingHorizontal: 35,
+    paddingVertical: 15,
+    borderRadius: 25,
+    borderWidth: 2,
+    borderColor: '#F59E0B',
+    backgroundColor: 'rgba(245, 158, 11, 0.05)',
+  },
+  matchCloseButtonText: {
+    color: '#F59E0B',
+    fontSize: 17,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  mainScrollView: {
+    flex: 1,
+  },
+  // Burç Modal Stilleri
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+  },
+  zodiacModalContainer: {
+    margin: 20,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  zodiacModalContent: {
+    padding: 25,
+    minWidth: 320,
+    maxWidth: 350,
+  },
+  zodiacModalHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  zodiacModalEmoji: {
+    fontSize: 48,
+    marginBottom: 10,
+  },
+  zodiacModalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'white',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  zodiacModalInfo: {
+    marginBottom: 20,
+  },
+  zodiacModalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.2)',
   },
-  limitInfoLabel: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
-  },
-  limitInfoValue: {
-    fontSize: 14,
-    color: '#FF6B6B',
-    fontWeight: 'bold',
-  },
-  resetTimerContainer: {
-    alignItems: 'center',
-    marginBottom: 25,
-  },
-  resetTimerTitle: {
+  zodiacModalLabel: {
     fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '600',
+  },
+  zodiacModalValue: {
+    fontSize: 16,
+    color: 'white',
     fontWeight: 'bold',
-    color: '#FF6B6B',
-    textAlign: 'center',
-    marginBottom: 15,
   },
-  resetTimer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  timerUnit: {
-    alignItems: 'center',
-    marginHorizontal: 8,
-  },
-  timerValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FF6B6B',
-  },
-  timerLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 2,
-  },
-  timerSeparator: {
-    fontSize: 20,
-    color: '#FF6B6B',
-    fontWeight: 'bold',
-    marginHorizontal: 5,
-  },
-  resetMessage: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-  premiumCtaContainer: {
-    alignItems: 'center',
-    marginBottom: 25,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
-  },
-  premiumCtaTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FF6B6B',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  premiumCtaText: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 15,
-  },
-  premiumCtaButton: {
-    backgroundColor: '#FF6B6B',
-    paddingHorizontal: 30,
+  zodiacModalCloseButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     paddingVertical: 12,
-    borderRadius: 25,
-    shadowColor: '#FF6B6B',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    paddingHorizontal: 20,
+    borderRadius: 15,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
-  premiumCtaButtonText: {
+  zodiacModalCloseText: {
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
   },
-  limitCloseButton: {
-    paddingHorizontal: 30,
-    paddingVertical: 12,
-    borderRadius: 20,
+  zodiacModalDescription: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 15,
+    borderRadius: 12,
+    marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#FF6B6B',
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
-  limitCloseButtonText: {
-    color: '#FF6B6B',
+  zodiacModalDayTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    color: 'white',
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 10,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
-}); 
+  zodiacModalDescriptionText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    lineHeight: 20,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginBottom: 12,
+  },
+  zodiacModalMoodContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    justifyContent: 'center',
+  },
+  zodiacModalMoodLabel: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '600',
+    marginRight: 8,
+  },
+  zodiacModalMoodText: {
+    fontSize: 12,
+    color: '#F59E0B',
+    fontWeight: 'bold',
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  zodiacModalAdviceContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  zodiacModalAdviceLabel: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '600',
+    marginRight: 8,
+    marginTop: 2,
+  },
+  zodiacModalAdviceText: {
+    fontSize: 12,
+    color: '#10B981',
+    fontWeight: '600',
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    flex: 1,
+    textAlign: 'center',
+  },
+  zodiacModalTraits: {
+    marginBottom: 20,
+  },
+  zodiacModalTraitsTitle: {
+    fontSize: 16,
+    color: 'white',
+    fontWeight: 'bold',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  zodiacModalTraitsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  zodiacModalTraitItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 15,
+    marginBottom: 8,
+    width: '48%',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  zodiacModalTraitText: {
+    fontSize: 12,
+    color: 'white',
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+});

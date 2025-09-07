@@ -118,8 +118,8 @@ export default function MusicMatchesScreen() {
       const response = await swipeApi.getDiscoverUsers(1, 10, false);
       
       if (response.success) {
-        console.log(`🎶 [MUSIC] ${response.users.length} yeni kullanıcı bulundu (mode: ${response.mode || 'filtered'})`);
-        console.log(`📊 [MUSIC] Toplam: ${response.totalCount}, HasMore: ${response.hasMore}`);
+              console.log(`🎶 [MUSIC] ${response.users.length} yeni kullanıcı bulundu`);
+      console.log(`📊 [MUSIC] Toplam: ${response.totalCount}, Returned: ${response.returnedCount}`);
         // TODO: Static data yerine API data'sını kullan
       }
     } catch (error) {
