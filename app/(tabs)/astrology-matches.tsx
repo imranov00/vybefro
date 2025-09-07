@@ -1314,16 +1314,16 @@ export default function AstrologyMatchesScreen() {
         hardwareAccelerated={true}
         presentationStyle="overFullScreen"
       >
-        <TouchableOpacity 
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowFeatureModal(false)}
-        >
+        <View style={styles.modalOverlay}>
           <View style={styles.featureModalContainer}>
             <LinearGradient
               colors={['rgba(139, 92, 246, 0.95)', 'rgba(124, 58, 237, 0.95)']}
               style={styles.featureModalContent}
             >
+              <ScrollView 
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.featureModalScrollContent}
+              >
               {selectedFeature === 'element' && zodiacInfo && (
                 <>
                   <View style={styles.featureModalHeader}>
@@ -1564,6 +1564,8 @@ export default function AstrologyMatchesScreen() {
                 </>
               )}
               
+              </ScrollView>
+              
               <TouchableOpacity 
                 style={styles.featureModalCloseButton}
                 onPress={() => setShowFeatureModal(false)}
@@ -1572,7 +1574,7 @@ export default function AstrologyMatchesScreen() {
               </TouchableOpacity>
             </LinearGradient>
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
 
       {/* Uyumluluk Analizi Modal */}
@@ -1585,16 +1587,16 @@ export default function AstrologyMatchesScreen() {
         hardwareAccelerated={true}
         presentationStyle="overFullScreen"
       >
-        <TouchableOpacity 
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowCompatibilityModal(false)}
-        >
+        <View style={styles.modalOverlay}>
           <View style={styles.compatibilityModalContainer}>
             <LinearGradient
               colors={['rgba(139, 92, 246, 0.95)', 'rgba(124, 58, 237, 0.95)']}
               style={styles.compatibilityModalContent}
             >
+              <ScrollView 
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.compatibilityModalScrollContent}
+              >
               {currentUser && (() => {
                 const compatibilityInfo = getCompatibilityInfo(
                   currentUser.compatibilityScore, 
@@ -1673,19 +1675,20 @@ export default function AstrologyMatchesScreen() {
                         </Text>
                       </View>
                     </View>
-                    
-                    <TouchableOpacity 
-                      style={styles.compatibilityModalCloseButton}
-                      onPress={() => setShowCompatibilityModal(false)}
-                    >
-                      <Text style={styles.compatibilityModalCloseText}>Kapat</Text>
-                    </TouchableOpacity>
                   </>
                 );
               })()}
+              </ScrollView>
+              
+              <TouchableOpacity 
+                style={styles.compatibilityModalCloseButton}
+                onPress={() => setShowCompatibilityModal(false)}
+              >
+                <Text style={styles.compatibilityModalCloseText}>Kapat</Text>
+              </TouchableOpacity>
             </LinearGradient>
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
 
       {/* Fotoğraf Galerisi Modal */}
@@ -1806,15 +1809,7 @@ export default function AstrologyMatchesScreen() {
         hardwareAccelerated={true}
         presentationStyle="overFullScreen"
       >
-        <TouchableOpacity 
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => {
-            console.log('🔮 [ZODIAC] Modal overlay tıklandı - kapatılıyor');
-            setShowZodiacModal(false);
-          }}
-          hitSlop={{ top: 0, bottom: 0, left: 0, right: 0 }}
-        >
+        <View style={styles.modalOverlay}>
           <View style={styles.zodiacModalContainer}>
             <LinearGradient
               colors={['rgba(139, 92, 246, 0.95)', 'rgba(124, 58, 237, 0.95)']}
@@ -1822,6 +1817,10 @@ export default function AstrologyMatchesScreen() {
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
+              <ScrollView 
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.zodiacModalScrollContent}
+              >
               {zodiacInfo ? (
                 <>
                   <View style={styles.zodiacModalHeader}>
@@ -1893,12 +1892,6 @@ export default function AstrologyMatchesScreen() {
                     </View>
                   </View>
                   
-                  <TouchableOpacity 
-                    style={styles.zodiacModalCloseButton}
-                    onPress={() => setShowZodiacModal(false)}
-                  >
-                    <Text style={styles.zodiacModalCloseText}>Kapat</Text>
-                  </TouchableOpacity>
                 </>
               ) : (
                 <View style={styles.zodiacModalHeader}>
@@ -1908,9 +1901,17 @@ export default function AstrologyMatchesScreen() {
                   </Text>
                 </View>
               )}
+              </ScrollView>
+              
+              <TouchableOpacity 
+                style={styles.zodiacModalCloseButton}
+                onPress={() => setShowZodiacModal(false)}
+              >
+                <Text style={styles.zodiacModalCloseText}>Kapat</Text>
+              </TouchableOpacity>
             </LinearGradient>
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
 
       {/* Match Screen */}
@@ -2819,6 +2820,10 @@ const styles = StyleSheet.create({
     padding: 25,
     minWidth: 320,
     maxWidth: 350,
+    flex: 1,
+  },
+  zodiacModalScrollContent: {
+    paddingBottom: 20,
   },
   zodiacModalHeader: {
     alignItems: 'center',
@@ -2866,6 +2871,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.3)',
+    marginTop: 10,
   },
   zodiacModalCloseText: {
     color: 'white',
@@ -2993,6 +2999,10 @@ const styles = StyleSheet.create({
     padding: 25,
     minWidth: 320,
     maxWidth: 350,
+    flex: 1,
+  },
+  featureModalScrollContent: {
+    paddingBottom: 20,
   },
   featureModalHeader: {
     alignItems: 'center',
@@ -3086,6 +3096,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.3)',
+    marginTop: 10,
   },
   featureModalCloseText: {
     color: 'white',
@@ -3110,6 +3121,10 @@ const styles = StyleSheet.create({
     padding: 25,
     minWidth: 320,
     maxWidth: 350,
+    flex: 1,
+  },
+  compatibilityModalScrollContent: {
+    paddingBottom: 20,
   },
   compatibilityModalHeader: {
     alignItems: 'center',
@@ -3200,6 +3215,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.3)',
+    marginTop: 10,
   },
   compatibilityModalCloseText: {
     color: 'white',
