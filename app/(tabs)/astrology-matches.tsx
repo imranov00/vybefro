@@ -68,16 +68,16 @@ const getElementInfo = (element: string) => {
 
 const getPlanetInfo = (planet: string) => {
   const planets = {
-    'Mars': { emoji: '♂️', name: 'Mars', description: 'Savaş ve enerji gezegeni', influence: 'Cesaret, rekabet, cinsellik' },
-    'Venüs': { emoji: '♀️', name: 'Venüs', description: 'Aşk ve güzellik gezegeni', influence: 'Aşk, sanat, uyum' },
-    'Merkür': { emoji: '☿️', name: 'Merkür', description: 'İletişim gezegeni', influence: 'İletişim, zeka, ticaret' },
-    'Ay': { emoji: '🌙', name: 'Ay', description: 'Duygular ve sezgiler gezegeni', influence: 'Duygular, sezgiler, anne' },
-    'Güneş': { emoji: '☀️', name: 'Güneş', description: 'Ego ve kimlik gezegeni', influence: 'Ego, kimlik, yaratıcılık' },
-    'Jüpiter': { emoji: '♃', name: 'Jüpiter', description: 'Büyüme ve şans gezegeni', influence: 'Büyüme, şans, felsefe' },
-    'Satürn': { emoji: '♄', name: 'Satürn', description: 'Disiplin ve sınırlar gezegeni', influence: 'Disiplin, sınırlar, sorumluluk' },
-    'Uranüs': { emoji: '♅', name: 'Uranüs', description: 'Değişim ve özgürlük gezegeni', influence: 'Değişim, özgürlük, yenilik' },
-    'Neptün': { emoji: '♆', name: 'Neptün', description: 'Hayaller ve ilham gezegeni', influence: 'Hayaller, ilham, mistisizm' },
-    'Plüton': { emoji: '♇', name: 'Plüton', description: 'Dönüşüm ve güç gezegeni', influence: 'Dönüşüm, güç, yeniden doğuş' }
+    'Mars': { emoji: '🔴', name: 'Mars', description: 'Savaş ve enerji gezegeni', influence: 'Cesaret, rekabet, cinsellik, güç' },
+    'Venüs': { emoji: '💚', name: 'Venüs', description: 'Aşk ve güzellik gezegeni', influence: 'Aşk, sanat, uyum, estetik' },
+    'Merkür': { emoji: '☿️', name: 'Merkür', description: 'İletişim gezegeni', influence: 'İletişim, zeka, ticaret, öğrenme' },
+    'Ay': { emoji: '🌙', name: 'Ay', description: 'Duygular ve sezgiler gezegeni', influence: 'Duygular, sezgiler, anne, içgüdü' },
+    'Güneş': { emoji: '☀️', name: 'Güneş', description: 'Ego ve kimlik gezegeni', influence: 'Ego, kimlik, yaratıcılık, liderlik' },
+    'Jüpiter': { emoji: '🟡', name: 'Jüpiter', description: 'Büyüme ve şans gezegeni', influence: 'Büyüme, şans, felsefe, genişleme' },
+    'Satürn': { emoji: '🪐', name: 'Satürn', description: 'Disiplin ve sınırlar gezegeni', influence: 'Disiplin, sınırlar, sorumluluk, olgunluk' },
+    'Uranüs': { emoji: '🔵', name: 'Uranüs', description: 'Değişim ve özgürlük gezegeni', influence: 'Değişim, özgürlük, yenilik, isyan' },
+    'Neptün': { emoji: '🔮', name: 'Neptün', description: 'Hayaller ve ilham gezegeni', influence: 'Hayaller, ilham, mistisizm, sezgiler' },
+    'Plüton': { emoji: '🖤', name: 'Plüton', description: 'Dönüşüm ve güç gezegeni', influence: 'Dönüşüm, güç, yeniden doğuş, gizem' }
   };
   return planets[planet as keyof typeof planets] || planets['Mars'];
 };
@@ -87,23 +87,35 @@ const getQualityInfo = (quality: string) => {
     'Öncü': {
       emoji: '🚀',
       name: 'Öncü',
-      description: 'Yeni başlangıçlar ve liderlik',
-      traits: ['Lider', 'Başlatıcı', 'Enerjik', 'Cesur'],
-      meaning: 'Yeni dönemler başlatır, öncülük eder'
+      description: 'Yeni başlangıçlar ve liderlik kalitesi',
+      traits: ['Lider', 'Başlatıcı', 'Enerjik', 'Cesur', 'Pioner'],
+      meaning: 'Yeni dönemler başlatır, öncülük eder ve değişimi tetikler',
+      positive: ['Liderlik yeteneği', 'Yenilikçi düşünce', 'Girişimcilik', 'Cesaret', 'Enerji'],
+      negative: ['Sabırsızlık', 'Acelecilik', 'Detayları gözden kaçırma', 'İnatçılık', 'Dominant olma'],
+      advice: 'Sabırlı olmayı öğrenin ve detaylara dikkat edin. Başkalarının fikirlerini de dinleyin.',
+      compatibility: 'Öncü burçlar birbirleriyle güçlü rekabet yaşayabilir, ancak birlikte büyük işler başarabilirler.'
     },
     'Sabit': {
       emoji: '⚖️',
       name: 'Sabit',
-      description: 'Kararlılık ve süreklilik',
-      traits: ['Kararlı', 'Güvenilir', 'Sabırlı', 'İnatçı'],
-      meaning: 'Kararlılık gösterir, süreklilik sağlar'
+      description: 'Kararlılık ve süreklilik kalitesi',
+      traits: ['Kararlı', 'Güvenilir', 'Sabırlı', 'İnatçı', 'Sürekli'],
+      meaning: 'Kararlılık gösterir, süreklilik sağlar ve değişime direnir',
+      positive: ['Güvenilirlik', 'Sabır', 'Kararlılık', 'Süreklilik', 'Derinlik'],
+      negative: ['İnatçılık', 'Değişime direnç', 'Esneklik eksikliği', 'Rutin takıntısı', 'Yavaşlık'],
+      advice: 'Değişime daha açık olun ve yeni deneyimlere kapı açın. Esneklik geliştirin.',
+      compatibility: 'Sabit burçlar birbirleriyle uyumlu olabilir, ancak değişken burçlarla denge sağlayabilirler.'
     },
     'Değişken': {
       emoji: '🔄',
       name: 'Değişken',
-      description: 'Uyum ve değişim',
-      traits: ['Uyumlu', 'Değişken', 'Esnek', 'Çok yönlü'],
-      meaning: 'Değişime uyum sağlar, esneklik gösterir'
+      description: 'Uyum ve değişim kalitesi',
+      traits: ['Uyumlu', 'Değişken', 'Esnek', 'Çok yönlü', 'Adaptif'],
+      meaning: 'Değişime uyum sağlar, esneklik gösterir ve çok yönlü düşünür',
+      positive: ['Esneklik', 'Uyum sağlama', 'Çok yönlülük', 'Adaptasyon', 'Merak'],
+      negative: ['Kararsızlık', 'Tutarsızlık', 'Odaklanma sorunu', 'Süreklilik eksikliği', 'Belirsizlik'],
+      advice: 'Kararlılık geliştirin ve hedeflerinize odaklanın. Süreklilik sağlamayı öğrenin.',
+      compatibility: 'Değişken burçlar herkesle uyum sağlayabilir, ancak sabit burçlarla denge kurmalıdırlar.'
     }
   };
   return qualities[quality as keyof typeof qualities] || qualities['Sabit'];
@@ -114,48 +126,144 @@ const getPolarityInfo = (polarity: string) => {
     'Pozitif': {
       emoji: '➕',
       name: 'Pozitif',
-      description: 'Dışa dönük ve aktif enerji',
-      traits: ['Dışa dönük', 'Aktif', 'Sosyal', 'Enerjik'],
-      meaning: 'Dış dünyaya odaklanır, aktif enerji yayar'
+      description: 'Dışa dönük ve aktif enerji polaritesi',
+      traits: ['Dışa dönük', 'Aktif', 'Sosyal', 'Enerjik', 'Açık'],
+      meaning: 'Dış dünyaya odaklanır, aktif enerji yayar ve sosyal etkileşimi sever',
+      positive: ['Sosyallik', 'Enerji', 'Açıklık', 'Liderlik', 'Girişkenlik'],
+      negative: ['Yüzeysellik', 'Sabırsızlık', 'Dikkat dağınıklığı', 'Dominant olma', 'Dinleme eksikliği'],
+      advice: 'Derinlemesine düşünmeyi öğrenin ve başkalarını dinlemeye zaman ayırın.',
+      compatibility: 'Pozitif polarite burçları birbirleriyle enerjik ilişkiler kurabilir, ancak rekabet yaşayabilirler.'
     },
     'Negatif': {
       emoji: '➖',
       name: 'Negatif',
-      description: 'İçe dönük ve pasif enerji',
-      traits: ['İçe dönük', 'Pasif', 'Derin', 'Sezgisel'],
-      meaning: 'İç dünyaya odaklanır, derinlemesine düşünür'
+      description: 'İçe dönük ve pasif enerji polaritesi',
+      traits: ['İçe dönük', 'Pasif', 'Derin', 'Sezgisel', 'Analitik'],
+      meaning: 'İç dünyaya odaklanır, derinlemesine düşünür ve sezgisel yaklaşım sergiler',
+      positive: ['Derinlik', 'Sezgiler', 'Analitik düşünce', 'Sabır', 'İçgörü'],
+      negative: ['İçe kapanıklık', 'Pasiflik', 'Sosyal zorluk', 'Kararsızlık', 'İletişim eksikliği'],
+      advice: 'Sosyal becerilerinizi geliştirin ve dış dünyayla daha fazla etkileşim kurun.',
+      compatibility: 'Negatif polarite burçları birbirleriyle derin bağlar kurabilir, ancak pozitif burçlarla denge sağlamalıdırlar.'
     }
   };
   return polarities[polarity as keyof typeof polarities] || polarities['Pozitif'];
 };
 
-const getCompatibilityInfo = (score: number) => {
-  if (score >= 80) {
+// Gerçekçi burç uyumluluğu hesaplama
+const calculateRealisticCompatibility = (userZodiac: string, targetZodiac: string) => {
+  const zodiacSigns = {
+    'Koç': { element: 'Ateş', quality: 'Öncü', polarity: 'Pozitif' },
+    'Boğa': { element: 'Toprak', quality: 'Sabit', polarity: 'Negatif' },
+    'İkizler': { element: 'Hava', quality: 'Değişken', polarity: 'Pozitif' },
+    'Yengeç': { element: 'Su', quality: 'Öncü', polarity: 'Negatif' },
+    'Aslan': { element: 'Ateş', quality: 'Sabit', polarity: 'Pozitif' },
+    'Başak': { element: 'Toprak', quality: 'Değişken', polarity: 'Negatif' },
+    'Terazi': { element: 'Hava', quality: 'Öncü', polarity: 'Pozitif' },
+    'Akrep': { element: 'Su', quality: 'Sabit', polarity: 'Negatif' },
+    'Yay': { element: 'Ateş', quality: 'Değişken', polarity: 'Pozitif' },
+    'Oğlak': { element: 'Toprak', quality: 'Öncü', polarity: 'Negatif' },
+    'Kova': { element: 'Hava', quality: 'Sabit', polarity: 'Pozitif' },
+    'Balık': { element: 'Su', quality: 'Değişken', polarity: 'Negatif' }
+  };
+
+  const userSign = zodiacSigns[userZodiac as keyof typeof zodiacSigns];
+  const targetSign = zodiacSigns[targetZodiac as keyof typeof zodiacSigns];
+
+  if (!userSign || !targetSign) return { score: 50, analysis: 'Burç bilgisi bulunamadı' };
+
+  let score = 50; // Başlangıç skoru
+  let analysis = '';
+
+  // Element uyumluluğu (en önemli faktör)
+  if (userSign.element === targetSign.element) {
+    score += 25; // Aynı element
+    analysis += 'Aynı element grubundasınız, güçlü bir bağ var. ';
+  } else if (
+    (userSign.element === 'Ateş' && targetSign.element === 'Hava') ||
+    (userSign.element === 'Hava' && targetSign.element === 'Ateş') ||
+    (userSign.element === 'Su' && targetSign.element === 'Toprak') ||
+    (userSign.element === 'Toprak' && targetSign.element === 'Su')
+  ) {
+    score += 20; // Uyumlu elementler
+    analysis += 'Uyumlu element gruplarındasınız, dengeli bir ilişki kurabilirsiniz. ';
+  } else {
+    score -= 10; // Çelişkili elementler
+    analysis += 'Farklı element gruplarındasınız, çelişkiler yaşayabilirsiniz. ';
+  }
+
+  // Kalite uyumluluğu
+  if (userSign.quality === targetSign.quality) {
+    score += 15;
+    analysis += 'Aynı kalite grubundasınız, benzer yaklaşımlarınız var. ';
+  } else if (
+    (userSign.quality === 'Öncü' && targetSign.quality === 'Sabit') ||
+    (userSign.quality === 'Sabit' && targetSign.quality === 'Öncü')
+  ) {
+    score += 10;
+    analysis += 'Farklı kalite gruplarındasınız, birbirinizi tamamlayabilirsiniz. ';
+  } else {
+    score += 5;
+    analysis += 'Farklı kalite gruplarındasınız, öğrenme fırsatı var. ';
+  }
+
+  // Polarite uyumluluğu
+  if (userSign.polarity === targetSign.polarity) {
+    score += 10;
+    analysis += 'Aynı polarite grubundasınız, benzer enerji seviyeleriniz var. ';
+  } else {
+    score += 5;
+    analysis += 'Farklı polarite gruplarındasınız, denge sağlayabilirsiniz. ';
+  }
+
+  // Skoru 0-100 arasında sınırla
+  score = Math.max(0, Math.min(100, score));
+
+  return { score, analysis };
+};
+
+const getCompatibilityInfo = (score: number, userZodiac?: string, targetZodiac?: string) => {
+  // Gerçekçi uyumluluk hesapla
+  let realisticScore = score;
+  let realisticAnalysis = '';
+  
+  if (userZodiac && targetZodiac) {
+    const realistic = calculateRealisticCompatibility(userZodiac, targetZodiac);
+    realisticScore = realistic.score;
+    realisticAnalysis = realistic.analysis;
+  }
+
+  if (realisticScore >= 80) {
     return {
       level: 'Mükemmel Uyum',
       emoji: '💕',
       color: '#00D4AA',
       description: 'İnanılmaz bir uyum! Bu ilişki çok güçlü temellere sahip.',
       traits: ['Derin bağ', 'Güçlü iletişim', 'Karşılıklı anlayış', 'Uzun vadeli potansiyel'],
-      advice: 'Bu özel bağı korumak için birlikte büyümeye odaklanın.'
+      negativeTraits: ['Aşırı bağımlılık riski', 'Rekabet duyguları', 'Rutin takıntısı'],
+      advice: 'Bu özel bağı korumak için birlikte büyümeye odaklanın. Bireysellik alanlarınızı koruyun.',
+      analysis: realisticAnalysis
     };
-  } else if (score >= 60) {
+  } else if (realisticScore >= 60) {
     return {
       level: 'Yüksek Uyum',
       emoji: '💖',
       color: '#FFB347',
       description: 'Güçlü bir uyum var. Birlikte güzel anlar yaşayabilirsiniz.',
       traits: ['İyi iletişim', 'Ortak ilgi alanları', 'Karşılıklı saygı', 'Pozitif enerji'],
-      advice: 'İlişkinizi güçlendirmek için ortak aktiviteler yapın.'
+      negativeTraits: ['Bazı çelişkiler', 'Farklı beklentiler', 'Uyum sağlama zorluğu'],
+      advice: 'İlişkinizi güçlendirmek için ortak aktiviteler yapın. Farklılıkları kabul edin.',
+      analysis: realisticAnalysis
     };
-  } else if (score >= 40) {
+  } else if (realisticScore >= 40) {
     return {
       level: 'Orta Uyum',
       emoji: '💛',
       color: '#FFB347',
       description: 'Orta düzeyde bir uyum var. Çaba ile geliştirilebilir.',
       traits: ['Bazı ortak noktalar', 'Farklılıklar', 'Öğrenme fırsatı', 'Büyüme potansiyeli'],
-      advice: 'Farklılıkları zenginlik olarak görün ve birbirinizden öğrenin.'
+      negativeTraits: ['Sık çelişkiler', 'İletişim zorlukları', 'Farklı değerler', 'Uyum sağlama zorluğu'],
+      advice: 'Farklılıkları zenginlik olarak görün ve birbirinizden öğrenin. Sabırlı olun.',
+      analysis: realisticAnalysis
     };
   } else {
     return {
@@ -164,7 +272,9 @@ const getCompatibilityInfo = (score: number) => {
       color: '#FF6B9D',
       description: 'Zorlu bir uyum. Ama imkansız değil!',
       traits: ['Farklı yaklaşımlar', 'Öğrenme fırsatı', 'Büyüme zorluğu', 'Sabır gerektirir'],
-      advice: 'Sabırlı olun ve birbirinizin farklılıklarını kabul edin.'
+      negativeTraits: ['Sürekli çelişkiler', 'İletişim kopukluğu', 'Farklı yaşam tarzları', 'Uyumsuzluk'],
+      advice: 'Sabırlı olun ve birbirinizin farklılıklarını kabul edin. Profesyonel yardım almayı düşünün.',
+      analysis: realisticAnalysis
     };
   }
 };
@@ -260,7 +370,9 @@ export default function AstrologyMatchesScreen() {
   const [showZodiacModal, setShowZodiacModal] = useState(false);
   const [showFeatureModal, setShowFeatureModal] = useState(false);
   const [showCompatibilityModal, setShowCompatibilityModal] = useState(false);
+  const [showPhotoGalleryModal, setShowPhotoGalleryModal] = useState(false);
   const [selectedFeature, setSelectedFeature] = useState<string>('');
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [cooldownInfo, setCooldownInfo] = useState<any>(null);
   const [hasMoreUsers, setHasMoreUsers] = useState(true);
   const [seenUsers, setSeenUsers] = useState<Set<number>>(new Set());
@@ -1098,10 +1210,18 @@ export default function AstrologyMatchesScreen() {
 
             {/* Fotoğraf Galerisi */}
             {currentUser.photos && currentUser.photos.length > 1 && (
-              <View style={styles.photoGalleryContainer}>
+              <TouchableOpacity 
+                style={styles.photoGalleryContainer}
+                onPress={() => {
+                  setCurrentPhotoIndex(0);
+                  setShowPhotoGalleryModal(true);
+                }}
+                activeOpacity={0.7}
+              >
                 <View style={styles.sectionHeader}>
                   <Ionicons name="images" size={22} color="#8B5CF6" />
                   <Text style={styles.sectionTitle}>Fotoğraf Galerisi</Text>
+                  <Ionicons name="chevron-forward" size={16} color="#8B5CF6" style={{ marginLeft: 'auto' }} />
                 </View>
                 <ScrollView 
                   horizontal 
@@ -1118,7 +1238,7 @@ export default function AstrologyMatchesScreen() {
                     </View>
                   ))}
                 </ScrollView>
-              </View>
+              </TouchableOpacity>
             )}
 
             {/* Profil Tamamlanma */}
@@ -1244,6 +1364,15 @@ export default function AstrologyMatchesScreen() {
                         {getElementInfo(zodiacInfo.element).compatibility}
                       </Text>
                     </View>
+                    
+                    <View style={styles.featureModalSection}>
+                      <Text style={styles.featureModalSectionTitle}>🤔 Element Nedir?</Text>
+                      <Text style={styles.featureModalExplanation}>
+                        Astrolojide 4 element vardır: Ateş, Su, Hava ve Toprak. Her burç bu elementlerden birine aittir. 
+                        Element, kişinin temel kişilik özelliklerini ve enerji türünü belirler. 
+                        Aynı element grubundaki burçlar benzer özellikler taşır.
+                      </Text>
+                    </View>
                   </View>
                 </>
               )}
@@ -1266,6 +1395,15 @@ export default function AstrologyMatchesScreen() {
                         {getPlanetInfo(zodiacInfo.planet).influence}
                       </Text>
                     </View>
+                    
+                    <View style={styles.featureModalSection}>
+                      <Text style={styles.featureModalSectionTitle}>🪐 Yönetici Gezegen Nedir?</Text>
+                      <Text style={styles.featureModalExplanation}>
+                        Her burç, belirli bir gezegen tarafından yönetilir. Bu gezegen, o burcun özelliklerini ve 
+                        kişilik yapısını etkiler. Örneğin Mars yönetimindeki Koç burcu cesur ve enerjik olur. 
+                        Gezegenler, burçların "patronu" gibi düşünülebilir.
+                      </Text>
+                    </View>
                   </View>
                 </>
               )}
@@ -1283,7 +1421,7 @@ export default function AstrologyMatchesScreen() {
                     </Text>
                     
                     <View style={styles.featureModalSection}>
-                      <Text style={styles.featureModalSectionTitle}>Özellikler:</Text>
+                      <Text style={styles.featureModalSectionTitle}>Temel Özellikler:</Text>
                       <View style={styles.featureModalTags}>
                         {getQualityInfo('Sabit').traits.map((trait, index) => (
                           <View key={index} style={styles.featureModalTag}>
@@ -1294,9 +1432,54 @@ export default function AstrologyMatchesScreen() {
                     </View>
                     
                     <View style={styles.featureModalSection}>
+                      <Text style={styles.featureModalSectionTitle}>Pozitif Özellikler:</Text>
+                      <View style={styles.featureModalTags}>
+                        {getQualityInfo('Sabit').positive.map((trait, index) => (
+                          <View key={index} style={[styles.featureModalTag, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
+                            <Text style={styles.featureModalTagText}>{trait}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                    
+                    <View style={styles.featureModalSection}>
+                      <Text style={styles.featureModalSectionTitle}>Olumsuz Özellikler:</Text>
+                      <View style={styles.featureModalTags}>
+                        {getQualityInfo('Sabit').negative.map((trait, index) => (
+                          <View key={index} style={[styles.featureModalTag, { backgroundColor: 'rgba(239, 68, 68, 0.2)' }]}>
+                            <Text style={styles.featureModalTagText}>{trait}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                    
+                    <View style={styles.featureModalSection}>
                       <Text style={styles.featureModalSectionTitle}>Anlamı:</Text>
                       <Text style={styles.featureModalMeaning}>
                         {getQualityInfo('Sabit').meaning}
+                      </Text>
+                    </View>
+                    
+                    <View style={styles.featureModalSection}>
+                      <Text style={styles.featureModalSectionTitle}>Tavsiye:</Text>
+                      <Text style={styles.featureModalAdvice}>
+                        {getQualityInfo('Sabit').advice}
+                      </Text>
+                    </View>
+                    
+                    <View style={styles.featureModalSection}>
+                      <Text style={styles.featureModalSectionTitle}>Uyumluluk:</Text>
+                      <Text style={styles.featureModalCompatibility}>
+                        {getQualityInfo('Sabit').compatibility}
+                      </Text>
+                    </View>
+                    
+                    <View style={styles.featureModalSection}>
+                      <Text style={styles.featureModalSectionTitle}>⚖️ Kalite Nedir?</Text>
+                      <Text style={styles.featureModalExplanation}>
+                        Astrolojide 3 kalite türü vardır: Öncü, Sabit ve Değişken. Kalite, kişinin hayata yaklaşım tarzını belirler. 
+                        Öncü burçlar liderlik eder, Sabit burçlar kararlıdır, Değişken burçlar uyum sağlar. 
+                        Bu, kişinin değişimlere nasıl tepki verdiğini gösterir.
                       </Text>
                     </View>
                   </View>
@@ -1316,7 +1499,7 @@ export default function AstrologyMatchesScreen() {
                     </Text>
                     
                     <View style={styles.featureModalSection}>
-                      <Text style={styles.featureModalSectionTitle}>Özellikler:</Text>
+                      <Text style={styles.featureModalSectionTitle}>Temel Özellikler:</Text>
                       <View style={styles.featureModalTags}>
                         {getPolarityInfo('Pozitif').traits.map((trait, index) => (
                           <View key={index} style={styles.featureModalTag}>
@@ -1327,9 +1510,54 @@ export default function AstrologyMatchesScreen() {
                     </View>
                     
                     <View style={styles.featureModalSection}>
+                      <Text style={styles.featureModalSectionTitle}>Pozitif Özellikler:</Text>
+                      <View style={styles.featureModalTags}>
+                        {getPolarityInfo('Pozitif').positive.map((trait, index) => (
+                          <View key={index} style={[styles.featureModalTag, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
+                            <Text style={styles.featureModalTagText}>{trait}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                    
+                    <View style={styles.featureModalSection}>
+                      <Text style={styles.featureModalSectionTitle}>Olumsuz Özellikler:</Text>
+                      <View style={styles.featureModalTags}>
+                        {getPolarityInfo('Pozitif').negative.map((trait, index) => (
+                          <View key={index} style={[styles.featureModalTag, { backgroundColor: 'rgba(239, 68, 68, 0.2)' }]}>
+                            <Text style={styles.featureModalTagText}>{trait}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                    
+                    <View style={styles.featureModalSection}>
                       <Text style={styles.featureModalSectionTitle}>Anlamı:</Text>
                       <Text style={styles.featureModalMeaning}>
                         {getPolarityInfo('Pozitif').meaning}
+                      </Text>
+                    </View>
+                    
+                    <View style={styles.featureModalSection}>
+                      <Text style={styles.featureModalSectionTitle}>Tavsiye:</Text>
+                      <Text style={styles.featureModalAdvice}>
+                        {getPolarityInfo('Pozitif').advice}
+                      </Text>
+                    </View>
+                    
+                    <View style={styles.featureModalSection}>
+                      <Text style={styles.featureModalSectionTitle}>Uyumluluk:</Text>
+                      <Text style={styles.featureModalCompatibility}>
+                        {getPolarityInfo('Pozitif').compatibility}
+                      </Text>
+                    </View>
+                    
+                    <View style={styles.featureModalSection}>
+                      <Text style={styles.featureModalSectionTitle}>➕➖ Polarite Nedir?</Text>
+                      <Text style={styles.featureModalExplanation}>
+                        Astrolojide 2 polarite türü vardır: Pozitif ve Negatif. Bu, enerji yönünü belirler. 
+                        Pozitif burçlar dışa dönük ve aktif, Negatif burçlar içe dönük ve pasiftir. 
+                        Bu, kişinin enerjisini nasıl kullandığını ve dünyayla nasıl etkileşim kurduğunu gösterir.
                       </Text>
                     </View>
                   </View>
@@ -1368,7 +1596,11 @@ export default function AstrologyMatchesScreen() {
               style={styles.compatibilityModalContent}
             >
               {currentUser && (() => {
-                const compatibilityInfo = getCompatibilityInfo(currentUser.compatibilityScore);
+                const compatibilityInfo = getCompatibilityInfo(
+                  currentUser.compatibilityScore, 
+                  userProfile?.zodiacSign, 
+                  currentUser.zodiacSign
+                );
                 return (
                   <>
                     <View style={styles.compatibilityModalHeader}>
@@ -1382,12 +1614,33 @@ export default function AstrologyMatchesScreen() {
                         {compatibilityInfo.description}
                       </Text>
                       
+                      {compatibilityInfo.analysis && (
+                        <View style={styles.compatibilityModalSection}>
+                          <Text style={styles.compatibilityModalSectionTitle}>Burç Analizi:</Text>
+                          <Text style={styles.compatibilityModalAnalysis}>
+                            {compatibilityInfo.analysis}
+                          </Text>
+                        </View>
+                      )}
+                      
                       <View style={styles.compatibilityModalSection}>
-                        <Text style={styles.compatibilityModalSectionTitle}>Bu Uyumluluk Seviyesinde:</Text>
+                        <Text style={styles.compatibilityModalSectionTitle}>Pozitif Özellikler:</Text>
                         <View style={styles.compatibilityModalTraits}>
                           {compatibilityInfo.traits.map((trait, index) => (
                             <View key={index} style={styles.compatibilityModalTrait}>
                               <Ionicons name="checkmark-circle" size={16} color="#00D4AA" />
+                              <Text style={styles.compatibilityModalTraitText}>{trait}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                      
+                      <View style={styles.compatibilityModalSection}>
+                        <Text style={styles.compatibilityModalSectionTitle}>Olumsuz Özellikler:</Text>
+                        <View style={styles.compatibilityModalTraits}>
+                          {compatibilityInfo.negativeTraits.map((trait, index) => (
+                            <View key={index} style={styles.compatibilityModalTrait}>
+                              <Ionicons name="close-circle" size={16} color="#EF4444" />
                               <Text style={styles.compatibilityModalTraitText}>{trait}</Text>
                             </View>
                           ))}
@@ -1409,6 +1662,16 @@ export default function AstrologyMatchesScreen() {
                           </Text>
                         </View>
                       )}
+                      
+                      <View style={styles.compatibilityModalSection}>
+                        <Text style={styles.compatibilityModalSectionTitle}>💫 Uyumluluk Nasıl Hesaplanır?</Text>
+                        <Text style={styles.compatibilityModalExplanation}>
+                          Burç uyumluluğu 3 faktöre dayanır: Element (Ateş, Su, Hava, Toprak), 
+                          Kalite (Öncü, Sabit, Değişken) ve Polarite (Pozitif, Negatif). 
+                          Aynı element grubundaki burçlar güçlü uyum gösterir. 
+                          Farklı elementler de birbirini tamamlayabilir.
+                        </Text>
+                      </View>
                     </View>
                     
                     <TouchableOpacity 
@@ -1423,6 +1686,111 @@ export default function AstrologyMatchesScreen() {
             </LinearGradient>
           </View>
         </TouchableOpacity>
+      </Modal>
+
+      {/* Fotoğraf Galerisi Modal */}
+      <Modal
+        visible={showPhotoGalleryModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowPhotoGalleryModal(false)}
+        statusBarTranslucent={true}
+        hardwareAccelerated={true}
+        presentationStyle="overFullScreen"
+      >
+        <View style={styles.photoGalleryModalOverlay}>
+          <LinearGradient
+            colors={['rgba(0, 0, 0, 0.9)', 'rgba(0, 0, 0, 0.7)']}
+            style={styles.photoGalleryModalGradient}
+          >
+            {/* Header */}
+            <View style={styles.photoGalleryModalHeader}>
+              <TouchableOpacity 
+                style={styles.photoGalleryModalCloseButton}
+                onPress={() => setShowPhotoGalleryModal(false)}
+              >
+                <Ionicons name="close" size={24} color="white" />
+              </TouchableOpacity>
+              <Text style={styles.photoGalleryModalTitle}>
+                {currentUser?.firstName} {currentUser?.lastName}
+              </Text>
+              <Text style={styles.photoGalleryModalCounter}>
+                {currentPhotoIndex + 1} / {currentUser?.photos?.length || 1}
+              </Text>
+            </View>
+
+            {/* Ana Fotoğraf */}
+            <View style={styles.photoGalleryModalContent}>
+              {currentUser?.photos && currentUser.photos.length > 0 && (
+                <Image 
+                  source={{ uri: currentUser.photos[currentPhotoIndex]?.imageUrl }} 
+                  style={styles.photoGalleryModalImage}
+                  resizeMode="contain"
+                />
+              )}
+            </View>
+
+            {/* Navigation Buttons */}
+            <View style={styles.photoGalleryModalNavigation}>
+              <TouchableOpacity 
+                style={[
+                  styles.photoGalleryModalNavButton,
+                  currentPhotoIndex === 0 && styles.photoGalleryModalNavButtonDisabled
+                ]}
+                onPress={() => {
+                  if (currentPhotoIndex > 0) {
+                    setCurrentPhotoIndex(currentPhotoIndex - 1);
+                  }
+                }}
+                disabled={currentPhotoIndex === 0}
+              >
+                <Ionicons name="chevron-back" size={24} color="white" />
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[
+                  styles.photoGalleryModalNavButton,
+                  currentPhotoIndex === (currentUser?.photos?.length || 1) - 1 && styles.photoGalleryModalNavButtonDisabled
+                ]}
+                onPress={() => {
+                  if (currentUser?.photos && currentPhotoIndex < currentUser.photos.length - 1) {
+                    setCurrentPhotoIndex(currentPhotoIndex + 1);
+                  }
+                }}
+                disabled={currentPhotoIndex === (currentUser?.photos?.length || 1) - 1}
+              >
+                <Ionicons name="chevron-forward" size={24} color="white" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Thumbnail Gallery */}
+            {currentUser?.photos && currentUser.photos.length > 1 && (
+              <View style={styles.photoGalleryModalThumbnails}>
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.photoGalleryModalThumbnailsContent}
+                >
+                  {currentUser.photos.map((photo, index) => (
+                    <TouchableOpacity
+                      key={photo.id}
+                      style={[
+                        styles.photoGalleryModalThumbnail,
+                        index === currentPhotoIndex && styles.photoGalleryModalThumbnailActive
+                      ]}
+                      onPress={() => setCurrentPhotoIndex(index)}
+                    >
+                      <Image 
+                        source={{ uri: photo.imageUrl }} 
+                        style={styles.photoGalleryModalThumbnailImage}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </LinearGradient>
+        </View>
       </Modal>
 
       {/* Burç Bilgi Modal */}
@@ -2837,5 +3205,144 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  compatibilityModalAnalysis: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 12,
+    borderRadius: 10,
+    lineHeight: 20,
+  },
+  featureModalAdvice: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 12,
+    borderRadius: 10,
+  },
+  featureModalExplanation: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.85)',
+    textAlign: 'left',
+    lineHeight: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    padding: 15,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  compatibilityModalExplanation: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.85)',
+    textAlign: 'left',
+    lineHeight: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    padding: 15,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  // Fotoğraf Galerisi Modal Stilleri
+  photoGalleryModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoGalleryModalGradient: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoGalleryModalHeader: {
+    position: 'absolute',
+    top: 50,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    zIndex: 10,
+  },
+  photoGalleryModalCloseButton: {
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 20,
+    padding: 10,
+  },
+  photoGalleryModalTitle: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    flex: 1,
+  },
+  photoGalleryModalCounter: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  photoGalleryModalContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 20,
+  },
+  photoGalleryModalImage: {
+    width: '100%',
+    height: '80%',
+    maxHeight: 600,
+  },
+  photoGalleryModalNavigation: {
+    position: 'absolute',
+    bottom: 120,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+  },
+  photoGalleryModalNavButton: {
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 25,
+    padding: 15,
+    minWidth: 50,
+    alignItems: 'center',
+  },
+  photoGalleryModalNavButtonDisabled: {
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    opacity: 0.5,
+  },
+  photoGalleryModalThumbnails: {
+    position: 'absolute',
+    bottom: 20,
+    left: 0,
+    right: 0,
+    height: 80,
+  },
+  photoGalleryModalThumbnailsContent: {
+    paddingHorizontal: 20,
+    alignItems: 'center',
+  },
+  photoGalleryModalThumbnail: {
+    marginHorizontal: 5,
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  photoGalleryModalThumbnailActive: {
+    borderColor: '#8B5CF6',
+  },
+  photoGalleryModalThumbnailImage: {
+    width: 60,
+    height: 60,
   },
 });
