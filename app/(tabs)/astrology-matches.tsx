@@ -27,6 +27,148 @@ import { getDailyZodiacCommentByString } from '../types/zodiacDailyComments';
 
 const { width, height } = Dimensions.get('window');
 
+// Burç özellikleri bilgi fonksiyonları
+const getElementInfo = (element: string) => {
+  const elements = {
+    'Ateş': {
+      emoji: '🔥',
+      name: 'Ateş',
+      description: 'Enerjik, tutkulu ve liderlik özelliklerine sahip',
+      signs: ['Koç', 'Aslan', 'Yay'],
+      traits: ['Enerjik', 'Tutkulu', 'Lider', 'Cesur', 'Bağımsız'],
+      compatibility: 'Ateş burçları ile hava burçları uyumlu, su burçları ile çelişkili'
+    },
+    'Su': {
+      emoji: '💧',
+      name: 'Su',
+      description: 'Duygusal, sezgisel ve empatik',
+      signs: ['Yengeç', 'Akrep', 'Balık'],
+      traits: ['Duygusal', 'Sezgisel', 'Empatik', 'Yaratıcı', 'Mystik'],
+      compatibility: 'Su burçları ile toprak burçları uyumlu, ateş burçları ile çelişkili'
+    },
+    'Hava': {
+      emoji: '💨',
+      name: 'Hava',
+      description: 'Zihinsel, sosyal ve iletişim odaklı',
+      signs: ['İkizler', 'Terazi', 'Kova'],
+      traits: ['Zihinsel', 'Sosyal', 'İletişimci', 'Mantıklı', 'Değişken'],
+      compatibility: 'Hava burçları ile ateş burçları uyumlu, toprak burçları ile çelişkili'
+    },
+    'Toprak': {
+      emoji: '🌍',
+      name: 'Toprak',
+      description: 'Pratik, güvenilir ve materyalist',
+      signs: ['Boğa', 'Başak', 'Oğlak'],
+      traits: ['Pratik', 'Güvenilir', 'Materyalist', 'Sabırlı', 'Kararlı'],
+      compatibility: 'Toprak burçları ile su burçları uyumlu, hava burçları ile çelişkili'
+    }
+  };
+  return elements[element as keyof typeof elements] || elements['Ateş'];
+};
+
+const getPlanetInfo = (planet: string) => {
+  const planets = {
+    'Mars': { emoji: '♂️', name: 'Mars', description: 'Savaş ve enerji gezegeni', influence: 'Cesaret, rekabet, cinsellik' },
+    'Venüs': { emoji: '♀️', name: 'Venüs', description: 'Aşk ve güzellik gezegeni', influence: 'Aşk, sanat, uyum' },
+    'Merkür': { emoji: '☿️', name: 'Merkür', description: 'İletişim gezegeni', influence: 'İletişim, zeka, ticaret' },
+    'Ay': { emoji: '🌙', name: 'Ay', description: 'Duygular ve sezgiler gezegeni', influence: 'Duygular, sezgiler, anne' },
+    'Güneş': { emoji: '☀️', name: 'Güneş', description: 'Ego ve kimlik gezegeni', influence: 'Ego, kimlik, yaratıcılık' },
+    'Jüpiter': { emoji: '♃', name: 'Jüpiter', description: 'Büyüme ve şans gezegeni', influence: 'Büyüme, şans, felsefe' },
+    'Satürn': { emoji: '♄', name: 'Satürn', description: 'Disiplin ve sınırlar gezegeni', influence: 'Disiplin, sınırlar, sorumluluk' },
+    'Uranüs': { emoji: '♅', name: 'Uranüs', description: 'Değişim ve özgürlük gezegeni', influence: 'Değişim, özgürlük, yenilik' },
+    'Neptün': { emoji: '♆', name: 'Neptün', description: 'Hayaller ve ilham gezegeni', influence: 'Hayaller, ilham, mistisizm' },
+    'Plüton': { emoji: '♇', name: 'Plüton', description: 'Dönüşüm ve güç gezegeni', influence: 'Dönüşüm, güç, yeniden doğuş' }
+  };
+  return planets[planet as keyof typeof planets] || planets['Mars'];
+};
+
+const getQualityInfo = (quality: string) => {
+  const qualities = {
+    'Öncü': {
+      emoji: '🚀',
+      name: 'Öncü',
+      description: 'Yeni başlangıçlar ve liderlik',
+      traits: ['Lider', 'Başlatıcı', 'Enerjik', 'Cesur'],
+      meaning: 'Yeni dönemler başlatır, öncülük eder'
+    },
+    'Sabit': {
+      emoji: '⚖️',
+      name: 'Sabit',
+      description: 'Kararlılık ve süreklilik',
+      traits: ['Kararlı', 'Güvenilir', 'Sabırlı', 'İnatçı'],
+      meaning: 'Kararlılık gösterir, süreklilik sağlar'
+    },
+    'Değişken': {
+      emoji: '🔄',
+      name: 'Değişken',
+      description: 'Uyum ve değişim',
+      traits: ['Uyumlu', 'Değişken', 'Esnek', 'Çok yönlü'],
+      meaning: 'Değişime uyum sağlar, esneklik gösterir'
+    }
+  };
+  return qualities[quality as keyof typeof qualities] || qualities['Sabit'];
+};
+
+const getPolarityInfo = (polarity: string) => {
+  const polarities = {
+    'Pozitif': {
+      emoji: '➕',
+      name: 'Pozitif',
+      description: 'Dışa dönük ve aktif enerji',
+      traits: ['Dışa dönük', 'Aktif', 'Sosyal', 'Enerjik'],
+      meaning: 'Dış dünyaya odaklanır, aktif enerji yayar'
+    },
+    'Negatif': {
+      emoji: '➖',
+      name: 'Negatif',
+      description: 'İçe dönük ve pasif enerji',
+      traits: ['İçe dönük', 'Pasif', 'Derin', 'Sezgisel'],
+      meaning: 'İç dünyaya odaklanır, derinlemesine düşünür'
+    }
+  };
+  return polarities[polarity as keyof typeof polarities] || polarities['Pozitif'];
+};
+
+const getCompatibilityInfo = (score: number) => {
+  if (score >= 80) {
+    return {
+      level: 'Mükemmel Uyum',
+      emoji: '💕',
+      color: '#00D4AA',
+      description: 'İnanılmaz bir uyum! Bu ilişki çok güçlü temellere sahip.',
+      traits: ['Derin bağ', 'Güçlü iletişim', 'Karşılıklı anlayış', 'Uzun vadeli potansiyel'],
+      advice: 'Bu özel bağı korumak için birlikte büyümeye odaklanın.'
+    };
+  } else if (score >= 60) {
+    return {
+      level: 'Yüksek Uyum',
+      emoji: '💖',
+      color: '#FFB347',
+      description: 'Güçlü bir uyum var. Birlikte güzel anlar yaşayabilirsiniz.',
+      traits: ['İyi iletişim', 'Ortak ilgi alanları', 'Karşılıklı saygı', 'Pozitif enerji'],
+      advice: 'İlişkinizi güçlendirmek için ortak aktiviteler yapın.'
+    };
+  } else if (score >= 40) {
+    return {
+      level: 'Orta Uyum',
+      emoji: '💛',
+      color: '#FFB347',
+      description: 'Orta düzeyde bir uyum var. Çaba ile geliştirilebilir.',
+      traits: ['Bazı ortak noktalar', 'Farklılıklar', 'Öğrenme fırsatı', 'Büyüme potansiyeli'],
+      advice: 'Farklılıkları zenginlik olarak görün ve birbirinizden öğrenin.'
+    };
+  } else {
+    return {
+      level: 'Düşük Uyum',
+      emoji: '💔',
+      color: '#FF6B9D',
+      description: 'Zorlu bir uyum. Ama imkansız değil!',
+      traits: ['Farklı yaklaşımlar', 'Öğrenme fırsatı', 'Büyüme zorluğu', 'Sabır gerektirir'],
+      advice: 'Sabırlı olun ve birbirinizin farklılıklarını kabul edin.'
+    };
+  }
+};
+
 // API Response Types - Backend'den gelen veri yapısı
 interface DiscoverUserDTO {
   id: number;
@@ -116,6 +258,9 @@ export default function AstrologyMatchesScreen() {
   const [showMatchScreen, setShowMatchScreen] = useState(false);
   const [matchedUser, setMatchedUser] = useState<DiscoverUserDTO | null>(null);
   const [showZodiacModal, setShowZodiacModal] = useState(false);
+  const [showFeatureModal, setShowFeatureModal] = useState(false);
+  const [showCompatibilityModal, setShowCompatibilityModal] = useState(false);
+  const [selectedFeature, setSelectedFeature] = useState<string>('');
   const [cooldownInfo, setCooldownInfo] = useState<any>(null);
   const [hasMoreUsers, setHasMoreUsers] = useState(true);
   const [seenUsers, setSeenUsers] = useState<Set<number>>(new Set());
@@ -735,6 +880,8 @@ export default function AstrologyMatchesScreen() {
                       }}
                       style={styles.zodiacBadge}
                       activeOpacity={0.7}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      delayPressIn={0}
                     >
                       <Text style={styles.zodiacEmoji}>{zodiacInfo.emoji}</Text>
                     </TouchableOpacity>
@@ -777,45 +924,77 @@ export default function AstrologyMatchesScreen() {
                 </View>
                 
                 <View style={styles.zodiacFeatures}>
-                  <View style={styles.featureItem}>
+                  <TouchableOpacity 
+                    style={styles.featureItem}
+                    onPress={() => {
+                      setSelectedFeature('element');
+                      setShowFeatureModal(true);
+                    }}
+                    activeOpacity={0.7}
+                  >
                     <View style={styles.featureIcon}>
-                      <Ionicons name="flame" size={18} color="#EF4444" />
+                      <Text style={styles.featureEmoji}>{getElementInfo(zodiacInfo.element).emoji}</Text>
                     </View>
                     <View style={styles.featureContent}>
                       <Text style={styles.featureLabel}>Element</Text>
                       <Text style={styles.featureValue}>{zodiacInfo.element}</Text>
                     </View>
-                  </View>
+                    <Ionicons name="chevron-forward" size={16} color="#8B5CF6" />
+                  </TouchableOpacity>
                   
-                  <View style={styles.featureItem}>
+                  <TouchableOpacity 
+                    style={styles.featureItem}
+                    onPress={() => {
+                      setSelectedFeature('planet');
+                      setShowFeatureModal(true);
+                    }}
+                    activeOpacity={0.7}
+                  >
                     <View style={styles.featureIcon}>
-                      <Ionicons name="planet" size={18} color="#8B5CF6" />
+                      <Text style={styles.featureEmoji}>{getPlanetInfo(zodiacInfo.planet).emoji}</Text>
                     </View>
                     <View style={styles.featureContent}>
                       <Text style={styles.featureLabel}>Yönetici Gezegen</Text>
                       <Text style={styles.featureValue}>{zodiacInfo.planet}</Text>
                     </View>
-                  </View>
+                    <Ionicons name="chevron-forward" size={16} color="#8B5CF6" />
+                  </TouchableOpacity>
                   
-                  <View style={styles.featureItem}>
+                  <TouchableOpacity 
+                    style={styles.featureItem}
+                    onPress={() => {
+                      setSelectedFeature('quality');
+                      setShowFeatureModal(true);
+                    }}
+                    activeOpacity={0.7}
+                  >
                     <View style={styles.featureIcon}>
-                      <Ionicons name="star" size={18} color="#F59E0B" />
+                      <Text style={styles.featureEmoji}>⚖️</Text>
                     </View>
                     <View style={styles.featureContent}>
                       <Text style={styles.featureLabel}>Kalite</Text>
                       <Text style={styles.featureValue}>Sabit</Text>
                     </View>
-                  </View>
+                    <Ionicons name="chevron-forward" size={16} color="#8B5CF6" />
+                  </TouchableOpacity>
                   
-                  <View style={styles.featureItem}>
+                  <TouchableOpacity 
+                    style={styles.featureItem}
+                    onPress={() => {
+                      setSelectedFeature('polarity');
+                      setShowFeatureModal(true);
+                    }}
+                    activeOpacity={0.7}
+                  >
                     <View style={styles.featureIcon}>
-                      <Ionicons name="heart" size={18} color="#EC4899" />
+                      <Text style={styles.featureEmoji}>➕</Text>
                     </View>
                     <View style={styles.featureContent}>
                       <Text style={styles.featureLabel}>Polarite</Text>
                       <Text style={styles.featureValue}>Pozitif</Text>
                     </View>
-                  </View>
+                    <Ionicons name="chevron-forward" size={16} color="#8B5CF6" />
+                  </TouchableOpacity>
                 </View>
                 
                 {/* Burç Açıklaması */}
@@ -871,10 +1050,15 @@ export default function AstrologyMatchesScreen() {
 
             {/* Uyumluluk Analizi */}
             {currentUser.compatibilityMessage && (
-              <View style={styles.compatibilityMessageContainer}>
+              <TouchableOpacity 
+                style={styles.compatibilityMessageContainer}
+                onPress={() => setShowCompatibilityModal(true)}
+                activeOpacity={0.7}
+              >
                 <View style={styles.sectionHeader}>
                   <Ionicons name="sparkles" size={22} color="#8B5CF6" />
                   <Text style={styles.sectionTitle}>💫 Uyumluluk Analizi</Text>
+                  <Ionicons name="chevron-forward" size={16} color="#8B5CF6" style={{ marginLeft: 'auto' }} />
                 </View>
                 
                 {/* Uyumluluk Skoru Görsel */}
@@ -909,7 +1093,7 @@ export default function AstrologyMatchesScreen() {
                     {currentUser.compatibilityMessage}
                   </Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             )}
 
             {/* Fotoğraf Galerisi */}
@@ -1000,6 +1184,247 @@ export default function AstrologyMatchesScreen() {
         </View>
       )}
 
+      {/* Burç Özellikleri Modal */}
+      <Modal
+        visible={showFeatureModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowFeatureModal(false)}
+        statusBarTranslucent={true}
+        hardwareAccelerated={true}
+        presentationStyle="overFullScreen"
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowFeatureModal(false)}
+        >
+          <View style={styles.featureModalContainer}>
+            <LinearGradient
+              colors={['rgba(139, 92, 246, 0.95)', 'rgba(124, 58, 237, 0.95)']}
+              style={styles.featureModalContent}
+            >
+              {selectedFeature === 'element' && zodiacInfo && (
+                <>
+                  <View style={styles.featureModalHeader}>
+                    <Text style={styles.featureModalEmoji}>{getElementInfo(zodiacInfo.element).emoji}</Text>
+                    <Text style={styles.featureModalTitle}>{getElementInfo(zodiacInfo.element).name} Elementi</Text>
+                  </View>
+                  
+                  <View style={styles.featureModalInfo}>
+                    <Text style={styles.featureModalDescription}>
+                      {getElementInfo(zodiacInfo.element).description}
+                    </Text>
+                    
+                    <View style={styles.featureModalSection}>
+                      <Text style={styles.featureModalSectionTitle}>Bu Elemente Ait Burçlar:</Text>
+                      <View style={styles.featureModalTags}>
+                        {getElementInfo(zodiacInfo.element).signs.map((sign, index) => (
+                          <View key={index} style={styles.featureModalTag}>
+                            <Text style={styles.featureModalTagText}>{sign}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                    
+                    <View style={styles.featureModalSection}>
+                      <Text style={styles.featureModalSectionTitle}>Özellikler:</Text>
+                      <View style={styles.featureModalTags}>
+                        {getElementInfo(zodiacInfo.element).traits.map((trait, index) => (
+                          <View key={index} style={styles.featureModalTag}>
+                            <Text style={styles.featureModalTagText}>{trait}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                    
+                    <View style={styles.featureModalSection}>
+                      <Text style={styles.featureModalSectionTitle}>Uyumluluk:</Text>
+                      <Text style={styles.featureModalCompatibility}>
+                        {getElementInfo(zodiacInfo.element).compatibility}
+                      </Text>
+                    </View>
+                  </View>
+                </>
+              )}
+              
+              {selectedFeature === 'planet' && zodiacInfo && (
+                <>
+                  <View style={styles.featureModalHeader}>
+                    <Text style={styles.featureModalEmoji}>{getPlanetInfo(zodiacInfo.planet).emoji}</Text>
+                    <Text style={styles.featureModalTitle}>{getPlanetInfo(zodiacInfo.planet).name}</Text>
+                  </View>
+                  
+                  <View style={styles.featureModalInfo}>
+                    <Text style={styles.featureModalDescription}>
+                      {getPlanetInfo(zodiacInfo.planet).description}
+                    </Text>
+                    
+                    <View style={styles.featureModalSection}>
+                      <Text style={styles.featureModalSectionTitle}>Etkileri:</Text>
+                      <Text style={styles.featureModalInfluence}>
+                        {getPlanetInfo(zodiacInfo.planet).influence}
+                      </Text>
+                    </View>
+                  </View>
+                </>
+              )}
+              
+              {selectedFeature === 'quality' && (
+                <>
+                  <View style={styles.featureModalHeader}>
+                    <Text style={styles.featureModalEmoji}>⚖️</Text>
+                    <Text style={styles.featureModalTitle}>Sabit Kalite</Text>
+                  </View>
+                  
+                  <View style={styles.featureModalInfo}>
+                    <Text style={styles.featureModalDescription}>
+                      {getQualityInfo('Sabit').description}
+                    </Text>
+                    
+                    <View style={styles.featureModalSection}>
+                      <Text style={styles.featureModalSectionTitle}>Özellikler:</Text>
+                      <View style={styles.featureModalTags}>
+                        {getQualityInfo('Sabit').traits.map((trait, index) => (
+                          <View key={index} style={styles.featureModalTag}>
+                            <Text style={styles.featureModalTagText}>{trait}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                    
+                    <View style={styles.featureModalSection}>
+                      <Text style={styles.featureModalSectionTitle}>Anlamı:</Text>
+                      <Text style={styles.featureModalMeaning}>
+                        {getQualityInfo('Sabit').meaning}
+                      </Text>
+                    </View>
+                  </View>
+                </>
+              )}
+              
+              {selectedFeature === 'polarity' && (
+                <>
+                  <View style={styles.featureModalHeader}>
+                    <Text style={styles.featureModalEmoji}>➕</Text>
+                    <Text style={styles.featureModalTitle}>Pozitif Polarite</Text>
+                  </View>
+                  
+                  <View style={styles.featureModalInfo}>
+                    <Text style={styles.featureModalDescription}>
+                      {getPolarityInfo('Pozitif').description}
+                    </Text>
+                    
+                    <View style={styles.featureModalSection}>
+                      <Text style={styles.featureModalSectionTitle}>Özellikler:</Text>
+                      <View style={styles.featureModalTags}>
+                        {getPolarityInfo('Pozitif').traits.map((trait, index) => (
+                          <View key={index} style={styles.featureModalTag}>
+                            <Text style={styles.featureModalTagText}>{trait}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                    
+                    <View style={styles.featureModalSection}>
+                      <Text style={styles.featureModalSectionTitle}>Anlamı:</Text>
+                      <Text style={styles.featureModalMeaning}>
+                        {getPolarityInfo('Pozitif').meaning}
+                      </Text>
+                    </View>
+                  </View>
+                </>
+              )}
+              
+              <TouchableOpacity 
+                style={styles.featureModalCloseButton}
+                onPress={() => setShowFeatureModal(false)}
+              >
+                <Text style={styles.featureModalCloseText}>Kapat</Text>
+              </TouchableOpacity>
+            </LinearGradient>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Uyumluluk Analizi Modal */}
+      <Modal
+        visible={showCompatibilityModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowCompatibilityModal(false)}
+        statusBarTranslucent={true}
+        hardwareAccelerated={true}
+        presentationStyle="overFullScreen"
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowCompatibilityModal(false)}
+        >
+          <View style={styles.compatibilityModalContainer}>
+            <LinearGradient
+              colors={['rgba(139, 92, 246, 0.95)', 'rgba(124, 58, 237, 0.95)']}
+              style={styles.compatibilityModalContent}
+            >
+              {currentUser && (() => {
+                const compatibilityInfo = getCompatibilityInfo(currentUser.compatibilityScore);
+                return (
+                  <>
+                    <View style={styles.compatibilityModalHeader}>
+                      <Text style={styles.compatibilityModalEmoji}>{compatibilityInfo.emoji}</Text>
+                      <Text style={styles.compatibilityModalTitle}>{compatibilityInfo.level}</Text>
+                      <Text style={styles.compatibilityModalScore}>%{currentUser.compatibilityScore}</Text>
+                    </View>
+                    
+                    <View style={styles.compatibilityModalInfo}>
+                      <Text style={styles.compatibilityModalDescription}>
+                        {compatibilityInfo.description}
+                      </Text>
+                      
+                      <View style={styles.compatibilityModalSection}>
+                        <Text style={styles.compatibilityModalSectionTitle}>Bu Uyumluluk Seviyesinde:</Text>
+                        <View style={styles.compatibilityModalTraits}>
+                          {compatibilityInfo.traits.map((trait, index) => (
+                            <View key={index} style={styles.compatibilityModalTrait}>
+                              <Ionicons name="checkmark-circle" size={16} color="#00D4AA" />
+                              <Text style={styles.compatibilityModalTraitText}>{trait}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                      
+                      <View style={styles.compatibilityModalSection}>
+                        <Text style={styles.compatibilityModalSectionTitle}>Tavsiye:</Text>
+                        <Text style={styles.compatibilityModalAdvice}>
+                          {compatibilityInfo.advice}
+                        </Text>
+                      </View>
+                      
+                      {currentUser.compatibilityMessage && (
+                        <View style={styles.compatibilityModalSection}>
+                          <Text style={styles.compatibilityModalSectionTitle}>Detaylı Analiz:</Text>
+                          <Text style={styles.compatibilityModalMessage}>
+                            {currentUser.compatibilityMessage}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    
+                    <TouchableOpacity 
+                      style={styles.compatibilityModalCloseButton}
+                      onPress={() => setShowCompatibilityModal(false)}
+                    >
+                      <Text style={styles.compatibilityModalCloseText}>Kapat</Text>
+                    </TouchableOpacity>
+                  </>
+                );
+              })()}
+            </LinearGradient>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Burç Bilgi Modal */}
       <Modal
         visible={showZodiacModal}
@@ -1010,16 +1435,24 @@ export default function AstrologyMatchesScreen() {
           setShowZodiacModal(false);
         }}
         statusBarTranslucent={true}
+        hardwareAccelerated={true}
+        presentationStyle="overFullScreen"
       >
         <TouchableOpacity 
           style={styles.modalOverlay}
           activeOpacity={1}
-          onPress={() => setShowZodiacModal(false)}
+          onPress={() => {
+            console.log('🔮 [ZODIAC] Modal overlay tıklandı - kapatılıyor');
+            setShowZodiacModal(false);
+          }}
+          hitSlop={{ top: 0, bottom: 0, left: 0, right: 0 }}
         >
           <View style={styles.zodiacModalContainer}>
             <LinearGradient
               colors={['rgba(139, 92, 246, 0.95)', 'rgba(124, 58, 237, 0.95)']}
               style={styles.zodiacModalContent}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
             >
               {zodiacInfo ? (
                 <>
@@ -1333,6 +1766,9 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     borderWidth: 1,
     borderColor: 'rgba(139, 92, 246, 0.3)',
+  },
+  featureEmoji: {
+    fontSize: 20,
   },
   featureIcon: {
     width: 40,
@@ -2007,6 +2443,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 20,
     elevation: 20,
+    zIndex: 10000,
+    maxHeight: '80%',
+    maxWidth: '90%',
   },
   zodiacModalContent: {
     padding: 25,
@@ -2167,5 +2606,236 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: '600',
     marginLeft: 6,
+  },
+  // Burç Özellikleri Modal Stilleri
+  featureModalContainer: {
+    margin: 20,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 20,
+    zIndex: 10000,
+    maxHeight: '80%',
+    maxWidth: '90%',
+  },
+  featureModalContent: {
+    padding: 25,
+    minWidth: 320,
+    maxWidth: 350,
+  },
+  featureModalHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  featureModalEmoji: {
+    fontSize: 48,
+    marginBottom: 10,
+  },
+  featureModalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'white',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  featureModalInfo: {
+    marginBottom: 20,
+  },
+  featureModalDescription: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
+    lineHeight: 24,
+    textAlign: 'center',
+    marginBottom: 20,
+    fontStyle: 'italic',
+  },
+  featureModalSection: {
+    marginBottom: 20,
+  },
+  featureModalSectionTitle: {
+    fontSize: 16,
+    color: 'white',
+    fontWeight: 'bold',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  featureModalTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  featureModalTag: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  featureModalTagText: {
+    fontSize: 12,
+    color: 'white',
+    fontWeight: '600',
+  },
+  featureModalCompatibility: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 12,
+    borderRadius: 10,
+  },
+  featureModalInfluence: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 12,
+    borderRadius: 10,
+  },
+  featureModalMeaning: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 12,
+    borderRadius: 10,
+  },
+  featureModalCloseButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 15,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  featureModalCloseText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  // Uyumluluk Modal Stilleri
+  compatibilityModalContainer: {
+    margin: 20,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 20,
+    zIndex: 10000,
+    maxHeight: '80%',
+    maxWidth: '90%',
+  },
+  compatibilityModalContent: {
+    padding: 25,
+    minWidth: 320,
+    maxWidth: 350,
+  },
+  compatibilityModalHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  compatibilityModalEmoji: {
+    fontSize: 48,
+    marginBottom: 10,
+  },
+  compatibilityModalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'white',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+    marginBottom: 5,
+  },
+  compatibilityModalScore: {
+    fontSize: 18,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '600',
+  },
+  compatibilityModalInfo: {
+    marginBottom: 20,
+  },
+  compatibilityModalDescription: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
+    lineHeight: 24,
+    textAlign: 'center',
+    marginBottom: 20,
+    fontStyle: 'italic',
+  },
+  compatibilityModalSection: {
+    marginBottom: 20,
+  },
+  compatibilityModalSectionTitle: {
+    fontSize: 16,
+    color: 'white',
+    fontWeight: 'bold',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  compatibilityModalTraits: {
+    gap: 8,
+  },
+  compatibilityModalTrait: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  compatibilityModalTraitText: {
+    fontSize: 14,
+    color: 'white',
+    fontWeight: '600',
+    marginLeft: 8,
+    flex: 1,
+  },
+  compatibilityModalAdvice: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 12,
+    borderRadius: 10,
+  },
+  compatibilityModalMessage: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 12,
+    borderRadius: 10,
+    lineHeight: 20,
+  },
+  compatibilityModalCloseButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 15,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  compatibilityModalCloseText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
