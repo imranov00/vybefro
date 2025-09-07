@@ -373,6 +373,8 @@ export default function AstrologyMatchesScreen() {
   const [showPhotoGalleryModal, setShowPhotoGalleryModal] = useState(false);
   const [selectedFeature, setSelectedFeature] = useState<string>('');
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+  const [preloadedImages, setPreloadedImages] = useState<Set<string>>(new Set());
+  const [imageLoadingStates, setImageLoadingStates] = useState<Map<string, boolean>>(new Map());
   const [cooldownInfo, setCooldownInfo] = useState<any>(null);
   const [hasMoreUsers, setHasMoreUsers] = useState(true);
   const [seenUsers, setSeenUsers] = useState<Set<number>>(new Set());
@@ -383,6 +385,30 @@ export default function AstrologyMatchesScreen() {
   const rotate = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(1)).current;
   const opacity = useRef(new Animated.Value(1)).current;
+
+  // Fotoğraf preloading fonksiyonu
+  const preloadImages = useCallback(async (photos: UserPhotoDTO[]) => {
+    const imagePromises = photos.map(photo => {
+      return new Promise<void>((resolve) => {
+        if (preloadedImages.has(photo.imageUrl)) {
+          resolve();
+          return;
+        }
+        
+        Image.prefetch(photo.imageUrl)
+          .then(() => {
+            setPreloadedImages(prev => new Set([...prev, photo.imageUrl]));
+            resolve();
+          })
+          .catch(() => {
+            // Hata durumunda da devam et
+            resolve();
+          });
+      });
+    });
+    
+    await Promise.all(imagePromises);
+  }, [preloadedImages]);
 
   
 
@@ -491,6 +517,13 @@ export default function AstrologyMatchesScreen() {
 
   // Mevcut kullanıcıyı al
   const currentUser = userBatch[currentIndex] || null;
+
+  // Kullanıcı değiştiğinde fotoğrafları preload et
+  React.useEffect(() => {
+    if (currentUser?.photos && currentUser.photos.length > 0) {
+      preloadImages(currentUser.photos);
+    }
+  }, [currentUser?.id, preloadImages]);
 
   // Sıradaki kullanıcıya geç
   const showNextUser = useCallback(() => {
@@ -969,7 +1002,9 @@ export default function AstrologyMatchesScreen() {
                   uri: currentUser.profileImageUrl || 
                         (currentUser.photos.length > 0 ? currentUser.photos[0].imageUrl : 'https://picsum.photos/400/600?random=1')
                 }} 
-                style={styles.mainPhoto} 
+                style={styles.mainPhoto}
+                fadeDuration={200}
+                progressiveRenderingEnabled={true}
               />
               
               {/* Fotoğraf Overlay - Gradient */}
@@ -1233,7 +1268,8 @@ export default function AstrologyMatchesScreen() {
                     <View key={photo.id} style={styles.galleryPhotoContainer}>
                       <Image 
                         source={{ uri: photo.imageUrl }} 
-                        style={styles.galleryPhoto} 
+                        style={styles.galleryPhoto}
+                        fadeDuration={150}
                       />
                     </View>
                   ))}
@@ -1725,11 +1761,41 @@ export default function AstrologyMatchesScreen() {
             {/* Ana Fotoğraf */}
             <View style={styles.photoGalleryModalContent}>
               {currentUser?.photos && currentUser.photos.length > 0 && (
-                <Image 
-                  source={{ uri: currentUser.photos[currentPhotoIndex]?.imageUrl }} 
-                  style={styles.photoGalleryModalImage}
-                  resizeMode="contain"
-                />
+                <>
+                  <Image 
+                    source={{ uri: currentUser.photos[currentPhotoIndex]?.imageUrl }} 
+                    style={styles.photoGalleryModalImage}
+                    resizeMode="contain"
+                    onLoadStart={() => {
+                      setImageLoadingStates(prev => new Map(prev).set(
+                        currentUser.photos[currentPhotoIndex]?.imageUrl || '', 
+                        true
+                      ));
+                    }}
+                    onLoadEnd={() => {
+                      setImageLoadingStates(prev => new Map(prev).set(
+                        currentUser.photos[currentPhotoIndex]?.imageUrl || '', 
+                        false
+                      ));
+                    }}
+                    onError={() => {
+                      setImageLoadingStates(prev => new Map(prev).set(
+                        currentUser.photos[currentPhotoIndex]?.imageUrl || '', 
+                        false
+                      ));
+                    }}
+                    fadeDuration={200}
+                    progressiveRenderingEnabled={true}
+                  />
+                  
+                  {/* Loading Overlay */}
+                  {imageLoadingStates.get(currentUser.photos[currentPhotoIndex]?.imageUrl || '') && (
+                    <View style={styles.photoGalleryModalLoadingOverlay}>
+                      <ActivityIndicator size="large" color="white" />
+                      <Text style={styles.photoGalleryModalLoadingText}>Yükleniyor...</Text>
+                    </View>
+                  )}
+                </>
               )}
             </View>
 
@@ -1786,6 +1852,7 @@ export default function AstrologyMatchesScreen() {
                       <Image 
                         source={{ uri: photo.imageUrl }} 
                         style={styles.photoGalleryModalThumbnailImage}
+                        fadeDuration={100}
                       />
                     </TouchableOpacity>
                   ))}
@@ -3360,5 +3427,22 @@ const styles = StyleSheet.create({
   photoGalleryModalThumbnailImage: {
     width: 60,
     height: 60,
+  },
+  photoGalleryModalLoadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  photoGalleryModalLoadingText: {
+    color: 'white',
+    fontSize: 16,
+    marginTop: 10,
+    fontWeight: '600',
   },
 });
