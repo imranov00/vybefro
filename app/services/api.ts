@@ -4,7 +4,7 @@ import { ZodiacSign } from '../types/zodiac';
 import { getRefreshToken, getToken, removeAllTokens, saveRefreshToken, saveToken } from '../utils/tokenStorage';
 
 // CLOUDFLARE TUNNEL URL'i - değişebilir
-const CLOUDFLARE_URL = 'https://programmes-sim-experiments-scales.trycloudflare.com';
+const CLOUDFLARE_URL = 'https://neighbor-reference-wound-weights.trycloudflare.com';
 
 // Alternative endpoints (gerektiğinde eklenebilir)
 const FALLBACK_URLS: string[] = [
