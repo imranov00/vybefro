@@ -66,6 +66,22 @@ const getElementInfo = (element: string) => {
   return elements[element as keyof typeof elements] || elements['Ateş'];
 };
 
+// Element isimlerini yerel görsellere eşleyen yardımcı fonksiyon
+const getElementImage = (element: string) => {
+  switch (element) {
+    case 'Ateş':
+      return require('../../simgeler/elements/ates.png');
+    case 'Su':
+      return require('../../simgeler/elements/su.png');
+    case 'Hava':
+      return require('../../simgeler/elements/hava.png');
+    case 'Toprak':
+      return require('../../simgeler/elements/toprak.png');
+    default:
+      return require('../../simgeler/elements/ates.png');
+  }
+};
+
 const getPlanetInfo = (planet: string) => {
   const planets = {
     'Mars': { emoji: '🔴', name: 'Mars', description: 'Savaş ve enerji gezegeni', influence: 'Cesaret, rekabet, cinsellik, güç' },
@@ -80,6 +96,34 @@ const getPlanetInfo = (planet: string) => {
     'Plüton': { emoji: '🖤', name: 'Plüton', description: 'Dönüşüm ve güç gezegeni', influence: 'Dönüşüm, güç, yeniden doğuş, gizem' }
   };
   return planets[planet as keyof typeof planets] || planets['Mars'];
+};
+
+// Gezegen isimlerini yerel görsellere eşleyen yardımcı fonksiyon
+const getPlanetImage = (planet: string) => {
+  switch (planet) {
+    case 'Mars':
+      return require('../../simgeler/gezegenler/mars.png');
+    case 'Venüs':
+      return require('../../simgeler/gezegenler/venus.png');
+    case 'Merkür':
+      return require('../../simgeler/gezegenler/merkür.png');
+    case 'Ay':
+      return require('../../simgeler/gezegenler/ay.png');
+    case 'Güneş':
+      return require('../../simgeler/gezegenler/Gunes.png');
+    case 'Jüpiter':
+      return require('../../simgeler/gezegenler/jupiter.png');
+    case 'Satürn':
+      return require('../../simgeler/gezegenler/saturn.png');
+    case 'Uranüs':
+      return require('../../simgeler/gezegenler/uranus.png');
+    case 'Neptün':
+      return require('../../simgeler/gezegenler/neptun.png');
+    case 'Plüton':
+      return require('../../simgeler/gezegenler/pluton.png');
+    default:
+      return require('../../simgeler/gezegenler/mars.png');
+  }
 };
 
 const getQualityInfo = (quality: string) => {
@@ -385,6 +429,17 @@ export default function AstrologyMatchesScreen() {
   const rotate = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(1)).current;
   const opacity = useRef(new Animated.Value(1)).current;
+  
+  // Uyumluluk skoru yanıp sönen animasyon
+  const compatibilityOpacity = useRef(new Animated.Value(1)).current;
+  
+  // Parlayan yıldızlar için animasyonlar
+  const sparkle1 = useRef(new Animated.Value(0)).current;
+  const sparkle2 = useRef(new Animated.Value(0)).current;
+  const sparkle3 = useRef(new Animated.Value(0)).current;
+  const sparkle4 = useRef(new Animated.Value(0)).current;
+  const sparkle5 = useRef(new Animated.Value(0)).current;
+  const sparkle6 = useRef(new Animated.Value(0)).current;
 
   // Fotoğraf preloading fonksiyonu
   const preloadImages = useCallback(async (photos: UserPhotoDTO[]) => {
@@ -418,8 +473,8 @@ export default function AstrologyMatchesScreen() {
       const data = await swipeApi.getSwipeLimitInfo();
       setSwipeLimitInfo(data);
       
-      // Premium kullanıcılar için swipe limit kontrolü yapma
-      if (!data.canSwipe && !data.isPremium) {
+      // Swipe limit kontrolü - sadece gerçek limit dolduğunda
+      if (data.remainingSwipes <= 0 && !data.isPremium) {
         setShowLimitOverlay(true);
       }
     } catch (error) {
@@ -491,8 +546,8 @@ export default function AstrologyMatchesScreen() {
         
         if (data.swipeLimitInfo) {
           setSwipeLimitInfo(data.swipeLimitInfo);
-          // Premium kullanıcılar için swipe limit kontrolü yapma
-          if (!data.swipeLimitInfo.canSwipe && !data.swipeLimitInfo.isPremium) {
+          // Swipe limit kontrolü - sadece gerçek limit dolduğunda
+          if (data.swipeLimitInfo.remainingSwipes <= 0 && !data.swipeLimitInfo.isPremium) {
             setShowLimitOverlay(true);
           }
         }
@@ -503,7 +558,7 @@ export default function AstrologyMatchesScreen() {
       } else {
         setUserBatch([]);
         setHasMoreUsers(false);
-        if (data.swipeLimitInfo && !data.swipeLimitInfo.canSwipe && !data.swipeLimitInfo.isPremium) {
+        if (data.swipeLimitInfo && data.swipeLimitInfo.remainingSwipes <= 0 && !data.swipeLimitInfo.isPremium) {
           setShowLimitOverlay(true);
         }
       }
@@ -524,6 +579,20 @@ export default function AstrologyMatchesScreen() {
       preloadImages(currentUser.photos);
     }
   }, [currentUser?.id, preloadImages]);
+
+  // Uyumluluk skoru yanıp sönen animasyonu başlat
+  React.useEffect(() => {
+    if (currentUser) {
+      startCompatibilityBlink(currentUser.compatibilityScore);
+    }
+  }, [currentUser]);
+
+  // Parlayan yıldızlar animasyonunu başlat
+  React.useEffect(() => {
+    if (showMatchScreen) {
+      startSparkleAnimation();
+    }
+  }, [showMatchScreen]);
 
   // Sıradaki kullanıcıya geç
   const showNextUser = useCallback(() => {
@@ -611,8 +680,13 @@ export default function AstrologyMatchesScreen() {
         setUserBatch([]);
         setHasMoreUsers(false);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ [BATCH] Yeni batch yükleme hatası:', error);
+      
+      // Swipe limit hatası kontrolü (sadece gerçek swipe limiti dolduğunda)
+      if (error.isSwipeLimitError && !isPremium) {
+        setShowLimitOverlay(true);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -673,8 +747,13 @@ export default function AstrologyMatchesScreen() {
           console.log(`✅ [PRELOAD] ${batchUsers.length} kullanıcı önceden yüklendi`);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ [PRELOAD] Preload hatası:', error);
+      
+      // Swipe limit hatası kontrolü (sadece gerçek swipe limiti dolduğunda)
+      if (error.isSwipeLimitError && !isPremium) {
+        setShowLimitOverlay(true);
+      }
     } finally {
       setIsPreloading(false);
     }
@@ -713,8 +792,8 @@ export default function AstrologyMatchesScreen() {
     } catch (error: any) {
       console.error('Swipe hatası:', error);
       
-      // Swipe limit hatası kontrolü (sadece premium olmayan kullanıcılar için)
-      if (error.message && error.message.includes('limit') && !isPremium) {
+      // Swipe limit hatası kontrolü (sadece gerçek swipe limiti dolduğunda)
+      if (error.isSwipeLimitError && !isPremium) {
         setShowLimitOverlay(true);
       } 
       // Duplicate swipe hatası (artık çok az görülecek)
@@ -740,6 +819,65 @@ export default function AstrologyMatchesScreen() {
     rotate.setValue(0);
     scale.setValue(1);
     opacity.setValue(1);
+  };
+
+  // Uyumluluk skoru yanıp sönen animasyon - skora göre hız
+  const startCompatibilityBlink = (compatibilityScore: number) => {
+    // Uyumluluk düştükçe hızlanır, yükseldikçe yavaşlar
+    // 0-40: Hızlı (500ms), 40-60: Orta (1000ms), 60-80: Yavaş (1500ms), 80+: Çok yavaş (2000ms)
+    let duration = 2000; // Varsayılan yavaş
+    if (compatibilityScore < 40) {
+      duration = 500; // Hızlı
+    } else if (compatibilityScore < 60) {
+      duration = 1000; // Orta
+    } else if (compatibilityScore < 80) {
+      duration = 1500; // Yavaş
+    }
+    
+    const blinkAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(compatibilityOpacity, {
+          toValue: 0.3,
+          duration: duration,
+          useNativeDriver: true,
+        }),
+        Animated.timing(compatibilityOpacity, {
+          toValue: 1,
+          duration: duration,
+          useNativeDriver: true,
+        }),
+      ]),
+      { iterations: -1 }
+    );
+    blinkAnimation.start();
+  };
+
+  // Parlayan yıldızlar animasyonu
+  const startSparkleAnimation = () => {
+    const sparkles = [sparkle1, sparkle2, sparkle3, sparkle4, sparkle5, sparkle6];
+    
+    sparkles.forEach((sparkle, index) => {
+      const delay = index * 200; // Her yıldız 200ms arayla başlar
+      
+      const sparkleAnimation = Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(sparkle, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(sparkle, {
+            toValue: 0,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.delay(1000 + (index * 100)), // Rastgele bekleme
+        ]),
+        { iterations: -1 }
+      );
+      sparkleAnimation.start();
+    });
   };
 
   // Swipe işlemi tamamlandığında
@@ -987,6 +1125,25 @@ export default function AstrologyMatchesScreen() {
             </View>
           )}
 
+          {/* Uyumluluk Skoru - Sol Üst Köşe */}
+          <Animated.View 
+            style={[
+              styles.compatibilityTopLeft,
+              { opacity: compatibilityOpacity }
+            ]}
+          >
+            <View style={styles.compatibilityTopLeftContainer}>
+              <Text style={styles.compatibilityTopLeftLabel}>✨ Uyumluluk</Text>
+              <View style={[
+                styles.compatibilityTopLeftScore,
+                { backgroundColor: currentUser.compatibilityScore >= 80 ? '#00D4AA' : 
+                                   currentUser.compatibilityScore >= 60 ? '#FFB347' : '#FF6B9D' }
+              ]}>
+                <Text style={styles.compatibilityTopLeftText}>%{currentUser.compatibilityScore}</Text>
+              </View>
+            </View>
+          </Animated.View>
+
           {/* Tek ScrollView ile tüm içerik - Fotoğraf ve bilgiler birlikte */}
           <ScrollView 
             style={styles.mainScrollView}
@@ -1036,19 +1193,6 @@ export default function AstrologyMatchesScreen() {
                 </View>
               </View>
 
-              {/* Uyumluluk Skoru - Ayrı overlay */}
-              <View style={styles.userInfoOverlay}>
-                <View style={styles.compatibilityContainer}>
-                  <Text style={styles.compatibilityLabel}>✨ Uyumluluk</Text>
-                  <View style={[
-                    styles.compatibilityScore,
-                    { backgroundColor: currentUser.compatibilityScore >= 80 ? '#00D4AA' : 
-                                       currentUser.compatibilityScore >= 60 ? '#FFB347' : '#FF6B9D' }
-                  ]}>
-                    <Text style={styles.compatibilityText}>%{currentUser.compatibilityScore}</Text>
-                  </View>
-                </View>
-              </View>
             </View>
 
             {/* Bio Section */}
@@ -1080,7 +1224,7 @@ export default function AstrologyMatchesScreen() {
                     activeOpacity={0.7}
                   >
                     <View style={styles.featureIcon}>
-                      <Text style={styles.featureEmoji}>{getElementInfo(zodiacInfo.element).emoji}</Text>
+                      <Image source={getElementImage(zodiacInfo.element)} style={styles.featureElementImage} />
                     </View>
                     <View style={styles.featureContent}>
                       <Text style={styles.featureLabel}>Element</Text>
@@ -1098,7 +1242,7 @@ export default function AstrologyMatchesScreen() {
                     activeOpacity={0.7}
                   >
                     <View style={styles.featureIcon}>
-                      <Text style={styles.featureEmoji}>{getPlanetInfo(zodiacInfo.planet).emoji}</Text>
+                      <Image source={getPlanetImage(zodiacInfo.planet)} style={styles.featurePlanetImage} />
                     </View>
                     <View style={styles.featureContent}>
                       <Text style={styles.featureLabel}>Yönetici Gezegen</Text>
@@ -1363,7 +1507,7 @@ export default function AstrologyMatchesScreen() {
               {selectedFeature === 'element' && zodiacInfo && (
                 <>
                   <View style={styles.featureModalHeader}>
-                    <Text style={styles.featureModalEmoji}>{getElementInfo(zodiacInfo.element).emoji}</Text>
+                    <Image source={getElementImage(zodiacInfo.element)} style={styles.featureModalElementImage} />
                     <Text style={styles.featureModalTitle}>{getElementInfo(zodiacInfo.element).name} Elementi</Text>
                   </View>
                   
@@ -1416,7 +1560,7 @@ export default function AstrologyMatchesScreen() {
               {selectedFeature === 'planet' && zodiacInfo && (
                 <>
                   <View style={styles.featureModalHeader}>
-                    <Text style={styles.featureModalEmoji}>{getPlanetInfo(zodiacInfo.planet).emoji}</Text>
+                    <Image source={getPlanetImage(zodiacInfo.planet)} style={styles.featureModalPlanetImage} />
                     <Text style={styles.featureModalTitle}>{getPlanetInfo(zodiacInfo.planet).name}</Text>
                   </View>
                   
@@ -1984,13 +2128,114 @@ export default function AstrologyMatchesScreen() {
       {/* Match Screen */}
       {showMatchScreen && matchedUser && (
         <View style={styles.matchOverlay}>
-          <LinearGradient colors={['#FFD700', '#FFA500']} style={styles.matchOverlayGradient}>
+          <LinearGradient colors={['#8B5CF6', '#7C3AED', '#6D28D9']} style={styles.matchOverlayGradient}>
+            
+            {/* Parlayan Yıldızlar */}
+            <Animated.View style={[styles.sparkle, styles.sparkle1, { opacity: sparkle1 }]}>
+              <Text style={styles.sparkleText}>✨</Text>
+            </Animated.View>
+            <Animated.View style={[styles.sparkle, styles.sparkle2, { opacity: sparkle2 }]}>
+              <Text style={styles.sparkleText}>⭐</Text>
+            </Animated.View>
+            <Animated.View style={[styles.sparkle, styles.sparkle3, { opacity: sparkle3 }]}>
+              <Text style={styles.sparkleText}>✨</Text>
+            </Animated.View>
+            <Animated.View style={[styles.sparkle, styles.sparkle4, { opacity: sparkle4 }]}>
+              <Text style={styles.sparkleText}>⭐</Text>
+            </Animated.View>
+            <Animated.View style={[styles.sparkle, styles.sparkle5, { opacity: sparkle5 }]}>
+              <Text style={styles.sparkleText}>✨</Text>
+            </Animated.View>
+            <Animated.View style={[styles.sparkle, styles.sparkle6, { opacity: sparkle6 }]}>
+              <Text style={styles.sparkleText}>⭐</Text>
+            </Animated.View>
+            
             <View style={styles.matchOverlayContent}>
               <Text style={styles.matchIcon}>🎉</Text>
               <Text style={styles.matchTitle}>Eşleşme!</Text>
               <Text style={styles.matchSubtitle}>
                 {matchedUser.firstName} ile eşleştiniz!
               </Text>
+
+              {/* Kullanıcı Fotoğrafları */}
+              <View style={styles.matchPhotosContainer}>
+                <View style={styles.matchPhotoWrapper}>
+                  <Image 
+                    source={{ uri: userProfile?.profileImage || 'https://via.placeholder.com/80' }}
+                    style={styles.matchPhoto}
+                    resizeMode="cover"
+                  />
+                  <Text style={styles.matchPhotoLabel}>Sen</Text>
+                </View>
+                
+                <Animated.View style={[
+                  styles.matchHeartIcon,
+                  {
+                    transform: [
+                      {
+                        scale: sparkle1.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [1, 1.2],
+                        }),
+                      },
+                    ],
+                  }
+                ]}>
+                  <Text style={styles.matchHeartEmoji}>💜</Text>
+                </Animated.View>
+                
+                <View style={styles.matchPhotoWrapper}>
+                  <Image 
+                    source={{ uri: matchedUser.profileImageUrl || 'https://via.placeholder.com/80' }}
+                    style={styles.matchPhoto}
+                    resizeMode="cover"
+                  />
+                  <Text style={styles.matchPhotoLabel}>{matchedUser.firstName}</Text>
+                </View>
+              </View>
+
+              {/* Uyumluluk Skoru */}
+              <View style={styles.matchCompatibilityContainer}>
+                <Text style={styles.matchCompatibilityLabel}>Uyumluluk Skoru</Text>
+                <View style={[
+                  styles.matchCompatibilityScore,
+                  {
+                    backgroundColor: matchedUser.compatibilityScore >= 80 ? 'rgba(34, 197, 94, 0.3)' : 
+                                     matchedUser.compatibilityScore >= 50 ? 'rgba(251, 191, 36, 0.3)' : 
+                                     'rgba(239, 68, 68, 0.3)',
+                    borderColor: matchedUser.compatibilityScore >= 80 ? 'rgba(34, 197, 94, 0.5)' : 
+                                 matchedUser.compatibilityScore >= 50 ? 'rgba(251, 191, 36, 0.5)' : 
+                                 'rgba(239, 68, 68, 0.5)',
+                  }
+                ]}>
+                  <Text style={styles.matchCompatibilityPercentage}>%{matchedUser.compatibilityScore}</Text>
+                </View>
+              </View>
+
+              {/* Ortak Özellikler */}
+              <View style={styles.matchCommonFeatures}>
+                <Text style={styles.matchCommonFeaturesTitle}>Ortak Özellikler</Text>
+                <View style={styles.matchCommonFeaturesList}>
+                  <View style={styles.matchCommonFeature}>
+                    <Text style={styles.matchCommonFeatureIcon}>♏</Text>
+                    <Text style={styles.matchCommonFeatureText}>Akrep Burcu</Text>
+                  </View>
+                  <View style={styles.matchCommonFeature}>
+                    <Text style={styles.matchCommonFeatureIcon}>🔥</Text>
+                    <Text style={styles.matchCommonFeatureText}>Ateş Elementi</Text>
+                  </View>
+                  <View style={styles.matchCommonFeature}>
+                    <Text style={styles.matchCommonFeatureIcon}>
+                      {matchedUser.compatibilityScore >= 80 ? '⭐' : 
+                       matchedUser.compatibilityScore >= 50 ? '🔶' : '⚠️'}
+                    </Text>
+                    <Text style={styles.matchCommonFeatureText}>
+                      {matchedUser.compatibilityScore >= 80 ? 'Yüksek Uyum' : 
+                       matchedUser.compatibilityScore >= 50 ? 'Normal Uyum' : 'Düşük Uyum'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
               
               <TouchableOpacity
                 style={styles.matchChatButton}
@@ -2084,7 +2329,7 @@ const styles = StyleSheet.create({
   cardContainer: {
     flex: 1,
     paddingHorizontal: 25,
-    paddingTop: 25,
+    paddingTop: 50,
     paddingBottom: 65,
   },
   card: {
@@ -2788,19 +3033,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   matchOverlayContent: {
-    backgroundColor: 'rgba(255, 255, 255, 0.98)',
-    margin: 30,
-    padding: 35,
-    borderRadius: 30,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    margin: 15,
+    padding: 30,
+    borderRadius: 25,
     alignItems: 'center',
     shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 15 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.6,
     shadowRadius: 25,
-    elevation: 20,
+    elevation: 25,
     maxWidth: 350,
     borderWidth: 2,
-    borderColor: 'rgba(139, 92, 246, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   matchIcon: {
     fontSize: 70,
@@ -2810,52 +3055,58 @@ const styles = StyleSheet.create({
     textShadowRadius: 8,
   },
   matchTitle: {
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: 'bold',
-    color: '#F59E0B',
+    color: 'white',
     textAlign: 'center',
     marginBottom: 10,
     letterSpacing: 0.5,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   matchSubtitle: {
-    fontSize: 19,
-    color: '#374151',
+    fontSize: 18,
+    color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
-    marginBottom: 30,
+    marginBottom: 25,
     fontWeight: '500',
-    lineHeight: 26,
+    lineHeight: 24,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   matchChatButton: {
-    backgroundColor: '#F59E0B',
-    paddingHorizontal: 35,
-    paddingVertical: 15,
-    borderRadius: 30,
-    marginBottom: 18,
-    shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 12,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: '#8B5CF6',
+    paddingHorizontal: 30,
+    paddingVertical: 14,
+    borderRadius: 25,
+    marginBottom: 15,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   matchChatButtonText: {
-    color: '#8B5CF6',
-    fontSize: 17,
+    color: 'white',
+    fontSize: 16,
     fontWeight: 'bold',
     letterSpacing: 0.5,
   },
   matchCloseButton: {
-    paddingHorizontal: 35,
-    paddingVertical: 15,
+    paddingHorizontal: 30,
+    paddingVertical: 12,
     borderRadius: 25,
-    borderWidth: 2,
-    borderColor: '#F59E0B',
-    backgroundColor: 'rgba(245, 158, 11, 0.05)',
+    borderWidth: 1,
+    borderColor: '#8B5CF6',
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
   },
   matchCloseButtonText: {
-    color: '#F59E0B',
-    fontSize: 17,
+    color: '#8B5CF6',
+    fontSize: 15,
     fontWeight: '600',
     letterSpacing: 0.3,
   },
@@ -3444,5 +3695,226 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginTop: 10,
     fontWeight: '600',
+  },
+  
+  // Uyumluluk Skoru - Sol Üst Köşe
+  compatibilityTopLeft: {
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    zIndex: 15,
+  },
+  compatibilityTopLeftContainer: {
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    borderRadius: 20,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  compatibilityTopLeftLabel: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 5,
+    letterSpacing: 0.5,
+  },
+  compatibilityTopLeftScore: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+    alignItems: 'center',
+    minWidth: 60,
+  },
+  compatibilityTopLeftText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  
+  // Eşleşme Ekranı Yeni Öğeler
+  matchPhotosContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 15,
+    paddingHorizontal: 10,
+  },
+  matchPhotoWrapper: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  matchPhoto: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  matchPhotoLabel: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 6,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  matchHeartIcon: {
+    marginHorizontal: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  matchHeartEmoji: {
+    fontSize: 24,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  matchCompatibilityContainer: {
+    alignItems: 'center',
+    marginVertical: 10,
+    paddingHorizontal: 15,
+  },
+  matchCompatibilityLabel: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  matchCompatibilityScore: {
+    backgroundColor: 'rgba(139, 92, 246, 0.3)',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 25,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  matchCompatibilityPercentage: {
+    color: 'white',
+    fontSize: 22,
+    fontWeight: 'bold',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  matchCommonFeatures: {
+    marginVertical: 10,
+    paddingHorizontal: 15,
+  },
+  matchCommonFeaturesTitle: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 12,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  matchCommonFeaturesList: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    flexWrap: 'wrap',
+  },
+  matchCommonFeature: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(139, 92, 246, 0.3)',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 18,
+    marginHorizontal: 4,
+    marginVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    minWidth: 70,
+  },
+  matchCommonFeatureIcon: {
+    fontSize: 18,
+    marginBottom: 3,
+  },
+  matchCommonFeatureText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  featurePlanetImage: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+  },
+  featureModalPlanetImage: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 8,
+  },
+  
+  // Parlayan Yıldızlar
+  sparkle: {
+    position: 'absolute',
+    zIndex: 1,
+  },
+  sparkle1: {
+    top: '15%',
+    left: '10%',
+  },
+  sparkle2: {
+    top: '25%',
+    right: '15%',
+  },
+  sparkle3: {
+    top: '60%',
+    left: '5%',
+  },
+  sparkle4: {
+    top: '70%',
+    right: '10%',
+  },
+  sparkle5: {
+    top: '40%',
+    left: '20%',
+  },
+  sparkle6: {
+    top: '50%',
+    right: '25%',
+  },
+  sparkleText: {
+    fontSize: 24,
+    textShadowColor: 'rgba(255, 255, 255, 0.8)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+  },
+  featureElementImage: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+  },
+  featureModalElementImage: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 8,
   },
 });
