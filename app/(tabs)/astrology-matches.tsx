@@ -165,6 +165,20 @@ const getQualityInfo = (quality: string) => {
   return qualities[quality as keyof typeof qualities] || qualities['Sabit'];
 };
 
+// Kalite isimlerini yerel görsellere eşleyen yardımcı fonksiyon
+const getQualityImage = (quality: string) => {
+  switch (quality) {
+    case 'Öncü':
+      return require('../../simgeler/kalite/oncu.png');
+    case 'Sabit':
+      return require('../../simgeler/kalite/sabit.png');
+    case 'Değişken':
+      return require('../../simgeler/kalite/degisken.png');
+    default:
+      return require('../../simgeler/kalite/oncu.png');
+  }
+};
+
 const getPolarityInfo = (polarity: string) => {
   const polarities = {
     'Pozitif': {
@@ -191,6 +205,18 @@ const getPolarityInfo = (polarity: string) => {
     }
   };
   return polarities[polarity as keyof typeof polarities] || polarities['Pozitif'];
+};
+
+// Polarite isimlerini yerel görsellere eşleyen yardımcı fonksiyon
+const getPolarityImage = (polarity: string) => {
+  switch (polarity) {
+    case 'Pozitif':
+      return require('../../simgeler/polarite/pozitif.png');
+    case 'Negatif':
+      return require('../../simgeler/polarite/negatif.png');
+    default:
+      return require('../../simgeler/polarite/pozitif.png');
+  }
 };
 
 // Gerçekçi burç uyumluluğu hesaplama
@@ -1260,7 +1286,7 @@ export default function AstrologyMatchesScreen() {
                     activeOpacity={0.7}
                   >
                     <View style={styles.featureIcon}>
-                      <Text style={styles.featureEmoji}>⚖️</Text>
+                      <Image source={getQualityImage('Sabit')} style={styles.featureQualityImage} />
                     </View>
                     <View style={styles.featureContent}>
                       <Text style={styles.featureLabel}>Kalite</Text>
@@ -1278,7 +1304,7 @@ export default function AstrologyMatchesScreen() {
                     activeOpacity={0.7}
                   >
                     <View style={styles.featureIcon}>
-                      <Text style={styles.featureEmoji}>➕</Text>
+                      <Image source={getPolarityImage('Pozitif')} style={styles.featurePolarityImage} />
                     </View>
                     <View style={styles.featureContent}>
                       <Text style={styles.featureLabel}>Polarite</Text>
@@ -1591,7 +1617,7 @@ export default function AstrologyMatchesScreen() {
               {selectedFeature === 'quality' && (
                 <>
                   <View style={styles.featureModalHeader}>
-                    <Text style={styles.featureModalEmoji}>⚖️</Text>
+                    <Image source={getQualityImage('Sabit')} style={styles.featureModalQualityImage} />
                     <Text style={styles.featureModalTitle}>Sabit Kalite</Text>
                   </View>
                   
@@ -1669,7 +1695,7 @@ export default function AstrologyMatchesScreen() {
               {selectedFeature === 'polarity' && (
                 <>
                   <View style={styles.featureModalHeader}>
-                    <Text style={styles.featureModalEmoji}>➕</Text>
+                    <Image source={getPolarityImage('Pozitif')} style={styles.featureModalPolarityImage} />
                     <Text style={styles.featureModalTitle}>Pozitif Polarite</Text>
                   </View>
                   
@@ -3912,6 +3938,28 @@ const styles = StyleSheet.create({
     borderRadius: 13,
   },
   featureModalElementImage: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 8,
+  },
+  featureQualityImage: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+  },
+  featureModalQualityImage: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 8,
+  },
+  featurePolarityImage: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+  },
+  featureModalPolarityImage: {
     width: 36,
     height: 36,
     borderRadius: 18,
