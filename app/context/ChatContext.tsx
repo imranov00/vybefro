@@ -2,11 +2,11 @@ import React, { createContext, ReactNode, useContext, useEffect, useRef, useStat
 import { Alert, DeviceEventEmitter } from 'react-native';
 import { chatApi, ChatListItem, ChatMessage, GlobalChatResponse, MessageLimitInfo, PrivateChatResponse, PrivateChatRoom, userApi } from '../services/api';
 import {
-  initializeWebSocket,
-  VybeWebSocketClient,
-  WebSocketMessage,
-  WebSocketMessageType,
-  WebSocketStatus
+    initializeWebSocket,
+    VybeWebSocketClient,
+    WebSocketMessage,
+    WebSocketMessageType,
+    WebSocketStatus
 } from '../services/websocket';
 import { getToken } from '../utils/tokenStorage';
 import { useAuth } from './AuthContext';
@@ -753,6 +753,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (wsClientRef.current) {
       wsClientRef.current.joinChat(chatRoomId);
       console.log('👥 [CHAT CONTEXT] Chat odasına katılındı:', chatRoomId);
+      
+      // Typing subscription'ı da ekle
+      wsClientRef.current.subscribeToChatTyping(chatRoomId);
+      console.log('⌨️ [CHAT CONTEXT] Typing subscription eklendi:', chatRoomId);
+    } else {
+      console.warn('⚠️ [CHAT CONTEXT] WebSocket client yok, chat odasına katılınamadı:', chatRoomId);
     }
   };
 
@@ -1009,6 +1015,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           console.log('👥 [CHAT CONTEXT] WebSocket bağlandı, aktif chat\'e katılım:', activeChatId);
           joinChatRoom(activeChatId.toString());
         }
+        
+        // WebSocket bağlandığında typing subscription'ları yeniden kur
+        if (activeChatId) {
+          wsClientRef.current?.subscribeToChatTyping(activeChatId.toString());
+        }
       },
       
       onDisconnected: () => {
@@ -1072,6 +1083,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setupWebSocketHandlers(client);
       
       console.log('✅ [CHAT CONTEXT] WebSocket bağlantısı başarılı');
+      
+      // WebSocket başarıyla bağlandıktan sonra aktif chat'e otomatik katıl
+      if (activeChatId) {
+        console.log('👥 [CHAT CONTEXT] WebSocket bağlandı, aktif chat\'e katılım:', activeChatId);
+        joinChatRoom(activeChatId.toString());
+      }
       
       // WebSocket başarıyla bağlandıktan sonra 5 saniye bekleyip bağlantı durumunu kontrol et
       setTimeout(() => {
@@ -1163,8 +1180,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const startSmartPolling = () => {
       const chatType = activeChat && 'chatType' in activeChat ? 'GLOBAL' : 'PRIVATE';
       
-      // WebSocket çalışmadığında daha uzun aralıklarla polling (10-15 saniye)
-      const pollingInterval = chatType === 'GLOBAL' ? 10000 : 15000;
+      // WebSocket çalışmadığında daha kısa aralıklarla polling (5-8 saniye)
+      const pollingInterval = chatType === 'GLOBAL' ? 5000 : 8000;
       
       console.log(`🔄 [CHAT CONTEXT] Akıllı polling başlatıldı - ${chatType} (${pollingInterval}ms) - WebSocket çalışmıyor`);
       

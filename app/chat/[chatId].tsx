@@ -4,18 +4,18 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert,
-  Image,
-  Keyboard,
-  KeyboardAvoidingView,
-  KeyboardEvent,
-  Platform,
-  SafeAreaView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Alert,
+    Image,
+    Keyboard,
+    KeyboardAvoidingView,
+    KeyboardEvent,
+    Platform,
+    SafeAreaView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 
 import MessageInput from '../components/chat/MessageInput';
@@ -122,35 +122,41 @@ export default function PrivateChatScreen() {
   }, []);
 
   // Sayfa yüklendiğinde özel chat mesajlarını getir ve WebSocket'e katıl
+  const joinedOnceRef = useRef(false);
   useFocusEffect(
     useCallback(() => {
       if (!isNaN(chatRoomId)) {
         console.log('💬 [PRIVATE CHAT] Screen focused - loading private messages:', chatRoomId);
         
         // Profil güncellemesi yap (token değişmiş olabilir)
-        refreshProfile();
+        if (!joinedOnceRef.current) {
+          refreshProfile();
+        }
         
-        loadMessages(chatRoomId, 'PRIVATE');
-        markMessagesAsRead(chatRoomId);
+        // Mesajları sadece bir kez yükle; kullanıcı manuel yenilerse handleRefresh var
+        if (!joinedOnceRef.current) {
+          loadMessages(chatRoomId, 'PRIVATE');
+          markMessagesAsRead(chatRoomId);
+        }
         
         // WebSocket'e chat odasına katıl
-        joinChatRoom(chatRoomId.toString());
+        if (!joinedOnceRef.current) {
+          joinChatRoom(chatRoomId.toString());
+          joinedOnceRef.current = true;
+        }
         
         // Typing subscription ekle
-        if (wsClient) {
-          wsClient.subscribeToChatTyping(chatRoomId.toString());
-        }
+        wsClient?.subscribeToChatTyping(chatRoomId.toString());
       }
       
       // Cleanup: Chat odasından çık
       return () => {
         if (!isNaN(chatRoomId)) {
           leaveChatRoom(chatRoomId.toString());
+          joinedOnceRef.current = false;
           
           // Typing subscription'ı kaldır
-          if (wsClient) {
-            wsClient.unsubscribeFromChatTyping(chatRoomId.toString());
-          }
+          wsClient?.unsubscribeFromChatTyping(chatRoomId.toString());
         }
       };
     }, [chatRoomId])
