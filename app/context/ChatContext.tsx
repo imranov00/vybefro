@@ -378,14 +378,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setPendingMessages(prev => new Set([...prev, messageId]));
       pendingMessagesRef.current.add(messageId);
       
-      // 4. Mesaj gönderimi sonrası kısa süreli polling (sayfa yenileme sorununu çözer)
-      console.log('🔄 [CHAT CONTEXT] Mesaj gönderimi sonrası polling başlatılıyor...');
+      // 4. Mesaj gönderimi sonrası hızlı polling (sayfa yenileme sorununu çözer)
+      console.log('🔄 [CHAT CONTEXT] Mesaj gönderimi sonrası hızlı polling başlatılıyor...');
       
-      // İlk polling: 2 saniye sonra
+      // İlk polling: 1 saniye sonra (çok hızlı)
       setTimeout(async () => {
         try {
           if (activeChat && 'chatType' in activeChat && activeChat.chatType === 'GLOBAL') {
-            console.log('🔄 [CHAT CONTEXT] İlk polling yapılıyor...');
+            console.log('🔄 [CHAT CONTEXT] İlk hızlı polling yapılıyor...');
             const newChatData = await chatApi.getGlobalMessages(0, 20);
             
             // Yeni mesajları kontrol et ve ekle
@@ -393,7 +393,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             const newMessages = newChatData.messages.filter(m => !currentMessageIds.includes(m.id));
             
             if (newMessages.length > 0) {
-              console.log(`🆕 [CHAT CONTEXT] İlk polling'de ${newMessages.length} yeni mesaj bulundu`);
+              console.log(`🆕 [CHAT CONTEXT] İlk hızlı polling'de ${newMessages.length} yeni mesaj bulundu`);
               newMessages.reverse().forEach(message => {
                 addNewMessage(message);
                 // Pending mesajlardan çıkar
@@ -402,15 +402,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             }
           }
         } catch (error) {
-          console.warn('⚠️ [CHAT CONTEXT] İlk polling hatası:', error);
+          console.warn('⚠️ [CHAT CONTEXT] İlk hızlı polling hatası:', error);
         }
-      }, 2000);
+      }, 1000);
       
-      // İkinci polling: 5 saniye sonra (güvenlik için)
+      // İkinci polling: 3 saniye sonra (güvenlik için)
       setTimeout(async () => {
         try {
           if (activeChat && 'chatType' in activeChat && activeChat.chatType === 'GLOBAL') {
-            console.log('🔄 [CHAT CONTEXT] İkinci polling yapılıyor...');
+            console.log('🔄 [CHAT CONTEXT] İkinci hızlı polling yapılıyor...');
             const newChatData = await chatApi.getGlobalMessages(0, 20);
             
             // Yeni mesajları kontrol et ve ekle
@@ -418,7 +418,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             const newMessages = newChatData.messages.filter(m => !currentMessageIds.includes(m.id));
             
             if (newMessages.length > 0) {
-              console.log(`🆕 [CHAT CONTEXT] İkinci polling'de ${newMessages.length} yeni mesaj bulundu`);
+              console.log(`🆕 [CHAT CONTEXT] İkinci hızlı polling'de ${newMessages.length} yeni mesaj bulundu`);
               newMessages.reverse().forEach(message => {
                 addNewMessage(message);
                 // Pending mesajlardan çıkar
@@ -427,9 +427,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             }
           }
         } catch (error) {
-          console.warn('⚠️ [CHAT CONTEXT] İkinci polling hatası:', error);
+          console.warn('⚠️ [CHAT CONTEXT] İkinci hızlı polling hatası:', error);
         }
-      }, 5000);
+      }, 3000);
       
       // 5. Chat listesini güncelle (sadece mesaj eklenmediğinde)
       if (!activeChat || !('chatType' in activeChat) || activeChat.chatType !== 'GLOBAL') {
@@ -542,7 +542,60 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setPendingMessages(prev => new Set([...prev, messageId]));
       pendingMessagesRef.current.add(messageId);
       
-      // 5. Özel chat listesini güncelle
+      // 5. Özel mesaj gönderimi sonrası hızlı polling
+      console.log('🔄 [CHAT CONTEXT] Özel mesaj gönderimi sonrası hızlı polling başlatılıyor...');
+      
+      // İlk polling: 1 saniye sonra (çok hızlı)
+      setTimeout(async () => {
+        try {
+          if (activeChat && !('chatType' in activeChat)) {
+            console.log('🔄 [CHAT CONTEXT] Özel chat ilk hızlı polling yapılıyor...');
+            const newChatData = await chatApi.getPrivateMessages(activeChatId || 0, 0, 20);
+            
+            // Yeni mesajları kontrol et ve ekle
+            const currentMessageIds = activeChat.messages.map(m => m.id);
+            const newMessages = newChatData.messages.filter(m => !currentMessageIds.includes(m.id));
+            
+            if (newMessages.length > 0) {
+              console.log(`🆕 [CHAT CONTEXT] Özel chat ilk hızlı polling'de ${newMessages.length} yeni mesaj bulundu`);
+              newMessages.reverse().forEach(message => {
+                addNewMessage(message);
+                // Pending mesajlardan çıkar
+                pendingMessagesRef.current.delete(message.id.toString());
+              });
+            }
+          }
+        } catch (error) {
+          console.warn('⚠️ [CHAT CONTEXT] Özel chat ilk hızlı polling hatası:', error);
+        }
+      }, 1000);
+      
+      // İkinci polling: 3 saniye sonra (güvenlik için)
+      setTimeout(async () => {
+        try {
+          if (activeChat && !('chatType' in activeChat)) {
+            console.log('🔄 [CHAT CONTEXT] Özel chat ikinci hızlı polling yapılıyor...');
+            const newChatData = await chatApi.getPrivateMessages(activeChatId || 0, 0, 20);
+            
+            // Yeni mesajları kontrol et ve ekle
+            const currentMessageIds = activeChat.messages.map(m => m.id);
+            const newMessages = newChatData.messages.filter(m => !currentMessageIds.includes(m.id));
+            
+            if (newMessages.length > 0) {
+              console.log(`🆕 [CHAT CONTEXT] Özel chat ikinci hızlı polling'de ${newMessages.length} yeni mesaj bulundu`);
+              newMessages.reverse().forEach(message => {
+                addNewMessage(message);
+                // Pending mesajlardan çıkar
+                pendingMessagesRef.current.delete(message.id.toString());
+              });
+            }
+          }
+        } catch (error) {
+          console.warn('⚠️ [CHAT CONTEXT] Özel chat ikinci hızlı polling hatası:', error);
+        }
+      }, 3000);
+      
+      // 6. Özel chat listesini güncelle
       await refreshPrivateChats();
       
       console.log('✅ [CHAT CONTEXT] Özel mesaj gönderildi');
@@ -1004,10 +1057,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setWsStatus(WebSocketStatus.CONNECTED);
         setIsWebSocketConnected(true);
         
-        // Bağlantı kurulduğunda pending mesajları kontrol et
+        // Bağlantı kurulduğunda pending mesajları hemen kontrol et
         if (pendingMessagesRef.current.size > 0) {
-          console.log('🔄 [CHAT CONTEXT] WebSocket bağlandı, pending mesajlar kontrol ediliyor...');
-          setTimeout(() => forceRefreshMessages(), 2000);
+          console.log('🔄 [CHAT CONTEXT] WebSocket bağlandı, pending mesajlar hemen kontrol ediliyor...');
+          setTimeout(() => forceRefreshMessages(), 500); // 2 saniye yerine 0.5 saniye
         }
         
         // WebSocket bağlandığında aktif chat'e otomatik katıl
@@ -1027,10 +1080,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setWsStatus(WebSocketStatus.DISCONNECTED);
         setIsWebSocketConnected(false);
         
-        // Bağlantı koptuğunda pending mesajlar için polling başlat
+        // Bağlantı koptuğunda pending mesajlar için hemen polling başlat
         if (pendingMessagesRef.current.size > 0) {
-          console.log('🔄 [CHAT CONTEXT] WebSocket koptu, polling başlatılıyor...');
-          setTimeout(() => forceRefreshMessages(), 1000);
+          console.log('🔄 [CHAT CONTEXT] WebSocket koptu, hemen polling başlatılıyor...');
+          setTimeout(() => forceRefreshMessages(), 200); // 1 saniye yerine 0.2 saniye
         }
       },
       
@@ -1040,9 +1093,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setIsWebSocketConnected(false);
         setError(`WebSocket hatası: ${error}`);
         
-        // Hata durumunda da polling başlat
+        // Hata durumunda da hemen polling başlat
         if (pendingMessagesRef.current.size > 0) {
-          setTimeout(() => forceRefreshMessages(), 1000);
+          setTimeout(() => forceRefreshMessages(), 200); // 1 saniye yerine 0.2 saniye
         }
       }
     });
@@ -1180,8 +1233,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const startSmartPolling = () => {
       const chatType = activeChat && 'chatType' in activeChat ? 'GLOBAL' : 'PRIVATE';
       
-      // WebSocket çalışmadığında daha kısa aralıklarla polling (5-8 saniye)
-      const pollingInterval = chatType === 'GLOBAL' ? 5000 : 8000;
+      // WebSocket çalışmadığında çok daha kısa aralıklarla polling (2-3 saniye)
+      const pollingInterval = chatType === 'GLOBAL' ? 3000 : 2000;
       
       console.log(`🔄 [CHAT CONTEXT] Akıllı polling başlatıldı - ${chatType} (${pollingInterval}ms) - WebSocket çalışmıyor`);
       
