@@ -211,8 +211,8 @@ export default function MessageInput({
         setMessage('');
         // Mesaj gönderildikten sonra typing'i durdur
         handleTypingChange(false);
-        // Klavyeyi kapat
-        blurInput();
+        // Klavyeyi kapatma - kullanıcı manuel olarak kapatacak
+        // blurInput(); // Bu satırı kaldırdık
         
         console.log('✅ [MESSAGE INPUT] Mesaj gönderildi (optimistic update)');
       } else {
