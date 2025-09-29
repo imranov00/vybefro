@@ -4,17 +4,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert,
-  Keyboard,
-  KeyboardAvoidingView,
-  KeyboardEvent,
-  Platform,
-  SafeAreaView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Alert,
+    Keyboard,
+    KeyboardAvoidingView,
+    KeyboardEvent,
+    Platform,
+    SafeAreaView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 
 import MessageInput from '../components/chat/MessageInput';
@@ -119,41 +119,44 @@ export default function GlobalChatScreen() {
   }, []);
 
   // Sayfa yüklendiğinde genel chat mesajlarını getir ve WebSocket'e katıl
+  const joinedOnceRef = useRef(false);
   useFocusEffect(
     useCallback(() => {
       console.log('🌍 [GLOBAL CHAT] Screen focused - loading global messages');
 
       // Profil güncellemesi yap (token değişmiş olabilir)
-      refreshProfile();
-      
-      loadMessages(1, 'GLOBAL'); // Global chat room ID genellikle 1
-      refreshMessageLimit();
-      
-      // WebSocket'e global chat odasına katıl
-      joinChatRoom('1');
-      
-      // Typing subscription ekle
-      if (wsClient) {
-        wsClient.subscribeToChatTyping('1');
+      if (!joinedOnceRef.current) {
+        refreshProfile();
       }
       
-      // Focus olduğunda polling'i hızlandır (3 saniye)
-      setFastPolling(true);
-      console.log('🚀 [GLOBAL CHAT] Hızlı polling başlatıldı (3 saniye)');
+      // Mesajları sadece bir kez yükle; kullanıcı manuel yenilerse handleRefresh var
+      if (!joinedOnceRef.current) {
+        loadMessages(1, 'GLOBAL'); // Global chat room ID genellikle 1
+        refreshMessageLimit();
+      }
+      
+      // WebSocket'e global chat odasına katıl
+      if (!joinedOnceRef.current) {
+        joinChatRoom('1');
+        joinedOnceRef.current = true;
+      }
+      
+      // Typing subscription ekle
+      wsClient?.subscribeToChatTyping('1');
+      
+      console.log('🚀 [GLOBAL CHAT] Fast enter - subscriptions ready');
       
       return () => {
         // Sayfa kapatıldığında normal polling'e dön ve chat odasından çık
-        setFastPolling(false);
         leaveChatRoom('1');
+        joinedOnceRef.current = false;
         
         // Typing subscription'ı kaldır
-        if (wsClient) {
-          wsClient.unsubscribeFromChatTyping('1');
-        }
+        wsClient?.unsubscribeFromChatTyping('1');
         
         console.log('⏸️ [GLOBAL CHAT] Screen blurred - normal polling (10 saniye)');
       };
-    }, [userProfile])
+    }, [])
   );
 
   // Mesaj durumlarını akıllı güncelleme (WebSocket çalışmıyorsa 10 saniyede bir)
