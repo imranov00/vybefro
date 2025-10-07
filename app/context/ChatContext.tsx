@@ -2,11 +2,11 @@ import React, { createContext, ReactNode, useContext, useEffect, useRef, useStat
 import { Alert, DeviceEventEmitter } from 'react-native';
 import { chatApi, ChatListItem, ChatMessage, GlobalChatResponse, MessageLimitInfo, PrivateChatResponse, PrivateChatRoom, userApi } from '../services/api';
 import {
-    initializeWebSocket,
-    VybeWebSocketClient,
-    WebSocketMessage,
-    WebSocketMessageType,
-    WebSocketStatus
+  initializeWebSocket,
+  VybeWebSocketClient,
+  WebSocketMessage,
+  WebSocketMessageType,
+  WebSocketStatus
 } from '../services/websocket';
 import { getToken } from '../utils/tokenStorage';
 import { useAuth } from './AuthContext';
@@ -75,6 +75,8 @@ type ChatContextType = {
   
   // Cache temizleme
   clearAllCache: () => void;
+  // Aktif chat'i temizle (ekrandan çıkarken loop'u durdurmak için)
+  clearActiveChat: () => void;
 };
 
 // Context oluştur
@@ -114,6 +116,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const typingUsersRef = useRef<Map<string, Set<string>>>(new Map());
   const pendingMessagesRef = useRef<Set<string>>(new Set());
   const lastMessageCheckRef = useRef<number>(0);
+  // Aynı mesaj yükleme çağrılarını kısa süre içinde çoğalmaması için guard
+  const loadInFlightRef = useRef<{ key: string; ts: number } | null>(null);
 
   // Chat listesini yükle
   const refreshChatList = async () => {
@@ -182,6 +186,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Mesajları yükle
   const loadMessages = async (chatRoomId: number, chatType: 'GLOBAL' | 'PRIVATE') => {
+    // Aynı endpoint ve sayfa için kısa süreli tekrarlı çağrıları engelle
+    const dedupeKey = `${chatType}:${chatRoomId}:p0s20`;
+    const nowTs = Date.now();
+    if (loadInFlightRef.current && loadInFlightRef.current.key === dedupeKey && (nowTs - loadInFlightRef.current.ts) < 900) {
+      // 900ms içinde aynı çağrı tekrarlandı; yok say
+      return;
+    }
+    loadInFlightRef.current = { key: dedupeKey, ts: nowTs };
     try {
       setIsLoadingMessages(true);
       setError(null);
@@ -1387,6 +1399,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     console.log('✅ [CHAT CONTEXT] Cache temizlendi');
   };
 
+  // Aktif chat'i temizle (sohbet ekranından çıkarken çağrılır)
+  const clearActiveChat = () => {
+    setActiveChat(null);
+    setActiveChatId(null);
+  };
+
   return (
     <ChatContext.Provider
       value={{
@@ -1426,7 +1444,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         forceRefreshMessages,
         updateMessageStatuses,
         // Cache temizleme
-        clearAllCache
+        clearAllCache,
+        clearActiveChat
       }}
     >
       {children}

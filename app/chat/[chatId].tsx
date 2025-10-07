@@ -40,7 +40,8 @@ export default function PrivateChatScreen() {
     typingUsers,
     wsStatus,
     wsClient,
-    updateMessageStatuses
+    updateMessageStatuses,
+    clearActiveChat
   } = useChat();
   const router = useRouter();
   const { chatId } = useLocalSearchParams();
@@ -157,6 +158,8 @@ export default function PrivateChatScreen() {
           
           // Typing subscription'ı kaldır
           wsClient?.unsubscribeFromChatTyping(chatRoomId.toString());
+          // Aktif chat'i sıfırla; polling/efektlerin devam etmesini engeller
+          clearActiveChat();
         }
       };
     }, [chatRoomId])
