@@ -706,7 +706,7 @@ export default function RegisterScreen() {
 
         {/* Form */}
         <View style={styles.formContainer}>
-          {renderForm()}
+          {renderFormContent()}
         </View>
       </ScrollView>
 
@@ -804,7 +804,10 @@ export default function RegisterScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonConfirm]}
-                onPress={handleDateConfirm}
+                onPress={() => {
+                  setShowDatePicker(false);
+                  // Tarih seçimi tamamlandı
+                }}
               >
                 <Text style={[styles.modalButtonText, { color: 'white' }]}>Onayla</Text>
               </TouchableOpacity>

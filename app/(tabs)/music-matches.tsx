@@ -115,7 +115,7 @@ export default function MusicMatchesScreen() {
   const fetchMusicUsers = async () => {
     try {
       console.log('🎵 [MUSIC] Yeni müzik eşleşmeleri getiriliyor (refresh=false)');
-      const response = await swipeApi.getDiscoverUsers(1, 10, false);
+      const response = await swipeApi.getDiscoverUsers(false, false, 1, 10);
       
       if (response.success) {
               console.log(`🎶 [MUSIC] ${response.users.length} yeni kullanıcı bulundu`);
@@ -246,7 +246,7 @@ export default function MusicMatchesScreen() {
     
     setLoading(true);
     try {
-      const response = await userApi.getUsersWhoLikedMe(20);
+      const response = await userApi.getUsersWhoLikedMe(1, 20);
       setLikedUsers(response.users);
     } catch (error) {
       console.error('Liked users fetching error:', error);

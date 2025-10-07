@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { ProfileDrawer, useProfile } from '../context/ProfileContext';
+import ProfileDrawer from '../components/ProfileDrawer';
+import { useProfile } from '../context/ProfileContext';
 
 export default function HomeScreen() {
   const { userProfile, showProfile, isProfileVisible, hideProfile, fetchUserProfile, isLoading } = useProfile();

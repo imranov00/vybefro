@@ -223,6 +223,7 @@ export default function TabLayout() {
           }}
         />
 
+
         {/* Chat Tab - Her iki mode'da da görünür */}
         <Tabs.Screen
           name="chat"
