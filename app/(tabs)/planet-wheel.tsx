@@ -1,4 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Dimensions, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withSpring, withTiming } from 'react-native-reanimated';
@@ -34,6 +35,7 @@ const GEZEGEN_MAP: Record<string, any> = {
 };
 
 export default function PlanetWheelScreen() {
+  const router = useRouter();
   const { userProfile } = useProfile();
   const userZodiac = (userProfile?.zodiacSign as ZodiacSign) || undefined;
   const [selectedPlanet, setSelectedPlanet] = useState<string | null>(null);
@@ -115,13 +117,15 @@ export default function PlanetWheelScreen() {
 
             {/* Merkez Zodiac Sphere */}
             <View style={styles.centerSymbol}>
-              <Animated.View style={zodiacSphereStyle}>
-                <Image 
-                  source={require('../../simgeler/gezegenler/zodiac-sphere.png')} 
-                  style={{ width: 90, height: 90 }}
-                  resizeMode="contain"
-                />
-              </Animated.View>
+              <TouchableOpacity activeOpacity={0.8} onPress={() => router.back()}>
+                <Animated.View style={zodiacSphereStyle}>
+                  <Image 
+                    source={require('../../simgeler/gezegenler/zodiac-sphere.png')} 
+                    style={{ width: 90, height: 90 }}
+                    resizeMode="contain"
+                  />
+                </Animated.View>
+              </TouchableOpacity>
             </View>
 
             {PLANETS.map((name, index) => {
