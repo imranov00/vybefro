@@ -1,25 +1,28 @@
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  Dimensions,
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Dimensions,
+    PanResponder,
+    Platform,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withSpring,
-  withTiming
+    Easing,
+    useAnimatedStyle,
+    useSharedValue,
+    withRepeat,
+    withSpring,
+    withTiming
 } from 'react-native-reanimated';
 import Planet3D from '../components/Planet3D';
+import PlanetDetailModal from '../components/PlanetDetailModal';
+import UniverseModal from '../components/UniverseModal';
 import { useProfile } from '../context/ProfileContext';
 import { ZodiacSign, getZodiacInfo } from '../types/zodiac';
 
@@ -78,6 +81,8 @@ export default function AstrologyScreen() {
   const { userProfile } = useProfile();
   const [selectedZodiac, setSelectedZodiac] = useState<ZodiacSign | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [showUniverse, setShowUniverse] = useState(false);
+  const [selectedPlanet, setSelectedPlanet] = useState<string | null>(null);
   
   // Animasyon değerleri - sadece gerekli olanlar
   const wheelRotation = useSharedValue(0);
@@ -85,28 +90,90 @@ export default function AstrologyScreen() {
   const cardScale = useSharedValue(1);
   const selectedScale = useSharedValue(1);
   
+  // Elle döndürme için referanslar
+  const lastAngle = useRef(0);
+  const velocity = useRef(0);
+  const isGesturing = useRef(false);
+  const animationFrameId = useRef<number | null>(null);
+  
   // Kullanıcının burcu
   const userZodiac = userProfile?.zodiacSign as ZodiacSign;
   const userZodiacInfo = userZodiac ? getZodiacInfo(userZodiac) : null;
 
-  // Sadece otomatik döndürme
-  useEffect(() => {
-    // Sürekli dönen animasyon
-    wheelRotation.value = withRepeat(
-      withTiming(360, { 
-        duration: 60000, // 1 dakika
-        easing: Easing.linear 
-      }), 
-      -1,
-      false
-    );
+  // Momentum animasyonu
+  const applyMomentum = () => {
+    if (Math.abs(velocity.current) < 0.1) {
+      velocity.current = 0;
+      return;
+    }
 
+    const friction = 0.95;
+    velocity.current *= friction;
+    lastAngle.current += velocity.current;
+    wheelRotation.value = lastAngle.current;
+
+    if (Math.abs(velocity.current) >= 0.1) {
+      animationFrameId.current = requestAnimationFrame(applyMomentum);
+    }
+  };
+
+  // PanResponder - elle döndürme
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        isGesturing.current = true;
+        if (animationFrameId.current) {
+          cancelAnimationFrame(animationFrameId.current);
+          animationFrameId.current = null;
+        }
+        velocity.current = 0;
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        const centerX = width * 0.4;
+        const centerY = width * 0.4;
+        const { moveX, moveY } = gestureState;
+        
+        // Parmağın merkeze göre açısını hesapla
+        const dx = moveX - centerX;
+        const dy = moveY - centerY;
+        const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+        
+        // Hız hesapla
+        const deltaAngle = angle - lastAngle.current;
+        if (Math.abs(deltaAngle) < 180) {
+          velocity.current = deltaAngle;
+        }
+        
+        lastAngle.current = angle;
+        wheelRotation.value = angle;
+      },
+      onPanResponderRelease: () => {
+        isGesturing.current = false;
+        // Momentum uygula
+        applyMomentum();
+      },
+      onPanResponderTerminate: () => {
+        isGesturing.current = false;
+      },
+    })
+  ).current;
+
+  // Sadece yıldız animasyonu
+  useEffect(() => {
     // Yıldız pulse animasyonu
     starPulse.value = withRepeat(
       withTiming(1.2, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
       -1,
       true
     );
+    
+    return () => {
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
+      }
+    };
   }, []);
 
   // Burç seçimi
@@ -186,7 +253,10 @@ export default function AstrologyScreen() {
         </View>
 
         {/* Burç Çarkı */}
-        <View style={styles.zodiacWheelContainer}>
+        <View 
+          style={styles.zodiacWheelContainer}
+          {...panResponder.panHandlers}
+        >
           <Animated.View style={[styles.zodiacWheel, wheelStyle]}>
             {/* Çark çemberleri */}
             <View style={styles.outerRing} />
@@ -201,7 +271,10 @@ export default function AstrologyScreen() {
               transform: [{ translateX: -70 }, { translateY: -70 }],
               zIndex: 10
             }}>
-              <Planet3D />
+              {/* Merkez gezegen (Satürn) — dokununca evreni aç */}
+              <TouchableOpacity activeOpacity={0.8} onPress={() => setShowUniverse(true)}>
+                <Planet3D />
+              </TouchableOpacity>
             </View>
 
             {/* Burç sembolleri */}
@@ -378,6 +451,22 @@ export default function AstrologyScreen() {
 
         <View style={styles.spacer} />
       </ScrollView>
+
+      {/* Modallar */}
+      <UniverseModal
+        visible={showUniverse}
+        onClose={() => setShowUniverse(false)}
+        onSelectPlanet={(name) => {
+          setShowUniverse(false);
+          setSelectedPlanet(name);
+        }}
+      />
+      <PlanetDetailModal
+        visible={!!selectedPlanet}
+        onClose={() => setSelectedPlanet(null)}
+        planetName={selectedPlanet ?? 'saturn'}
+        userZodiac={userZodiac}
+      />
     </View>
   );
 }
