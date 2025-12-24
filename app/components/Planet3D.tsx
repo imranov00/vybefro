@@ -4,9 +4,10 @@ import React, { useRef } from 'react';
 import { GestureResponderEvent } from 'react-native';
 import * as THREE from 'three';
 
-// Güneş benzeri 3D gezegen (küre) örneği, dokunarak çevrilebilir
+// Satürn benzeri 3D gezegen (halkalı), dokunarak çevrilebilir
 export default function Planet3D() {
   const meshRef = useRef<THREE.Mesh | null>(null);
+  const ringRef = useRef<THREE.Mesh | null>(null);
   const lastTouch = useRef({ x: 0, y: 0 });
 
   return (
@@ -21,39 +22,62 @@ export default function Planet3D() {
         const renderer = new Renderer({ gl });
         renderer.setSize(width, height);
 
-        // Ana ışık (güneş ışığı)
-        const light = new THREE.PointLight(0xfff7b2, 1.5, 100);
+        // Işık
+        const light = new THREE.PointLight(0xffffff, 1.2, 100);
         light.position.set(0, 0, 2);
         scene.add(light);
 
-        // Küre (Güneş)
-        const geometry = new THREE.SphereGeometry(0.9, 48, 48);
+        // Satürn gezegeni (küre)
+        const geometry = new THREE.SphereGeometry(0.7, 48, 48);
         const material = new THREE.MeshStandardMaterial({
-          color: '#FFD700', // Altın sarısı
-          emissive: '#FFB300', // Parlaklık
-          emissiveIntensity: 0.8,
-          roughness: 0.3,
-          metalness: 0.1,
+          color: '#e0c97f', // Satürn sarısı
+          roughness: 0.5,
+          metalness: 0.2,
         });
         const mesh = new THREE.Mesh(geometry, material);
         meshRef.current = mesh;
         scene.add(mesh);
 
-        // Hafif bir glow efekti için ikinci bir şeffaf küre
-        const glowGeometry = new THREE.SphereGeometry(1.05, 48, 48);
-        const glowMaterial = new THREE.MeshBasicMaterial({
-          color: '#FFFACD',
+        // --- Satürn yüzeyine çıkıntılar (detaylar) ekle ---
+        // Küçük küreler ile rastgele çıkıntılar
+        for (let i = 0; i < 12; i++) {
+          const bumpGeo = new THREE.SphereGeometry(0.09 + Math.random() * 0.04, 16, 16);
+          const bumpMat = new THREE.MeshStandardMaterial({
+            color: '#e6d8a3',
+            roughness: 0.4,
+            metalness: 0.3,
+          });
+          const bump = new THREE.Mesh(bumpGeo, bumpMat);
+          // Rastgele bir noktaya yerleştir (küre yüzeyinde)
+          const phi = Math.random() * Math.PI;
+          const theta = Math.random() * 2 * Math.PI;
+          const r = 0.7 + 0.05;
+          bump.position.set(
+            r * Math.sin(phi) * Math.cos(theta),
+            r * Math.sin(phi) * Math.sin(theta),
+            r * Math.cos(phi)
+          );
+          mesh.add(bump);
+        }
+
+        // Satürn halkası
+        const ringGeometry = new THREE.RingGeometry(0.85, 1.15, 64);
+        const ringMaterial = new THREE.MeshBasicMaterial({
+          color: '#d2b48c',
+          side: THREE.DoubleSide,
           transparent: true,
-          opacity: 0.35,
-          side: THREE.BackSide,
+          opacity: 0.7,
         });
-        const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
-        mesh.add(glowMesh);
+        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+        ringRef.current = ring;
+        ring.rotation.x = Math.PI / 2.2; // Hafif eğik
+        mesh.add(ring);
 
         // Animasyon döngüsü
         const render = () => {
           requestAnimationFrame(render);
           mesh.rotation.y += 0.01;
+          ring.rotation.z += 0.012; // Halka da döner
           renderer.render(scene, camera);
           gl.endFrameEXP();
         };
@@ -68,9 +92,10 @@ export default function Planet3D() {
         const dx = touch.locationX - lastTouch.current.x;
         const dy = touch.locationY - lastTouch.current.y;
         lastTouch.current = { x: touch.locationX, y: touch.locationY };
-        if (meshRef.current) {
+        if (meshRef.current && ringRef.current) {
           meshRef.current.rotation.y += dx * 0.01;
           meshRef.current.rotation.x += dy * 0.01;
+          ringRef.current.rotation.z += dx * 0.012; // Halka da döner
         }
       }}
     />
