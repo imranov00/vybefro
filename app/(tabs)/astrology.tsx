@@ -1,9 +1,8 @@
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     Dimensions,
-    PanResponder,
     Platform,
     ScrollView,
     StatusBar,
@@ -90,90 +89,28 @@ export default function AstrologyScreen() {
   const cardScale = useSharedValue(1);
   const selectedScale = useSharedValue(1);
   
-  // Elle döndürme için referanslar
-  const lastAngle = useRef(0);
-  const velocity = useRef(0);
-  const isGesturing = useRef(false);
-  const animationFrameId = useRef<number | null>(null);
-  
   // Kullanıcının burcu
   const userZodiac = userProfile?.zodiacSign as ZodiacSign;
   const userZodiacInfo = userZodiac ? getZodiacInfo(userZodiac) : null;
 
-  // Momentum animasyonu
-  const applyMomentum = () => {
-    if (Math.abs(velocity.current) < 0.1) {
-      velocity.current = 0;
-      return;
-    }
-
-    const friction = 0.95;
-    velocity.current *= friction;
-    lastAngle.current += velocity.current;
-    wheelRotation.value = lastAngle.current;
-
-    if (Math.abs(velocity.current) >= 0.1) {
-      animationFrameId.current = requestAnimationFrame(applyMomentum);
-    }
-  };
-
-  // PanResponder - elle döndürme
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        isGesturing.current = true;
-        if (animationFrameId.current) {
-          cancelAnimationFrame(animationFrameId.current);
-          animationFrameId.current = null;
-        }
-        velocity.current = 0;
-      },
-      onPanResponderMove: (evt, gestureState) => {
-        const centerX = width * 0.4;
-        const centerY = width * 0.4;
-        const { moveX, moveY } = gestureState;
-        
-        // Parmağın merkeze göre açısını hesapla
-        const dx = moveX - centerX;
-        const dy = moveY - centerY;
-        const angle = Math.atan2(dy, dx) * (180 / Math.PI);
-        
-        // Hız hesapla
-        const deltaAngle = angle - lastAngle.current;
-        if (Math.abs(deltaAngle) < 180) {
-          velocity.current = deltaAngle;
-        }
-        
-        lastAngle.current = angle;
-        wheelRotation.value = angle;
-      },
-      onPanResponderRelease: () => {
-        isGesturing.current = false;
-        // Momentum uygula
-        applyMomentum();
-      },
-      onPanResponderTerminate: () => {
-        isGesturing.current = false;
-      },
-    })
-  ).current;
-
-  // Sadece yıldız animasyonu
+  // Sadece otomatik döndürme
   useEffect(() => {
+    // Sürekli dönen animasyon
+    wheelRotation.value = withRepeat(
+      withTiming(360, { 
+        duration: 60000, // 1 dakika
+        easing: Easing.linear 
+      }), 
+      -1,
+      false
+    );
+
     // Yıldız pulse animasyonu
     starPulse.value = withRepeat(
       withTiming(1.2, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
       -1,
       true
     );
-    
-    return () => {
-      if (animationFrameId.current) {
-        cancelAnimationFrame(animationFrameId.current);
-      }
-    };
   }, []);
 
   // Burç seçimi
@@ -253,10 +190,7 @@ export default function AstrologyScreen() {
         </View>
 
         {/* Burç Çarkı */}
-        <View 
-          style={styles.zodiacWheelContainer}
-          {...panResponder.panHandlers}
-        >
+        <View style={styles.zodiacWheelContainer}>
           <Animated.View style={[styles.zodiacWheel, wheelStyle]}>
             {/* Çark çemberleri */}
             <View style={styles.outerRing} />
