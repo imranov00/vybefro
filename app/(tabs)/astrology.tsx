@@ -2,23 +2,24 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
 import {
-    Dimensions,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Dimensions,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import Animated, {
-    Easing,
-    useAnimatedStyle,
-    useSharedValue,
-    withRepeat,
-    withSpring,
-    withTiming
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSpring,
+  withTiming
 } from 'react-native-reanimated';
+import Planet3D from '../components/Planet3D';
 import { useProfile } from '../context/ProfileContext';
 import { ZodiacSign, getZodiacInfo } from '../types/zodiac';
 
@@ -191,7 +192,18 @@ export default function AstrologyScreen() {
             <View style={styles.outerRing} />
             <View style={styles.middleRing} />
             <View style={styles.innerRing} />
-            
+
+            {/* 3D Gezegen tam ortada */}
+            <View style={{
+              position: 'absolute',
+              left: '50%',
+              top: '50%',
+              transform: [{ translateX: -70 }, { translateY: -70 }],
+              zIndex: 10
+            }}>
+              <Planet3D />
+            </View>
+
             {/* Burç sembolleri */}
             {ZODIAC_WHEEL.map((item, index) => {
               const zodiacInfo = getZodiacInfo(item.sign);
@@ -631,4 +643,4 @@ const styles = StyleSheet.create({
   spacer: {
     height: 40,
   },
-}); 
+});
