@@ -26,6 +26,7 @@ import { useProfile } from '../context/ProfileContext';
 export default function GlobalChatScreen() {
   const { currentMode } = useAuth();
   const { userProfile, currentUserId, refreshProfile } = useProfile();
+  const isPremium = userProfile?.isPremium || false;
   const { 
     activeChat, 
     isLoadingMessages, 
@@ -48,6 +49,7 @@ export default function GlobalChatScreen() {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const messageListRef = useRef<any>(null);
+  const [activeUserCount, setActiveUserCount] = useState(0);
 
   // Tema renklerini belirle
   const theme = {
@@ -213,22 +215,28 @@ export default function GlobalChatScreen() {
     } catch (error: any) {
       console.error('❌ [GLOBAL CHAT] Mesaj gönderme hatası:', error);
       
-      // Özel hata mesajları
+      // Özel hata mesajları - Premium kullanıcılara "Premium Ol" butonu gösterme
       if (error.message.includes('limit')) {
+        const alertButtons = [
+          { text: 'Tamam', style: 'default' as const }
+        ];
+        
+        // Sadece premium olmayan kullanıcılara "Premium Ol" butonu göster
+        if (!isPremium) {
+          alertButtons.push({
+            text: 'Premium Ol', 
+            style: 'default' as const, 
+            onPress: () => {
+              console.log('👑 [GLOBAL CHAT] Premium butonuna tıklandı');
+              router.push('/(profile)/premiumScreen');
+            }
+          });
+        }
+        
         Alert.alert(
           '⏰ Mesaj Limiti',
           error.message,
-          [
-            { text: 'Tamam', style: 'default' },
-            { 
-              text: 'Premium Ol', 
-              style: 'default', 
-              onPress: () => {
-                console.log('👑 [GLOBAL CHAT] Premium butonuna tıklandı');
-                router.push('/(profile)/premiumScreen');
-              }
-            }
-          ]
+          alertButtons
         );
       } else if (error.message.includes('uygunsuz')) {
         Alert.alert(
@@ -254,13 +262,50 @@ export default function GlobalChatScreen() {
     router.navigate('/(tabs)/chat' as any);
   };
 
-  // Aktif kullanıcı sayısını al
-  const getActiveUserCount = () => {
-    if (activeChat && 'activeUserCount' in activeChat) {
-      return activeChat.activeUserCount;
+  // Aktif kullanıcı sayısını saatlere göre dinamik olarak hesapla
+  const calculateActiveUserCount = () => {
+    const now = new Date();
+    const hour = now.getHours();
+    
+    let minCount: number;
+    let maxCount: number;
+    
+    // Saatlere göre aktif kullanıcı aralığı
+    if (hour >= 6 && hour < 12) {
+      // Sabah (06:00-11:59): 100-200 arası
+      minCount = 100;
+      maxCount = 200;
+    } else if (hour >= 12 && hour < 18) {
+      // Öğlen (12:00-17:59): 300-500 arası
+      minCount = 300;
+      maxCount = 500;
+    } else {
+      // Akşam/Gece (18:00-05:59): 1000+
+      minCount = 1000;
+      maxCount = 1500;
     }
-    return 0;
+    
+    // Random sayı üret (her dakika değişmesin diye saat bazlı)
+    const seed = now.getFullYear() + now.getMonth() + now.getDate() + Math.floor(hour / 2);
+    const random = (seed * 9301 + 49297) % 233280;
+    const normalized = random / 233280;
+    
+    const count = Math.floor(minCount + (maxCount - minCount) * normalized);
+    return count;
   };
+
+  // Aktif kullanıcı sayısını güncelle (her dakika)
+  useEffect(() => {
+    // İlk değeri ayarla
+    setActiveUserCount(calculateActiveUserCount());
+    
+    // Her dakika güncelle
+    const interval = setInterval(() => {
+      setActiveUserCount(calculateActiveUserCount());
+    }, 60000); // 60 saniye
+    
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -282,20 +327,11 @@ export default function GlobalChatScreen() {
           
           <View style={styles.headerInfo}>
             <Text style={styles.headerTitle}>🌍 Genel Sohbet</Text>
+            {/* Aktif kullanıcı sayısını saatlere göre göster */}
             <View style={styles.activeUsersContainer}>
               <View style={styles.activeIndicator} />
               <Text style={styles.activeUsersText}>
-                {getActiveUserCount()} aktif kullanıcı
-              </Text>
-            </View>
-            {/* WebSocket durumu */}
-            <View style={styles.wsStatusContainer}>
-              <View style={[
-                styles.wsStatusIndicator, 
-                { backgroundColor: wsStatus === 'CONNECTED' ? '#00FF7F' : '#FF4757' }
-              ]} />
-              <Text style={styles.wsStatusText}>
-                {wsStatus === 'CONNECTED' ? 'Çevrimiçi' : 'Bağlantı yok'}
+                {activeUserCount} aktif kullanıcı
               </Text>
             </View>
           </View>
@@ -441,23 +477,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 18,
-  },
-
-  // WebSocket durumu
-  wsStatusContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  wsStatusIndicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 6,
-  },
-  wsStatusText: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.6)',
-    fontWeight: '500',
   },
 });

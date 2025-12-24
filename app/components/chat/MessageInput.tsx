@@ -14,6 +14,7 @@ import {
     View
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
+import { useProfile } from '../../context/ProfileContext';
 import { MessageLimitInfo } from '../../services/api';
 
 interface MessageInputProps {
@@ -34,6 +35,7 @@ export default function MessageInput({
   onTypingChange
 }: MessageInputProps) {
   const { currentMode } = useAuth();
+  const { userProfile } = useProfile();
   const router = useRouter();
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -258,8 +260,8 @@ export default function MessageInput({
 
   return (
     <View style={[styles.container, { paddingBottom: isKeyboardVisible ? 0 : Platform.OS === 'ios' ? 34 : 12 }]}>
-      {/* Limit bilgisi */}
-      {limitInfo && !limitInfo.canSendMessage && (
+      {/* Limit bilgisi - Premium kullanıcılara gösterme */}
+      {limitInfo && !limitInfo.canSendMessage && !userProfile?.isPremium && (
         <View style={[styles.limitInfo, { borderTopColor: currentTheme.primary }]}>
           <Text style={[styles.limitText, { color: currentTheme.primary }]}>
             {formatLimitMessage()}

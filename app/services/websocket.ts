@@ -133,6 +133,16 @@ export class VybeWebSocketClient {
         return;
       }
 
+      // Timeout ekle (15 saniye)
+      const connectionTimeout = setTimeout(() => {
+        if (this.status !== WebSocketStatus.CONNECTED) {
+          console.error('❌ [WEBSOCKET] Bağlantı timeout (15 saniye)');
+          this.status = WebSocketStatus.ERROR;
+          this.eventHandlers.onError?.('Bağlantı zaman aşımına uğradı');
+          reject(new Error('Bağlantı zaman aşımına uğradı'));
+        }
+      }, 15000);
+
       try {
         this.status = WebSocketStatus.CONNECTING;
         console.log('🔌 [WEBSOCKET] Native WebSocket bağlantısı kuruluyor:', this.url);
@@ -153,6 +163,7 @@ export class VybeWebSocketClient {
 
         // Bağlantı başarılı olduğunda
         this.stompClient.onConnect = (frame) => {
+          clearTimeout(connectionTimeout);
           console.log('✅ [WEBSOCKET] STOMP bağlantısı başarılı:', frame);
           this.status = WebSocketStatus.CONNECTED;
           this.reconnectAttempts = 0;
@@ -164,14 +175,26 @@ export class VybeWebSocketClient {
 
         // Bağlantı hatası
         this.stompClient.onStompError = (frame) => {
+          clearTimeout(connectionTimeout);
           console.error('❌ [WEBSOCKET] STOMP bağlantı hatası:', frame);
           this.status = WebSocketStatus.ERROR;
-          this.eventHandlers.onError?.(frame.headers.message || 'Bağlantı hatası');
-          reject(new Error(frame.headers.message || 'Bağlantı hatası'));
+          const errorMessage = frame.headers?.message || frame.body || 'Bağlantı hatası';
+          this.eventHandlers.onError?.(errorMessage);
+          reject(new Error(errorMessage));
+        };
+
+        // WebSocket bağlantı hatası
+        this.stompClient.onWebSocketError = (event) => {
+          clearTimeout(connectionTimeout);
+          console.error('❌ [WEBSOCKET] WebSocket bağlantı hatası:', event);
+          this.status = WebSocketStatus.ERROR;
+          this.eventHandlers.onError?.('WebSocket bağlantı hatası');
+          reject(new Error('WebSocket bağlantı hatası'));
         };
 
         // Bağlantı kesildiğinde
         this.stompClient.onDisconnect = () => {
+          clearTimeout(connectionTimeout);
           console.log('🔌 [WEBSOCKET] STOMP bağlantısı kesildi');
           this.status = WebSocketStatus.DISCONNECTED;
           this.eventHandlers.onDisconnected?.();
@@ -186,6 +209,7 @@ export class VybeWebSocketClient {
         this.stompClient.activate();
 
       } catch (error) {
+        clearTimeout(connectionTimeout);
         console.error('❌ [WEBSOCKET] Bağlantı kurma hatası:', error);
         this.status = WebSocketStatus.ERROR;
         reject(error);

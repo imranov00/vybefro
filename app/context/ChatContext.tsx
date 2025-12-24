@@ -1165,15 +1165,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
       }, 5000);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ [CHAT CONTEXT] WebSocket başlatma hatası:', error);
-      setWsStatus(WebSocketStatus.ERROR);
-      setError('WebSocket bağlantısı kurulamadı');
+      setWsStatus(WebSocketStatus.DISCONNECTED);
+      setIsWebSocketConnected(false);
       
-      // Hata durumunda 10 saniye sonra tekrar dene
+      // Hata mesajını logla ama kullanıcıya gösterme (polling zaten çalışıyor)
+      const errorMessage = error?.message || 'WebSocket bağlantısı kurulamadı';
+      console.warn('⚠️ [CHAT CONTEXT] WebSocket bağlantısı başarısız, polling moduna geçiliyor:', errorMessage);
+      
+      // Hata durumunda 10 saniye sonra tekrar dene (sessizce)
       setTimeout(() => {
-        console.log('🔄 [CHAT CONTEXT] WebSocket başlatma hatası sonrası tekrar deneniyor...');
-        initializeWebSocketConnection();
+        if (isLoggedIn) {
+          console.log('🔄 [CHAT CONTEXT] WebSocket başlatma hatası sonrası tekrar deneniyor...');
+          initializeWebSocketConnection();
+        }
       }, 10000);
     }
   };
