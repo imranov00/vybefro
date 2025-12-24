@@ -33,14 +33,12 @@ const GEZEGEN_MAP: Record<string, any> = {
   neptune: require('../../simgeler/gezegenler/neptun.png'),
 };
 
-// Merkez astroloji küresi
-const ZODIAC_SPHERE = require('../../simgeler/gezegenler/zodiac-sphere.png');
-
 export default function PlanetWheelScreen() {
   const { userProfile } = useProfile();
   const userZodiac = (userProfile?.zodiacSign as ZodiacSign) || undefined;
   const [selectedPlanet, setSelectedPlanet] = useState<string | null>(null);
   const wheelRotation = useSharedValue(0);
+  const zodiacSphereRotation = useSharedValue(0);
   const selectedScale = useSharedValue(1);
 
   useEffect(() => {
@@ -49,10 +47,21 @@ export default function PlanetWheelScreen() {
       -1,
       false
     );
+    
+    // Zodiac sphere çok yavaş dönsün
+    zodiacSphereRotation.value = withRepeat(
+      withTiming(360, { duration: 180000, easing: Easing.linear }),
+      -1,
+      false
+    );
   }, []);
 
   const wheelStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${wheelRotation.value}deg` }],
+  }));
+
+  const zodiacSphereStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${zodiacSphereRotation.value}deg` }],
   }));
 
   // Yıldız alanı
@@ -104,13 +113,15 @@ export default function PlanetWheelScreen() {
             <View style={styles.middleRing} />
             <View style={styles.innerRing} />
 
-            {/* Merkez Astroloji Küresi */}
+            {/* Merkez Zodiac Sphere */}
             <View style={styles.centerSymbol}>
-              <Image 
-                source={ZODIAC_SPHERE} 
-                style={styles.zodiacSphereImage}
-                resizeMode="contain"
-              />
+              <Animated.View style={zodiacSphereStyle}>
+                <Image 
+                  source={require('../../simgeler/gezegenler/zodiac-sphere.png')} 
+                  style={{ width: 90, height: 90 }}
+                  resizeMode="contain"
+                />
+              </Animated.View>
             </View>
 
             {PLANETS.map((name, index) => {
@@ -228,19 +239,10 @@ const styles = StyleSheet.create({
   innerRing: { position: 'absolute', width: width * 0.4, height: width * 0.4, borderRadius: width * 0.2, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
   centerSymbol: {
     position: 'absolute',
-    width: width * 0.3,
-    height: width * 0.3,
+    width: width * 0.24,
+    height: width * 0.24,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 8,
-    shadowColor: '#4169E1',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.7,
-    shadowRadius: 15,
-  },
-  zodiacSphereImage: {
-    width: '100%',
-    height: '100%',
   },
   planetContainer: { position: 'absolute' },
   planetButton: {
