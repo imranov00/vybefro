@@ -3,18 +3,19 @@ import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { AlertButton } from 'react-native';
 import {
-    Alert,
-    Keyboard,
-    KeyboardAvoidingView,
-    KeyboardEvent,
-    Platform,
-    SafeAreaView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  KeyboardEvent,
+  Platform,
+  SafeAreaView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 import MessageInput from '../components/chat/MessageInput';
@@ -22,6 +23,7 @@ import MessageList from '../components/chat/MessageList';
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
 import { useProfile } from '../context/ProfileContext';
+import { calculateActiveUserCount } from '../utils/activeUserCount';
 
 export default function GlobalChatScreen() {
   const { currentMode } = useAuth();
@@ -217,22 +219,20 @@ export default function GlobalChatScreen() {
       
       // Özel hata mesajları - Premium kullanıcılara "Premium Ol" butonu gösterme
       if (error.message.includes('limit')) {
-        const alertButtons = [
-          { text: 'Tamam', style: 'default' as const }
+        const alertButtons: AlertButton[] = [
+          { text: 'Tamam', style: 'default' }
         ];
-        
         // Sadece premium olmayan kullanıcılara "Premium Ol" butonu göster
         if (!isPremium) {
           alertButtons.push({
-            text: 'Premium Ol', 
-            style: 'default' as const, 
+            text: 'Premium Ol',
             onPress: () => {
               console.log('👑 [GLOBAL CHAT] Premium butonuna tıklandı');
               router.push('/(profile)/premiumScreen');
-            }
+            },
+            style: 'default'
           });
         }
-        
         Alert.alert(
           '⏰ Mesaj Limiti',
           error.message,
@@ -262,48 +262,14 @@ export default function GlobalChatScreen() {
     router.navigate('/(tabs)/chat' as any);
   };
 
-  // Aktif kullanıcı sayısını saatlere göre dinamik olarak hesapla
-  const calculateActiveUserCount = () => {
-    const now = new Date();
-    const hour = now.getHours();
-    
-    let minCount: number;
-    let maxCount: number;
-    
-    // Saatlere göre aktif kullanıcı aralığı
-    if (hour >= 6 && hour < 12) {
-      // Sabah (06:00-11:59): 100-200 arası
-      minCount = 100;
-      maxCount = 200;
-    } else if (hour >= 12 && hour < 18) {
-      // Öğlen (12:00-17:59): 300-500 arası
-      minCount = 300;
-      maxCount = 500;
-    } else {
-      // Akşam/Gece (18:00-05:59): 1000+
-      minCount = 1000;
-      maxCount = 1500;
-    }
-    
-    // Random sayı üret (her dakika değişmesin diye saat bazlı)
-    const seed = now.getFullYear() + now.getMonth() + now.getDate() + Math.floor(hour / 2);
-    const random = (seed * 9301 + 49297) % 233280;
-    const normalized = random / 233280;
-    
-    const count = Math.floor(minCount + (maxCount - minCount) * normalized);
-    return count;
-  };
-
   // Aktif kullanıcı sayısını güncelle (her dakika)
   useEffect(() => {
     // İlk değeri ayarla
     setActiveUserCount(calculateActiveUserCount());
-    
     // Her dakika güncelle
     const interval = setInterval(() => {
       setActiveUserCount(calculateActiveUserCount());
     }, 60000); // 60 saniye
-    
     return () => clearInterval(interval);
   }, []);
 
@@ -342,7 +308,7 @@ export default function GlobalChatScreen() {
         </View>
 
         {/* Mesaj listesi */}
-        <View style={[styles.messagesContainer, { marginBottom: isKeyboardVisible ? 0 : 0 }]}>
+        <View style={[styles.messagesContainer, { marginBottom: isKeyboardVisible ? 0 : 0 }]}> 
           <MessageList
             ref={messageListRef}
             messages={activeChat?.messages || []}
@@ -355,6 +321,7 @@ export default function GlobalChatScreen() {
             emptyMessage="Genel sohbete hoş geldiniz! İlk mesajı sen gönder! 🌍"
             typingUsers={typingUsers.get('1')}
             otherUserName="Birisi"
+            hideTime={true}
           />
         </View>
         

@@ -426,20 +426,6 @@ export default function PrivateChatScreen() {
                   <Text style={styles.premiumBadge}>👑</Text>
                 )}
               </View>
-              
-                            <Text style={styles.userStatus}>
-                {chatInfo.otherUser?.activityStatus || 'Bilinmeyen'}
-              </Text>
-              {/* WebSocket durumu */}
-              <View style={styles.wsStatusContainer}>
-                <View style={[
-                  styles.wsStatusIndicator, 
-                  { backgroundColor: wsStatus === 'CONNECTED' ? '#00FF7F' : '#FF4757' }
-                ]} />
-                <Text style={styles.wsStatusText}>
-                  {wsStatus === 'CONNECTED' ? 'Çevrimiçi' : 'Bağlantı yok'}
-                </Text>
-              </View>
             </View>
           </TouchableOpacity>
 
@@ -585,11 +571,6 @@ const styles = StyleSheet.create({
   premiumBadge: {
     fontSize: 14,
   },
-  userStatus: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 2,
-  },
   moreButton: {
     width: 40,
     height: 40,
@@ -644,23 +625,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#8000FF',
     fontWeight: '600',
-  },
-
-  // WebSocket durumu
-  wsStatusContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  wsStatusIndicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 6,
-  },
-  wsStatusText: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.6)',
-    fontWeight: '500',
   },
 });

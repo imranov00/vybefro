@@ -133,15 +133,18 @@ export class VybeWebSocketClient {
         return;
       }
 
-      // Timeout ekle (15 saniye)
+      // Timeout ekle (30 saniye - backend yanıt vermesi için daha uzun süre)
       const connectionTimeout = setTimeout(() => {
         if (this.status !== WebSocketStatus.CONNECTED) {
-          console.error('❌ [WEBSOCKET] Bağlantı timeout (15 saniye)');
+          console.warn('❌ [WEBSOCKET] Bağlantı timeout (30 saniye)');
           this.status = WebSocketStatus.ERROR;
           this.eventHandlers.onError?.('Bağlantı zaman aşımına uğradı');
+          if (this.stompClient) {
+            this.stompClient.deactivate();
+          }
           reject(new Error('Bağlantı zaman aşımına uğradı'));
         }
-      }, 15000);
+      }, 30000);
 
       try {
         this.status = WebSocketStatus.CONNECTING;
@@ -176,7 +179,7 @@ export class VybeWebSocketClient {
         // Bağlantı hatası
         this.stompClient.onStompError = (frame) => {
           clearTimeout(connectionTimeout);
-          console.error('❌ [WEBSOCKET] STOMP bağlantı hatası:', frame);
+          console.warn('❌ [WEBSOCKET] STOMP bağlantı hatası:', frame);
           this.status = WebSocketStatus.ERROR;
           const errorMessage = frame.headers?.message || frame.body || 'Bağlantı hatası';
           this.eventHandlers.onError?.(errorMessage);
@@ -186,7 +189,7 @@ export class VybeWebSocketClient {
         // WebSocket bağlantı hatası
         this.stompClient.onWebSocketError = (event) => {
           clearTimeout(connectionTimeout);
-          console.error('❌ [WEBSOCKET] WebSocket bağlantı hatası:', event);
+          console.warn('❌ [WEBSOCKET] WebSocket bağlantı hatası:', event);
           this.status = WebSocketStatus.ERROR;
           this.eventHandlers.onError?.('WebSocket bağlantı hatası');
           reject(new Error('WebSocket bağlantı hatası'));
@@ -198,7 +201,6 @@ export class VybeWebSocketClient {
           console.log('🔌 [WEBSOCKET] STOMP bağlantısı kesildi');
           this.status = WebSocketStatus.DISCONNECTED;
           this.eventHandlers.onDisconnected?.();
-          
           // Sadece shouldReconnect true ise yeniden bağlanmaya çalış
           if (this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
             this.scheduleReconnect();
@@ -210,7 +212,7 @@ export class VybeWebSocketClient {
 
       } catch (error) {
         clearTimeout(connectionTimeout);
-        console.error('❌ [WEBSOCKET] Bağlantı kurma hatası:', error);
+        console.warn('❌ [WEBSOCKET] Bağlantı kurma hatası:', error);
         this.status = WebSocketStatus.ERROR;
         reject(error);
       }
@@ -601,6 +603,32 @@ let wsClientInstance: VybeWebSocketClient | null = null;
 
 // WebSocket client'ı başlat
 export const initializeWebSocket = async (token: string, userId: string, baseUrl?: string): Promise<VybeWebSocketClient> => {
+  // Eğer zaten bağlı bir instance varsa, yeni bağlantı açma
+  if (wsClientInstance && wsClientInstance.getStatus() === WebSocketStatus.CONNECTED) {
+    console.log('✅ [WEBSOCKET] Mevcut bağlantı kullanılıyor');
+    return wsClientInstance;
+  }
+  
+  // Eğer bağlanıyorsa, mevcut instance'ı bekle veya hata ver
+  if (wsClientInstance && wsClientInstance.getStatus() === WebSocketStatus.CONNECTING) {
+    console.log('⏸️ [WEBSOCKET] Bağlantı zaten kuruluyor, mevcut instance bekleniyor...');
+    // Mevcut bağlantıyı bekle (max 10 saniye)
+    let attempts = 0;
+    while (attempts < 20 && wsClientInstance.getStatus() === WebSocketStatus.CONNECTING) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      attempts++;
+    }
+    
+    if (wsClientInstance.getStatus() === WebSocketStatus.CONNECTED) {
+      return wsClientInstance;
+    }
+    
+    // Bağlantı başarısız oldu, yeni bağlantı aç
+    console.log('⚠️ [WEBSOCKET] Önceki bağlantı başarısız, yeni bağlantı açılıyor...');
+    wsClientInstance.disconnect();
+  }
+
+  // Eski instance varsa kapat
   if (wsClientInstance) {
     wsClientInstance.disconnect();
   }

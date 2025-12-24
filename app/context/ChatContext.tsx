@@ -1113,12 +1113,26 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  // WebSocket başlatma
+  // WebSocket başlatma - guard ile korunuyor
+  const isInitializingRef = useRef(false);
   const initializeWebSocketConnection = async () => {
+    // Zaten bağlanıyorsa veya bağlıysa tekrar başlatma
+    if (isInitializingRef.current) {
+      console.log('⏸️ [CHAT CONTEXT] WebSocket zaten başlatılıyor, bekleniyor...');
+      return;
+    }
+    
+    if (wsStatus === WebSocketStatus.CONNECTED || wsStatus === WebSocketStatus.CONNECTING) {
+      console.log('⏸️ [CHAT CONTEXT] WebSocket zaten bağlı/bağlanıyor, tekrar başlatılmıyor');
+      return;
+    }
+    
     try {
+      isInitializingRef.current = true;
       const token = await getToken();
       if (!token) {
         console.warn('⚠️ [CHAT CONTEXT] Token bulunamadı, WebSocket başlatılamıyor');
+        isInitializingRef.current = false;
         return;
       }
 
@@ -1148,6 +1162,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setupWebSocketHandlers(client);
       
       console.log('✅ [CHAT CONTEXT] WebSocket bağlantısı başarılı');
+      isInitializingRef.current = false;
       
       // WebSocket başarıyla bağlandıktan sonra aktif chat'e otomatik katıl
       if (activeChatId) {
@@ -1155,32 +1170,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         joinChatRoom(activeChatId.toString());
       }
       
-      // WebSocket başarıyla bağlandıktan sonra 5 saniye bekleyip bağlantı durumunu kontrol et
-      setTimeout(() => {
-        if (client.getStatus() === WebSocketStatus.CONNECTED) {
-          console.log('✅ [CHAT CONTEXT] WebSocket bağlantısı stabil');
-        } else {
-          console.warn('⚠️ [CHAT CONTEXT] WebSocket bağlantısı stabil değil, yeniden başlatılıyor...');
-          initializeWebSocketConnection();
-        }
-      }, 5000);
-      
     } catch (error: any) {
-      console.error('❌ [CHAT CONTEXT] WebSocket başlatma hatası:', error);
       setWsStatus(WebSocketStatus.DISCONNECTED);
       setIsWebSocketConnected(false);
-      
+      isInitializingRef.current = false;
       // Hata mesajını logla ama kullanıcıya gösterme (polling zaten çalışıyor)
       const errorMessage = error?.message || 'WebSocket bağlantısı kurulamadı';
       console.warn('⚠️ [CHAT CONTEXT] WebSocket bağlantısı başarısız, polling moduna geçiliyor:', errorMessage);
-      
-      // Hata durumunda 10 saniye sonra tekrar dene (sessizce)
+      // Hata durumunda 30 saniye sonra tekrar dene (sessizce, daha uzun süre bekle)
       setTimeout(() => {
         if (isLoggedIn) {
           console.log('🔄 [CHAT CONTEXT] WebSocket başlatma hatası sonrası tekrar deneniyor...');
           initializeWebSocketConnection();
         }
-      }, 10000);
+      }, 30000); // 30 saniye
     }
   };
 

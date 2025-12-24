@@ -26,6 +26,7 @@ import Animated, {
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
 import { ChatListItem } from '../services/api';
+import { calculateActiveUserCount } from '../utils/activeUserCount';
 
 // Evren temalı arka plan bileşenleri
 const AstrologyUniverse = () => {
@@ -245,6 +246,7 @@ export default function ChatScreen() {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<'matches' | 'global'>('matches');
+  const [globalActiveUserCount, setGlobalActiveUserCount] = useState<number>(() => calculateActiveUserCount());
 
 
   // Tema renklerini belirle
@@ -324,7 +326,12 @@ export default function ChatScreen() {
     
     if (activeTab === 'global') {
       // Sadece genel chat'i göster
-      combined.push(...chatList);
+      const globalChatList = chatList.map(item =>
+        item.chatType === 'GLOBAL'
+          ? { ...item, activeUserCount: globalActiveUserCount }
+          : item
+      );
+      combined.push(...globalChatList);
     } else {
       // Sadece private chat'leri göster
       privateChatList.forEach(privateChat => {
@@ -356,7 +363,7 @@ export default function ChatScreen() {
     }
     
     return combined;
-  }, [chatList, privateChatList, formatLastActivity, activeTab]);
+  }, [chatList, privateChatList, formatLastActivity, activeTab, globalActiveUserCount]);
 
   // Sayfa her fokuslandığında chat listesini yenile
   useFocusEffect(
@@ -680,6 +687,15 @@ export default function ChatScreen() {
       </View>
     );
   };
+
+  // Update global active user count every minute
+  useEffect(() => {
+    setGlobalActiveUserCount(calculateActiveUserCount());
+    const interval = setInterval(() => {
+      setGlobalActiveUserCount(calculateActiveUserCount());
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <View style={styles.container}>

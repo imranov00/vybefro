@@ -10,13 +10,17 @@ interface MessageBubbleProps {
   isCurrentUser: boolean;
   showAvatar?: boolean;
   onPress?: () => void;
+  showReadReceipt?: boolean;
+  hideTime?: boolean;
 }
 
 export default function MessageBubble({ 
   message, 
   isCurrentUser, 
   showAvatar = true, 
-  onPress 
+  onPress, 
+  showReadReceipt = false,
+  hideTime = false
 }: MessageBubbleProps) {
   const { currentMode } = useAuth();
   
@@ -66,6 +70,7 @@ export default function MessageBubble({
   // Mesaj durumu ikonu
   const renderMessageStatus = () => {
     if (!isCurrentUser) return null;
+    if (!showReadReceipt) return null;
 
     let icon = 'checkmark';
     let color = '#666';
@@ -189,9 +194,11 @@ export default function MessageBubble({
           styles.messageFooter,
           isCurrentUser ? styles.currentUserFooter : styles.otherUserFooter
         ]}>
-          <Text style={styles.timeText}>
-            {formatTime(message.timeAgo)}
-          </Text>
+          {!hideTime && (
+            <Text style={styles.timeText}>
+              {formatTime(message.timeAgo)}
+            </Text>
+          )}
           {renderMessageStatus()}
           {message.isEdited && (
             <Text style={styles.editedText}> • düzenlendi</Text>

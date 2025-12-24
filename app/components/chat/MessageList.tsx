@@ -24,6 +24,7 @@ interface MessageListProps {
   emptyMessage?: string;
   typingUsers?: Set<string>;
   otherUserName?: string;
+  hideTime?: boolean;
 }
 
 export interface MessageListRef {
@@ -41,7 +42,8 @@ const MessageList = forwardRef<MessageListRef, MessageListProps>(({
   isRefreshing,
   emptyMessage = "Henüz mesaj yok. İlk mesajı sen gönder! 💬",
   typingUsers,
-  otherUserName
+  otherUserName,
+  hideTime = false
 }, ref) => {
   const { currentMode } = useAuth();
   const flatListRef = useRef<FlatList>(null);
@@ -84,25 +86,28 @@ const MessageList = forwardRef<MessageListRef, MessageListProps>(({
     }
   }, [messages.length]);
 
+  // Kullanıcının son mesajının index'ini bul
+  const lastCurrentUserMsgIndex = messages.findIndex(
+    (msg, idx) => Number(msg.sender.id) === Number(currentUserId) &&
+      !messages.slice(idx + 1).some(m => Number(m.sender.id) === Number(currentUserId))
+  );
+
   // Mesaj render fonksiyonu
   const renderMessage = ({ item, index }: { item: ChatMessage; index: number }) => {
-    // Mesajın kimden geldiğini doğru tespit et (tip uyuşmazlığına dayanıklı)
     const isCurrentUser = Number(item.sender.id) === Number(currentUserId);
-    
-
-    
     const previousMessage = index < messages.length - 1 ? messages[index + 1] : null;
-    
-    // Aynı kullanıcının ardışık mesajları için avatar gösterimi
     const showAvatar = !previousMessage || 
                       previousMessage.sender.id !== item.sender.id ||
                       item.type === 'SYSTEM';
-
+    // Sadece kullanıcının son mesajında görüldü etiketi göster
+    const showReadReceipt = isCurrentUser && index === lastCurrentUserMsgIndex;
     return (
       <MessageBubble
         message={item}
         isCurrentUser={isCurrentUser}
         showAvatar={showAvatar}
+        showReadReceipt={showReadReceipt}
+        hideTime={hideTime}
       />
     );
   };
