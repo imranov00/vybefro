@@ -1,7 +1,6 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, Image, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import Modal from './Modal';
-import UniverseScene from './UniverseScene';
 
 interface UniverseModalProps {
   visible: boolean;
@@ -9,47 +8,79 @@ interface UniverseModalProps {
   onSelectPlanet: (name: string) => void;
 }
 
-// UniverseModal now renders an animated solar system scene.
+const PLANETS = [
+  'sun',
+  'moon',
+  'mercury',
+  'venus',
+  'earth',
+  'mars',
+  'jupiter',
+  'saturn',
+  'uranus',
+  'neptune',
+];
+
+const CARD_MAP: Record<string, any> = {
+  mercury: require('../../simgeler/cards/mercury.png'),
+  venus: require('../../simgeler/cards/venus.png'),
+  earth: require('../../simgeler/cards/earth.png'),
+  mars: require('../../simgeler/cards/mars.png'),
+  jupiter: require('../../simgeler/cards/jupiter.png'),
+  saturn: require('../../simgeler/cards/saturn.png'),
+  uranus: require('../../simgeler/cards/uranus.png'),
+  neptune: require('../../simgeler/cards/neptune.png'),
+  sun: require('../../simgeler/cards/sun.png'),
+  moon: require('../../simgeler/cards/moon.png'),
+};
 
 export default function UniverseModal({ visible, onClose, onSelectPlanet }: UniverseModalProps) {
   return (
     <Modal visible={visible} onClose={onClose}>
-      <View style={styles.headerRow}>
-        <Text style={styles.header}>🌌 Evren — Gezegenler Yörüngede</Text>
-        <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-          <Text style={styles.closeLabel}>Kapat</Text>
-        </TouchableOpacity>
-      </View>
-      <UniverseScene onSelectPlanet={onSelectPlanet} />
-      <Text style={styles.hint}>Bir gezegene dokun — detayını açalım.</Text>
+      <Text style={styles.header}>🌌 Evren — Gezegenler</Text>
+      <FlatList
+        data={PLANETS}
+        numColumns={2}
+        keyExtractor={(item) => item}
+        contentContainerStyle={styles.list}
+        renderItem={({ item }) => (
+          <TouchableOpacity style={styles.card} onPress={() => onSelectPlanet(item)}>
+            {CARD_MAP[item] && (
+              <Image source={CARD_MAP[item]} style={styles.image} resizeMode="cover" />
+            )}
+            <Text style={styles.label}>{item.toUpperCase()}</Text>
+          </TouchableOpacity>
+        )}
+      />
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
   header: {
     fontSize: 18,
     fontWeight: '700',
-  },
-  closeBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: '#1f2430',
-    borderRadius: 8,
-  },
-  closeLabel: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  hint: {
-    marginTop: 8,
+    marginBottom: 12,
     textAlign: 'center',
-    color: '#6b6b7a',
+  },
+  list: {
+    gap: 12,
+  },
+  card: {
+    flex: 1,
+    margin: 6,
+    backgroundColor: '#f7f7f7',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  image: {
+    width: '100%',
+    height: 140,
+  },
+  label: {
+    padding: 10,
+    fontSize: 14,
+    textAlign: 'center',
+    fontWeight: '600',
   },
 });

@@ -1,27 +1,25 @@
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Dimensions,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Dimensions,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import Animated, {
-    Easing,
-    useAnimatedStyle,
-    useSharedValue,
-    withRepeat,
-    withSpring,
-    withTiming
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSpring,
+  withTiming
 } from 'react-native-reanimated';
-import Planet3D from '../components/Planet3D';
-import PlanetDetailModal from '../components/PlanetDetailModal';
-import UniverseModal from '../components/UniverseModal';
 import { useProfile } from '../context/ProfileContext';
 import { ZodiacSign, getZodiacInfo } from '../types/zodiac';
 
@@ -80,8 +78,7 @@ export default function AstrologyScreen() {
   const { userProfile } = useProfile();
   const [selectedZodiac, setSelectedZodiac] = useState<ZodiacSign | null>(null);
   const [showDetails, setShowDetails] = useState(false);
-  const [showUniverse, setShowUniverse] = useState(false);
-  const [selectedPlanet, setSelectedPlanet] = useState<string | null>(null);
+  const router = useRouter();
   
   // Animasyon değerleri - sadece gerekli olanlar
   const wheelRotation = useSharedValue(0);
@@ -197,19 +194,25 @@ export default function AstrologyScreen() {
             <View style={styles.middleRing} />
             <View style={styles.innerRing} />
 
-            {/* 3D Gezegen tam ortada */}
-            <View style={{
-              position: 'absolute',
-              left: '50%',
-              top: '50%',
-              transform: [{ translateX: -70 }, { translateY: -70 }],
-              zIndex: 10
-            }}>
-              {/* Merkez gezegen (Satürn) — dokununca evreni aç */}
-              <TouchableOpacity activeOpacity={0.8} onPress={() => setShowUniverse(true)}>
-                <Planet3D />
-              </TouchableOpacity>
-            </View>
+            {/* Merkez Astroloji Sembolü */}
+            <TouchableOpacity 
+              activeOpacity={0.8} 
+              onPress={() => router.push('/planet-wheel')}
+              style={styles.centerSymbol}
+            >
+              <LinearGradient
+                colors={['rgba(138,43,226,0.4)', 'rgba(75,0,130,0.6)', 'rgba(138,43,226,0.4)']}
+                style={styles.centerGradient}
+              >
+                <Animated.View style={{ transform: [{ rotate: `-${wheelRotation.value}deg` }] }}>
+                  <Text style={styles.centerMainSymbol}>✦</Text>
+                  <View style={styles.centerOrbit}>
+                    <Text style={styles.centerMoonSymbol}>☽</Text>
+                    <Text style={styles.centerSunSymbol}>☉</Text>
+                  </View>
+                </Animated.View>
+              </LinearGradient>
+            </TouchableOpacity>
 
             {/* Burç sembolleri */}
             {ZODIAC_WHEEL.map((item, index) => {
@@ -386,21 +389,7 @@ export default function AstrologyScreen() {
         <View style={styles.spacer} />
       </ScrollView>
 
-      {/* Modallar */}
-      <UniverseModal
-        visible={showUniverse}
-        onClose={() => setShowUniverse(false)}
-        onSelectPlanet={(name) => {
-          setShowUniverse(false);
-          setSelectedPlanet(name);
-        }}
-      />
-      <PlanetDetailModal
-        visible={!!selectedPlanet}
-        onClose={() => setSelectedPlanet(null)}
-        planetName={selectedPlanet ?? 'saturn'}
-        userZodiac={userZodiac}
-      />
+      {/* Modallar kaldırıldı: Satürn tıklayınca gezegen çarkı sayfasına gidilir */}
     </View>
   );
 }
@@ -493,6 +482,68 @@ const styles = StyleSheet.create({
     borderRadius: width * 0.2,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
+  },
+  centerSymbol: {
+    position: 'absolute',
+    left: '50%',
+    top: '50%',
+    transform: [{ translateX: -(width * 0.12) }, { translateY: -(width * 0.12) }],
+    width: width * 0.24,
+    height: width * 0.24,
+    borderRadius: width * 0.12,
+    overflow: 'hidden',
+    elevation: 8,
+    shadowColor: '#8A2BE2',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.6,
+    shadowRadius: 12,
+    zIndex: 10,
+  },
+  centerGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: width * 0.12,
+    borderWidth: 3,
+    borderColor: 'rgba(186,144,255,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  centerMainSymbol: {
+    fontSize: 52,
+    color: '#E6E6FA',
+    textShadowColor: 'rgba(138,43,226,0.9)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 20,
+    textAlign: 'center',
+  },
+  centerOrbit: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  centerMoonSymbol: {
+    position: 'absolute',
+    fontSize: 28,
+    color: '#FFD700',
+    textShadowColor: 'rgba(255,215,0,0.8)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+    top: '10%',
+    left: '50%',
+    transform: [{ translateX: -14 }],
+  },
+  centerSunSymbol: {
+    position: 'absolute',
+    fontSize: 28,
+    color: '#FFA500',
+    textShadowColor: 'rgba(255,165,0,0.8)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+    bottom: '10%',
+    left: '50%',
+    transform: [{ translateX: -14 }],
   },
   zodiacContainer: {
     position: 'absolute',

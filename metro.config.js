@@ -1,12 +1,13 @@
-// Expo Metro config: add support for GLB/GLTF asset files
+// Enable loading .glb and .gltf assets with Metro (Expo)
 const { getDefaultConfig } = require('expo/metro-config');
 
-module.exports = (() => {
-  const config = getDefaultConfig(__dirname);
-  const { resolver } = config;
+const config = getDefaultConfig(__dirname);
 
-  // Allow bundling .glb and .gltf via require()
-  resolver.assetExts = resolver.assetExts.concat(['glb', 'gltf']);
+// Ensure custom 3D model extensions are treated as assets
+config.resolver.assetExts = [
+  ...config.resolver.assetExts,
+  'glb',
+  'gltf',
+];
 
-  return config;
-})();
+module.exports = config;

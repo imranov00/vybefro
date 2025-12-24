@@ -247,6 +247,13 @@ export default function TabLayout() {
             href: null,
           }}
         />
+        {/* Planet Wheel sayfasını gizle (sadece yönlendirme ile açılır) */}
+        <Tabs.Screen
+          name="planet-wheel"
+          options={{
+            href: null,
+          }}
+        />
       </Tabs>
       
       {/* Profil Drawer */}

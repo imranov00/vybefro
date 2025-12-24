@@ -1,3 +1,4 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { Modal as RNModal, StyleSheet, TouchableWithoutFeedback, View } from 'react-native';
 
@@ -20,7 +21,12 @@ export default function Modal({ visible, onClose, children, closeOnBackdrop = tr
         <View style={styles.overlay}>
           <TouchableWithoutFeedback>
             <View style={styles.content}>
-              {children}
+              <LinearGradient 
+                colors={['#1a1635', '#2d1a4a', '#1f1640']} 
+                style={styles.gradientContent}
+              >
+                {children}
+              </LinearGradient>
             </View>
           </TouchableWithoutFeedback>
         </View>
@@ -37,18 +43,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   content: {
-    width: '80%',
-    maxWidth: 400,
-    backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 20,
+    width: '85%',
+    maxWidth: 420,
+    backgroundColor: 'transparent',
+    borderRadius: 18,
+    padding: 0,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 8,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowOpacity: 0.35,  },
+  gradientContent: {
+    borderRadius: 18,
+    padding: 20,
+    minHeight: 200,    shadowRadius: 3.84,
     elevation: 5,
   },
 }); 

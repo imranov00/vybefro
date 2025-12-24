@@ -348,22 +348,22 @@ api.interceptors.response.use(
     return response;
   },
   async (error) => {
-    const originalRequest = error.config;
+    const originalRequest = error?.config;
+    const status = error?.response?.status;
     
-    // originalRequest undefined kontrolü ekle
-    if (!originalRequest) {
-      console.error('❌ [API] Response interceptor hatası: originalRequest undefined');
+    // Network/timeout veya config'siz hatalarda herhangi bir işlem yapmadan ilet
+    if (!originalRequest || !error?.response) {
       return Promise.reject(error);
     }
     
     // Refresh token isteği ise döngüye girmesin - direkt hata fırlat
     if (originalRequest.metadata?.isRefreshRequest || originalRequest.url?.includes('/api/auth/refresh')) {
-      console.error('❌ [API] Refresh token isteği başarısız:', error.response?.status);
+      console.error('❌ [API] Refresh token isteği başarısız:', status);
       return Promise.reject(error);
     }
     
-    // 401 hatası ve henüz retry yapılmamışsa (403 swipe limit hatası değil)
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Yalnızca 401 durumlarında token yenilemeyi dene
+    if (status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
         // Zaten yenileme yapılıyorsa, kuyruğa ekle
         return new Promise((resolve, reject) => {
