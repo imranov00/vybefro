@@ -12,6 +12,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { AuthProvider } from './context/AuthContext';
 import { ChatProvider } from './context/ChatContext';
 import { ProfileProvider } from './context/ProfileContext';
+import { SwipeProvider } from './context/SwipeContext';
 
 export {
     // Catch any errors thrown by the Layout component.
@@ -63,7 +64,9 @@ function RootLayoutNav() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <ChatProvider>
-          <Slot />
+          <SwipeProvider>
+            <Slot />
+          </SwipeProvider>
         </ChatProvider>
         <StatusBar style="light" />
       </ThemeProvider>

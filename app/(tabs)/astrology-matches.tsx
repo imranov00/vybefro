@@ -5,7 +5,6 @@ import { useRouter } from 'expo-router';
 import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Dimensions,
   Image,
@@ -21,7 +20,7 @@ import {
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useAuth } from '../context/AuthContext';
 import { useProfile } from '../context/ProfileContext';
-import { swipeApi } from '../services/api';
+import { useSwipe } from '../context/SwipeContext';
 import { getZodiacInfo, ZodiacSign } from '../types/zodiac';
 import { getDailyZodiacCommentByString } from '../types/zodiacDailyComments';
 
@@ -428,15 +427,23 @@ export default function AstrologyMatchesScreen() {
   const { isPremium } = useAuth();
   const { userProfile } = useProfile();
   
-  // 15'li batch sistemi için state'ler
-  const [userBatch, setUserBatch] = useState<DiscoverUserDTO[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSwipeInProgress, setIsSwipeInProgress] = useState(false);
-  const [swipeLimitInfo, setSwipeLimitInfo] = useState<SwipeLimitInfo | null>(null);
+  // ✅ Merkezi Swipe Context kullan
+  const {
+    currentUser,
+    isLoading,
+    isSwipeInProgress,
+    swipeLimitInfo,
+    hasMoreUsers,
+    performSwipe,
+    showNextUser,
+    loadUserBatch,
+    fetchSwipeLimitInfo
+  } = useSwipe();
+
+  // UI State
   const [showLimitOverlay, setShowLimitOverlay] = useState(false);
   const [showMatchScreen, setShowMatchScreen] = useState(false);
-  const [matchedUser, setMatchedUser] = useState<DiscoverUserDTO | null>(null);
+  const [matchedUser, setMatchedUser] = useState<any>(null);
   const [showZodiacModal, setShowZodiacModal] = useState(false);
   const [showFeatureModal, setShowFeatureModal] = useState(false);
   const [showCompatibilityModal, setShowCompatibilityModal] = useState(false);
@@ -445,12 +452,8 @@ export default function AstrologyMatchesScreen() {
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [preloadedImages, setPreloadedImages] = useState<Set<string>>(new Set());
   const [imageLoadingStates, setImageLoadingStates] = useState<Map<string, boolean>>(new Map());
-  const [cooldownInfo, setCooldownInfo] = useState<any>(null);
-  const [hasMoreUsers, setHasMoreUsers] = useState(true);
-  const [seenUsers, setSeenUsers] = useState<Set<number>>(new Set());
-  const [isPreloading, setIsPreloading] = useState(false);
 
-  // Swipe animasyonları için
+  // ✅ Swipe animasyon değerleri (manuel yönetim)
   const translateX = useRef(new Animated.Value(0)).current;
   const rotate = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(1)).current;
@@ -468,7 +471,7 @@ export default function AstrologyMatchesScreen() {
   const sparkle6 = useRef(new Animated.Value(0)).current;
 
   // Fotoğraf preloading fonksiyonu
-  const preloadImages = useCallback(async (photos: UserPhotoDTO[]) => {
+  const preloadImages = useCallback(async (photos: any[]) => {
     const imagePromises = photos.map(photo => {
       return new Promise<void>((resolve) => {
         if (preloadedImages.has(photo.imageUrl)) {
@@ -482,7 +485,6 @@ export default function AstrologyMatchesScreen() {
             resolve();
           })
           .catch(() => {
-            // Hata durumunda da devam et
             resolve();
           });
       });
@@ -490,114 +492,6 @@ export default function AstrologyMatchesScreen() {
     
     await Promise.all(imagePromises);
   }, [preloadedImages]);
-
-  
-
-  // Swipe limit bilgilerini getir
-  const fetchSwipeLimitInfo = useCallback(async () => {
-    try {
-      const data = await swipeApi.getSwipeLimitInfo();
-      setSwipeLimitInfo(data);
-      
-      // Swipe limit kontrolü - sadece gerçek limit dolduğunda
-      if (data.remainingSwipes <= 0 && !data.isPremium) {
-        setShowLimitOverlay(true);
-      }
-    } catch (error) {
-      console.error('Swipe limit bilgisi alınamadı:', error);
-    }
-  }, []);
-
-  // 15'li batch yükleme fonksiyonu
-  const loadUserBatch = useCallback(async (refresh: boolean = false) => {
-    try {
-      setIsLoading(true);
-      console.log('🔄 [BATCH] 15 kullanıcılı batch yükleniyor...');
-      
-      const data = await swipeApi.getDiscoverUsers(refresh, false, 1, 15);
-      
-      if (data.success && data.users && data.users.length > 0) {
-        // Duplicate kullanıcıları filtrele
-        const filteredUsers = data.users.filter(user => !seenUsers.has(user.id));
-        
-        if (filteredUsers.length > 0) {
-          // Kullanıcıları batch formatına dönüştür
-          const batchUsers: DiscoverUserDTO[] = filteredUsers.map(user => ({
-            id: user.id,
-            username: user.username,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            fullName: user.fullName,
-            birthDate: user.birthDate,
-            age: user.age,
-            gender: user.gender,
-            bio: user.bio,
-            zodiacSign: user.zodiacSign,
-            zodiacSignDisplay: user.zodiacSign,
-            compatibilityScore: user.compatibilityScore || 0,
-            compatibilityMessage: user.compatibilityMessage || 'Uyumluluk hesaplanıyor...',
-            profileImageUrl: user.profileImageUrl,
-            photos: user.photos.map(photo => ({
-              id: photo.id,
-              imageUrl: photo.imageUrl,
-              isProfilePhoto: photo.isProfilePhoto,
-              uploadedAt: new Date().toISOString(),
-              displayOrder: photo.displayOrder
-            })),
-            photoCount: user.photoCount,
-            isPremium: user.isPremium,
-            lastActiveTime: user.lastActiveTime,
-            activityStatus: user.activityStatus || 'offline',
-            location: user.location,
-            activities: [],
-            isVerified: user.isVerified,
-            isNewUser: false,
-            hasLikedCurrentUser: false,
-            profileCompleteness: '100%'
-          }));
-          
-          setUserBatch(batchUsers);
-          setCurrentIndex(0);
-          setHasMoreUsers(data.hasMoreUsers || false);
-          
-          console.log(`✅ [BATCH] ${batchUsers.length} kullanıcı yüklendi`);
-        } else {
-          console.log('⚠️ [BATCH] Tüm kullanıcılar daha önce görülmüş, yeni batch gerekli');
-          // Tüm kullanıcılar duplicate ise yeni batch getir
-          if (data.hasMoreUsers) {
-            await loadUserBatch(true); // Refresh ile yeni batch
-            return;
-          }
-        }
-        
-        if (data.swipeLimitInfo) {
-          setSwipeLimitInfo(data.swipeLimitInfo);
-          // Swipe limit kontrolü - sadece gerçek limit dolduğunda
-          if (data.swipeLimitInfo.remainingSwipes <= 0 && !data.swipeLimitInfo.isPremium) {
-            setShowLimitOverlay(true);
-          }
-        }
-        
-        if (data.cooldownInfo) {
-          setCooldownInfo(data.cooldownInfo);
-        }
-      } else {
-        setUserBatch([]);
-        setHasMoreUsers(false);
-        if (data.swipeLimitInfo && data.swipeLimitInfo.remainingSwipes <= 0 && !data.swipeLimitInfo.isPremium) {
-          setShowLimitOverlay(true);
-        }
-      }
-    } catch (error) {
-      console.error('❌ [BATCH] Batch yükleme hatası:', error);
-      Alert.alert('Hata', 'Kullanıcılar yüklenirken bir hata oluştu');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [seenUsers]);
-
-  // Mevcut kullanıcıyı al
-  const currentUser = userBatch[currentIndex] || null;
 
   // Kullanıcı değiştiğinde fotoğrafları preload et
   React.useEffect(() => {
@@ -620,172 +514,16 @@ export default function AstrologyMatchesScreen() {
     }
   }, [showMatchScreen]);
 
-  // Sıradaki kullanıcıya geç
-  const showNextUser = useCallback(() => {
-    if (currentIndex < userBatch.length - 1) {
-      // Batch içinde sıradaki kullanıcı
-      setCurrentIndex(currentIndex + 1);
-      
-      // Preloading: Son 3 kullanıcı kaldığında yeni batch'i önceden yükle
-      if (currentIndex >= userBatch.length - 3 && hasMoreUsers && !isPreloading) {
-        preloadNextBatch();
-      }
-    } else if (hasMoreUsers) {
-      // Batch bitti, yeni batch getir
-      loadNextBatch();
-    } else {
-      // Tüm kullanıcılar bitti
-      setUserBatch([]);
-      setCurrentIndex(0);
-    }
-  }, [currentIndex, userBatch.length, hasMoreUsers, isPreloading]);
+  // ❌ DUPLICATE: Gereksiz fonksiyonlar kaldırıldı (SwipeContext'te)
+  // showNextUser, loadNextBatch, preloadNextBatch, performSwipe
 
-  // Yeni batch getir
-  const loadNextBatch = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      console.log('🔄 [BATCH] Yeni batch yükleniyor...');
-      
-      const data = await swipeApi.getDiscoverUsers(false, false, 1, 15);
-      
-      if (data.success && data.users && data.users.length > 0) {
-        // Duplicate kullanıcıları filtrele
-        const filteredUsers = data.users.filter(user => !seenUsers.has(user.id));
-        
-        if (filteredUsers.length > 0) {
-          const batchUsers: DiscoverUserDTO[] = filteredUsers.map(user => ({
-            id: user.id,
-            username: user.username,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            fullName: user.fullName,
-            birthDate: user.birthDate,
-            age: user.age,
-            gender: user.gender,
-            bio: user.bio,
-            zodiacSign: user.zodiacSign,
-            zodiacSignDisplay: user.zodiacSign,
-            compatibilityScore: user.compatibilityScore || 0,
-            compatibilityMessage: user.compatibilityMessage || 'Uyumluluk hesaplanıyor...',
-            profileImageUrl: user.profileImageUrl,
-            photos: user.photos.map(photo => ({
-              id: photo.id,
-              imageUrl: photo.imageUrl,
-              isProfilePhoto: photo.isProfilePhoto,
-              uploadedAt: new Date().toISOString(),
-              displayOrder: photo.displayOrder
-            })),
-            photoCount: user.photoCount,
-            isPremium: user.isPremium,
-            lastActiveTime: user.lastActiveTime,
-            activityStatus: user.activityStatus || 'offline',
-            location: user.location,
-            activities: [],
-            isVerified: user.isVerified,
-            isNewUser: false,
-            hasLikedCurrentUser: false,
-            profileCompleteness: '100%'
-          }));
-          
-          setUserBatch(batchUsers);
-          setCurrentIndex(0);
-          setHasMoreUsers(data.hasMoreUsers || false);
-          
-          console.log(`✅ [BATCH] Yeni ${batchUsers.length} kullanıcı yüklendi`);
-        } else {
-          // Tüm kullanıcılar duplicate ise yeni batch getir
-          if (data.hasMoreUsers) {
-            await loadNextBatch();
-            return;
-          } else {
-            setUserBatch([]);
-            setHasMoreUsers(false);
-          }
-        }
-      } else {
-        setUserBatch([]);
-        setHasMoreUsers(false);
-      }
-    } catch (error: any) {
-      console.error('❌ [BATCH] Yeni batch yükleme hatası:', error);
-      
-      // Swipe limit hatası kontrolü (sadece gerçek swipe limiti dolduğunda)
-      if (error.isSwipeLimitError && !isPremium) {
-        setShowLimitOverlay(true);
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  }, [seenUsers]);
+  // ❌ DUPLICATE: performSwipe fonksiyonu - Context'ten kullanılıyor
+  /*
+  const performSwipe = async (action: 'LIKE' | 'DISLIKE') => { ... }
+  */
 
-  // Preloading: Son 3 kullanıcı kaldığında yeni batch'i önceden yükle
-  const preloadNextBatch = useCallback(async () => {
-    if (isPreloading || !hasMoreUsers) return;
-    
-    try {
-      setIsPreloading(true);
-      console.log('🔄 [PRELOAD] Yeni batch önceden yükleniyor...');
-      
-      const data = await swipeApi.getDiscoverUsers(false, false, 1, 15);
-      
-      if (data.success && data.users && data.users.length > 0) {
-        const filteredUsers = data.users.filter(user => !seenUsers.has(user.id));
-        
-        if (filteredUsers.length > 0) {
-          const batchUsers: DiscoverUserDTO[] = filteredUsers.map(user => ({
-            id: user.id,
-            username: user.username,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            fullName: user.fullName,
-            birthDate: user.birthDate,
-            age: user.age,
-            gender: user.gender,
-            bio: user.bio,
-            zodiacSign: user.zodiacSign,
-            zodiacSignDisplay: user.zodiacSign,
-            compatibilityScore: user.compatibilityScore || 0,
-            compatibilityMessage: user.compatibilityMessage || 'Uyumluluk hesaplanıyor...',
-            profileImageUrl: user.profileImageUrl,
-            photos: user.photos.map(photo => ({
-              id: photo.id,
-              imageUrl: photo.imageUrl,
-              isProfilePhoto: photo.isProfilePhoto,
-              uploadedAt: new Date().toISOString(),
-              displayOrder: photo.displayOrder
-            })),
-            photoCount: user.photoCount,
-            isPremium: user.isPremium,
-            lastActiveTime: user.lastActiveTime,
-            activityStatus: user.activityStatus || 'offline',
-            location: user.location,
-            activities: [],
-            isVerified: user.isVerified,
-            isNewUser: false,
-            hasLikedCurrentUser: false,
-            profileCompleteness: '100%'
-          }));
-          
-          // Preloaded batch'i state'e ekle (mevcut batch'in sonuna ekle)
-          setUserBatch(prevBatch => [...prevBatch, ...batchUsers]);
-          setHasMoreUsers(data.hasMoreUsers || false);
-          
-          console.log(`✅ [PRELOAD] ${batchUsers.length} kullanıcı önceden yüklendi`);
-        }
-      }
-    } catch (error: any) {
-      console.error('❌ [PRELOAD] Preload hatası:', error);
-      
-      // Swipe limit hatası kontrolü (sadece gerçek swipe limiti dolduğunda)
-      if (error.isSwipeLimitError && !isPremium) {
-        setShowLimitOverlay(true);
-      }
-    } finally {
-      setIsPreloading(false);
-    }
-  }, [seenUsers, hasMoreUsers, isPreloading]);
-
-  // Swipe işlemi
+  // ❌ DUPLICATE: Bu fonksiyon artık SwipeContext'te - local gereksiz
+  /*
   const performSwipe = async (action: 'LIKE' | 'DISLIKE') => {
     if (!currentUser || isSwipeInProgress) return;
     
@@ -838,14 +576,7 @@ export default function AstrologyMatchesScreen() {
       setIsSwipeInProgress(false);
     }
   };
-
-  // Swipe animasyonlarını sıfırla
-  const resetAnimations = () => {
-    translateX.setValue(0);
-    rotate.setValue(0);
-    scale.setValue(1);
-    opacity.setValue(1);
-  };
+  */
 
   // Uyumluluk skoru yanıp sönen animasyon - skora göre hız
   const startCompatibilityBlink = (compatibilityScore: number) => {
@@ -906,15 +637,30 @@ export default function AstrologyMatchesScreen() {
     });
   };
 
-  // Swipe işlemi tamamlandığında
+  // ✅ Swipe işlemi tamamlandığında
   const handleSwipeComplete = async (action: 'LIKE' | 'DISLIKE') => {
     try {
-      await performSwipe(action);
-    } catch (error) {
-      console.log('Swipe tamamlanamadı, animasyonlar sıfırlanıyor...');
+      const result = await performSwipe(action);
+      
+      if (result.isMatch && result.matchedUser) {
+        setMatchedUser(result.matchedUser);
+        setShowMatchScreen(true);
+      }
+    } catch (error: any) {
+      if (error.isSwipeLimitError) {
+        setShowLimitOverlay(true);
+      }
     } finally {
       resetAnimations();
     }
+  };
+
+  // Swipe animasyonlarını sıfırla
+  const resetAnimations = () => {
+    translateX.setValue(0);
+    rotate.setValue(0);
+    scale.setValue(1);
+    opacity.setValue(1);
   };
 
   // Pan gesture handler
@@ -1016,12 +762,8 @@ export default function AstrologyMatchesScreen() {
   // Sayfa her fokuslandığında veri çek
   useFocusEffect(
     useCallback(() => {
-      // Eğer batch boşsa yeni batch yükle
-      if (userBatch.length === 0) {
-        loadUserBatch(false);
-      }
       fetchSwipeLimitInfo();
-    }, [loadUserBatch, fetchSwipeLimitInfo, userBatch.length])
+    }, [fetchSwipeLimitInfo])
   );
 
   // Loading state

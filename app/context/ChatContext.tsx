@@ -1155,7 +1155,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       console.log('🔌 [CHAT CONTEXT] WebSocket bağlantısı başlatılıyor...');
       setWsStatus(WebSocketStatus.CONNECTING);
       
-      const client = await initializeWebSocket(token, userId);
+      // React Native için query parameter ile token gönder (Cloudflare/proxy header sorunları için)
+      const client = await initializeWebSocket(token, userId, undefined, { 
+        useQueryParameter: true,  // React Native için önerilen yöntem
+        useSockJS: false         // React Native raw WebSocket kullanır
+      });
       wsClientRef.current = client;
       setWsClient(client);
       
@@ -1163,6 +1167,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       
       console.log('✅ [CHAT CONTEXT] WebSocket bağlantısı başarılı');
       isInitializingRef.current = false;
+      
+      // Bağlantı başarılı olduğunda online durumunu bildir
+      client.sendUserStatus(true);
+      console.log('👤 [CHAT CONTEXT] User status (ONLINE) broadcast edildi');
       
       // WebSocket başarıyla bağlandıktan sonra aktif chat'e otomatik katıl
       if (activeChatId) {
@@ -1230,6 +1238,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     return () => {
       if (wsClientRef.current) {
+        // Bağlantı kesilmeden önce offline durumunu bildir
+        try {
+          wsClientRef.current.sendUserStatus(false);
+          console.log('👤 [CHAT CONTEXT] User status (OFFLINE) broadcast edildi (unmount)');
+        } catch (error) {
+          console.warn('⚠️ [CHAT CONTEXT] Offline durumu bildirilemedi:', error);
+        }
         wsClientRef.current.disconnect();
       }
     };
@@ -1394,6 +1409,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     
     // WebSocket bağlantısını tamamen kapat (reconnection'u durdur)
     if (wsClient) {
+      // Bağlantı kesilmeden önce offline durumunu bildir
+      try {
+        wsClient.sendUserStatus(false);
+        console.log('👤 [CHAT CONTEXT] User status (OFFLINE) broadcast edildi (logout)');
+      } catch (error) {
+        console.warn('⚠️ [CHAT CONTEXT] Offline durumu bildirilemedi:', error);
+      }
       wsClient.disconnect();
       setWsClient(null);
     }

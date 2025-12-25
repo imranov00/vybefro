@@ -4,7 +4,7 @@ import { ZodiacSign } from '../types/zodiac';
 import { getRefreshToken, getToken, removeAllTokens, saveRefreshToken, saveToken } from '../utils/tokenStorage';
 
 // CLOUDFLARE TUNNEL URL'i - değişebilir
-const CLOUDFLARE_URL = 'https://westminster-thehun-calculations-drop.trycloudflare.com';
+const CLOUDFLARE_URL = 'https://independently-rec-fragrances-framed.trycloudflare.com';
 
 // Alternative endpoints (gerektiğinde eklenebilir)
 const FALLBACK_URLS: string[] = [
@@ -72,7 +72,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 3000, // 3 saniye timeout (çok agresif)
+  timeout: 15000, // 15 saniye timeout (daha stabil)
 });
 
 // Dynamic base URL güncelleme
@@ -149,7 +149,7 @@ api.interceptors.request.use(
               try {
                 // Kontrollü refresh token isteği - response interceptor'da işlenecek
                 const refreshResponse = await api.post('/api/auth/refresh', { refreshToken }, {
-                  timeout: 5000,
+                  timeout: 10000, // 10 saniye timeout (daha stabil)
                   // Özel metadata ekle ki response interceptor'da tanısın
                   metadata: { isRefreshRequest: true }
                 } as any);
@@ -194,21 +194,88 @@ api.interceptors.request.use(
           }
         } catch (tokenParseError) {
           console.error('❌ [API] Token parse hatası:', tokenParseError);
+          console.warn('⚠️ [API] Token parse edilemedi, refresh token ile devam deneniyor');
           
-          // Token parse edilemiyorsa temizle
-          await removeAllTokens();
-          await AsyncStorage.setItem('logout_alert_needed', 'true');
-          
-          return Promise.reject(new Error('Geçersiz token. Lütfen tekrar giriş yapın.'));
+          // Parse hatası - Token bozuk olabilir, ama hemen logout yapma
+          // Önce refresh token ile yenilemeyi dene
+          if (refreshToken && !isRefreshing) {
+            try {
+              isRefreshing = true;
+              console.log('🔄 [API] Parse hatası sonrası token yenileniyor...');
+              
+              const refreshResponse = await api.post('/api/auth/refresh', { refreshToken }, {
+                timeout: 10000,
+                metadata: { isRefreshRequest: true }
+              } as any);
+              
+              if (refreshResponse.data?.token) {
+                await saveToken(refreshResponse.data.token);
+                
+                if (refreshResponse.data?.refreshToken) {
+                  await saveRefreshToken(refreshResponse.data.refreshToken);
+                }
+                
+                config.headers['Authorization'] = `Bearer ${refreshResponse.data.token}`;
+                console.log('✅ [API] Parse hatası sonrası token yenilendi');
+              } else {
+                throw new Error('Token yenileme yanıtı geçersiz');
+              }
+            } catch (error) {
+              console.error('❌ [API] Parse hatası sonrası token yenilenemedi');
+              // Son çare: Token'ları temizle
+              await removeAllTokens();
+              await AsyncStorage.setItem('logout_alert_needed', 'true');
+              return Promise.reject(new Error('Geçersiz token. Lütfen tekrar giriş yapın.'));
+            } finally {
+              isRefreshing = false;
+            }
+          } else {
+            // Refresh token da yoksa - bu durumda logout gerekli
+            await removeAllTokens();
+            await AsyncStorage.setItem('logout_alert_needed', 'true');
+            return Promise.reject(new Error('Geçersiz token. Lütfen tekrar giriş yapın.'));
+          }
         }
       } else {
         console.warn('⚠️ [API] Token bulunamadı');
         
-        // Token yoksa logout yap
-        await removeAllTokens();
-        await AsyncStorage.setItem('logout_alert_needed', 'true');
-        
-        return Promise.reject(new Error('Oturum bulunamadı. Lütfen giriş yapın.'));
+        // Refresh token varsa yenilemeyi dene
+        if (refreshToken && !isRefreshing) {
+          try {
+            isRefreshing = true;
+            console.log('🔄 [API] Token yok, refresh token ile yenileniyor...');
+            
+            const refreshResponse = await api.post('/api/auth/refresh', { refreshToken }, {
+              timeout: 10000,
+              metadata: { isRefreshRequest: true }
+            } as any);
+            
+            if (refreshResponse.data?.token) {
+              await saveToken(refreshResponse.data.token);
+              
+              if (refreshResponse.data?.refreshToken) {
+                await saveRefreshToken(refreshResponse.data.refreshToken);
+              }
+              
+              config.headers['Authorization'] = `Bearer ${refreshResponse.data.token}`;
+              console.log('✅ [API] Token refresh ile başarıyla oluşturuldu');
+            } else {
+              throw new Error('Token yenileme yanıtı geçersiz');
+            }
+          } catch (error) {
+            console.error('❌ [API] Token yok ve refresh başarısız, logout yapılıyor');
+            await removeAllTokens();
+            await AsyncStorage.setItem('logout_alert_needed', 'true');
+            return Promise.reject(new Error('Oturum bulunamadı. Lütfen giriş yapın.'));
+          } finally {
+            isRefreshing = false;
+          }
+        } else {
+          // Refresh token da yoksa - bu durumda logout gerekli
+          await removeAllTokens();
+          await AsyncStorage.setItem('logout_alert_needed', 'true');
+          return Promise.reject(new Error('Oturum bulunamadı. Lütfen giriş yapın.'));
+        }
       }
     }
     
@@ -224,7 +291,7 @@ api.interceptors.request.use(
 let isRefreshing = false;
 let failedQueue: Array<{ resolve: (value: any) => void; reject: (reason?: any) => void }> = [];
 let refreshAttempts = 0;
-const MAX_REFRESH_ATTEMPTS = 3; // Biraz daha fazla deneme hakkı
+const MAX_REFRESH_ATTEMPTS = 5; // Daha fazla deneme hakkı
 
 // Otomatik token yenileme için timer
 let autoRefreshTimer: ReturnType<typeof setInterval> | null = null;
@@ -351,8 +418,9 @@ api.interceptors.response.use(
     const originalRequest = error?.config;
     const status = error?.response?.status;
     
-    // Network/timeout veya config'siz hatalarda herhangi bir işlem yapmadan ilet
+    // Network/timeout veya config'siz hatalarda token temizleme - sadece hata döndür
     if (!originalRequest || !error?.response) {
+      console.warn('⚠️ [API] Network/timeout hatası, token korunuyor');
       return Promise.reject(error);
     }
     
@@ -1201,11 +1269,11 @@ export const authApi = {
       
       console.log('🔄 [API] Persistent login deneniyor...');
       
-      // Daha hızlı timeout için özel config
+      // Daha uzun timeout - persistent login için daha fazla süre ver
       const response = await api.post('/api/auth/persistent-login', {
         refreshToken: refreshToken
       }, {
-        timeout: 8000, // 8 saniye timeout
+        timeout: 15000, // 15 saniye timeout (daha stabil)
         metadata: { isRefreshRequest: true }
       } as any);
       

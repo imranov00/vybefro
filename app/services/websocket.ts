@@ -103,10 +103,14 @@ export class VybeWebSocketClient {
   private isProcessingQueue: boolean = false;
   private subscriptions: Map<string, StompSubscription> = new Map();
   private shouldReconnect: boolean = true; // Reconnection kontrolü için flag
+  private useQueryParameter: boolean = false; // Query parameter ile token gönderimi
+  private useSockJS: boolean = false; // SockJS kullanımı (browser için)
 
-  constructor(token: string, userId: string, baseUrl?: string) {
+  constructor(token: string, userId: string, baseUrl?: string, options?: { useQueryParameter?: boolean; useSockJS?: boolean }) {
     this.token = token;
     this.userId = userId;
+    this.useQueryParameter = options?.useQueryParameter || false;
+    this.useSockJS = options?.useSockJS || false;
     
     // Eğer baseUrl verilmemişse, API servisinden al
     if (!baseUrl) {
@@ -115,9 +119,18 @@ export class VybeWebSocketClient {
       baseUrl = apiModule.getWebSocketUrl();
     }
     
-    // Native WebSocket endpoint'i kullan
-    this.url = `${baseUrl}/ws-native`;
-    console.log('🔗 [WEBSOCKET] Native WebSocket URL oluşturuldu:', this.url);
+    // SockJS veya Native WebSocket endpoint'i seç
+    // React Native için /ws-native (raw WebSocket), browser için /ws (SockJS)
+    const endpoint = this.useSockJS ? '/ws' : '/ws-native';
+    
+    // Query parameter ile token ekle (React Native/proxy için önerilen)
+    if (this.useQueryParameter) {
+      this.url = `${baseUrl}${endpoint}?access_token=${encodeURIComponent(token)}`;
+      console.log('🔗 [WEBSOCKET] Query parameter ile URL oluşturuldu:', this.url.replace(token, '***'));
+    } else {
+      this.url = `${baseUrl}${endpoint}`;
+      console.log('🔗 [WEBSOCKET] Authorization header ile URL oluşturuldu:', this.url);
+    }
   }
 
   // Event handler'ları ayarla
@@ -151,18 +164,24 @@ export class VybeWebSocketClient {
         console.log('🔌 [WEBSOCKET] Native WebSocket bağlantısı kuruluyor:', this.url);
 
         // STOMP Client oluştur
-        this.stompClient = new Client({
+        const clientConfig: any = {
           brokerURL: this.url,
-          connectHeaders: {
-            'Authorization': `Bearer ${this.token}`
-          },
           reconnectDelay: this.reconnectDelay,
           heartbeatIncoming: 10000,
           heartbeatOutgoing: 10000,
-          debug: (str) => {
+          debug: (str: string) => {
             console.log('🔍 [STOMP DEBUG]', str);
           }
-        });
+        };
+        
+        // Query parameter kullanılmıyorsa Authorization header ekle
+        if (!this.useQueryParameter) {
+          clientConfig.connectHeaders = {
+            'Authorization': `Bearer ${this.token}`
+          };
+        }
+        
+        this.stompClient = new Client(clientConfig);
 
         // Bağlantı başarılı olduğunda
         this.stompClient.onConnect = (frame) => {
@@ -296,6 +315,8 @@ export class VybeWebSocketClient {
         destination = '/app/chat/join';
       } else if (message.action === WebSocketMessageType.USER_LEFT) {
         destination = '/app/chat/leave';
+      } else if (message.action === WebSocketMessageType.USER_ONLINE || message.action === WebSocketMessageType.USER_OFFLINE) {
+        destination = '/app/user/status';
       } else if (message.action === WebSocketMessageType.PING) {
         destination = '/app/ping';
       }
@@ -350,6 +371,38 @@ export class VybeWebSocketClient {
       timestamp: new Date().toISOString()
     });
   }
+  
+  // Kullanıcı online/offline durumunu bildir
+  public sendUserStatus(isOnline: boolean): void {
+    if (this.status !== WebSocketStatus.CONNECTED) {
+      console.warn('⚠️ [WEBSOCKET] Bağlantı yok, user status gönderilemedi');
+      return;
+    }
+    
+    this.sendMessage({
+      action: isOnline ? WebSocketMessageType.USER_ONLINE : WebSocketMessageType.USER_OFFLINE,
+      userId: this.userId!,
+      isOnline: isOnline,
+      timestamp: new Date().toISOString()
+    });
+    
+    console.log(`👤 [WEBSOCKET] User status gönderildi: ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
+  }
+  
+  // Ping gönder (sunucu ile bağlantıyı test et)
+  public sendPing(): void {
+    if (this.status !== WebSocketStatus.CONNECTED) {
+      console.warn('⚠️ [WEBSOCKET] Bağlantı yok, ping gönderilemedi');
+      return;
+    }
+    
+    this.sendMessage({
+      action: WebSocketMessageType.PING,
+      timestamp: new Date().toISOString()
+    });
+    
+    console.log('🏓 [WEBSOCKET] Ping gönderildi');
+  }
 
   // Subscription'ları kur
   private setupSubscriptions(): void {
@@ -403,6 +456,24 @@ export class VybeWebSocketClient {
         }
       );
       this.subscriptions.set('user-count', userCountSubscription);
+      
+      // Bildirimler için
+      const notificationSubscription = this.stompClient.subscribe(
+        `/user/${this.userId}/queue/notifications`,
+        (message) => {
+          this.handleNotification(message);
+        }
+      );
+      this.subscriptions.set('notifications', notificationSubscription);
+      
+      // Chat odası güncellemeleri için
+      const chatRoomSubscription = this.stompClient.subscribe(
+        `/user/${this.userId}/queue/chat/rooms`,
+        (message) => {
+          this.handleMessage(message);
+        }
+      );
+      this.subscriptions.set('chat-rooms', chatRoomSubscription);
 
       console.log('📡 [WEBSOCKET] Subscription\'lar kuruldu');
     } catch (error) {
@@ -449,6 +520,17 @@ export class VybeWebSocketClient {
     this.subscriptions.clear();
   }
 
+  // Bildirim işleme
+  private handleNotification(message: any): void {
+    try {
+      const notification = JSON.parse(message.body);
+      console.log('🔔 [WEBSOCKET] Bildirim alındı:', notification);
+      this.eventHandlers.onNotification?.(notification);
+    } catch (error) {
+      console.error('❌ [WEBSOCKET] Bildirim işleme hatası:', error);
+    }
+  }
+  
   // Mesaj işleme
   private handleMessage(message: any): void {
     try {
@@ -456,6 +538,7 @@ export class VybeWebSocketClient {
       console.log('📥 [WEBSOCKET] Mesaj alındı:', wsMessage.action);
 
       switch (wsMessage.action) {
+        case WebSocketMessageType.MESSAGE_SENT:
         case WebSocketMessageType.MESSAGE_RECEIVED:
           this.eventHandlers.onMessageReceived?.(wsMessage);
           break;
@@ -502,6 +585,23 @@ export class VybeWebSocketClient {
             wsMessage.chatRoomId!,
             wsMessage.data?.userName || 'Birisi'
           );
+          break;
+          
+        case WebSocketMessageType.CHAT_ROOM_CREATED:
+          console.log('🏠 [WEBSOCKET] Chat odası oluşturuldu:', wsMessage.chatRoomId);
+          this.eventHandlers.onNotification?.({
+            type: 'CHAT_ROOM_CREATED',
+            chatRoomId: wsMessage.chatRoomId,
+            chatRoomName: wsMessage.chatRoomName
+          });
+          break;
+          
+        case WebSocketMessageType.CHAT_ROOM_DELETED:
+          console.log('🚪 [WEBSOCKET] Chat odası silindi:', wsMessage.chatRoomId);
+          this.eventHandlers.onNotification?.({
+            type: 'CHAT_ROOM_DELETED',
+            chatRoomId: wsMessage.chatRoomId
+          });
           break;
 
         default:
@@ -602,7 +702,12 @@ export class VybeWebSocketClient {
 let wsClientInstance: VybeWebSocketClient | null = null;
 
 // WebSocket client'ı başlat
-export const initializeWebSocket = async (token: string, userId: string, baseUrl?: string): Promise<VybeWebSocketClient> => {
+export const initializeWebSocket = async (
+  token: string, 
+  userId: string, 
+  baseUrl?: string, 
+  options?: { useQueryParameter?: boolean; useSockJS?: boolean }
+): Promise<VybeWebSocketClient> => {
   // Eğer zaten bağlı bir instance varsa, yeni bağlantı açma
   if (wsClientInstance && wsClientInstance.getStatus() === WebSocketStatus.CONNECTED) {
     console.log('✅ [WEBSOCKET] Mevcut bağlantı kullanılıyor');
@@ -633,7 +738,7 @@ export const initializeWebSocket = async (token: string, userId: string, baseUrl
     wsClientInstance.disconnect();
   }
 
-  wsClientInstance = new VybeWebSocketClient(token, userId, baseUrl);
+  wsClientInstance = new VybeWebSocketClient(token, userId, baseUrl, options);
   await wsClientInstance.connect();
   
   return wsClientInstance;
