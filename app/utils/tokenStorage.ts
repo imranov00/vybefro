@@ -1,7 +1,28 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+/**
+ * Token Storage Utility
+ * 
+ * ⚠️ ÖNEMLI: REFRESH TOKEN ARTIK HttpOnly COOKIE İLE YÖNETİLİYOR
+ * 
+ * Backend değişiklikleri (2025):
+ * - Refresh token artık HttpOnly Cookie ile gönderiliyor (XSS koruması)
+ * - Refresh token rotation uygulandı (güvenlik)
+ * - Cookie-based authentication (withCredentials: true)
+ * 
+ * Frontend'de:
+ * - Sadece ACCESS TOKEN AsyncStorage'da saklanıyor
+ * - Refresh token cookie backend tarafından otomatik yönetiliyor
+ * - Refresh token ile ilgili fonksiyonlar geriye dönük uyumluluk için @deprecated
+ * 
+ * API Kullanımı:
+ * - Login: Access token body'de, refresh token cookie'de
+ * - Refresh: Body boş, refresh token cookie'den okunur
+ * - Logout: Backend'e istek gönderilmeli (cookie temizleme için)
+ */
+
 const TOKEN_KEY = 'auth_token';
-const REFRESH_TOKEN_KEY = 'refresh_token';
+const REFRESH_TOKEN_KEY = 'refresh_token'; // Geriye dönük uyumluluk için korundu
 
 /**
  * JWT token'ı AsyncStorage'a kaydeder
@@ -19,12 +40,14 @@ export const saveToken = async (token: string): Promise<void> => {
 
 /**
  * Refresh token'ı AsyncStorage'a kaydeder
+ * NOT: React Native'de cookie çalışmadığı için AsyncStorage kullanmak zorundayız.
+ * Backend'in fallback mekanizması (body'de token) ile çalışır.
  * @param refreshToken Refresh token
  */
 export const saveRefreshToken = async (refreshToken: string): Promise<void> => {
   try {
     await AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
-    console.log('Refresh token başarıyla kaydedildi');
+    console.log('✅ Refresh token başarıyla kaydedildi (React Native fallback)');
   } catch (error) {
     console.error('Refresh token kaydedilirken hata oluştu:', error);
     throw error;
@@ -47,6 +70,7 @@ export const getToken = async (): Promise<string | null> => {
 
 /**
  * Refresh token'ı AsyncStorage'dan alır
+ * NOT: React Native'de cookie çalışmadığı için AsyncStorage kullanılır.
  * @returns Refresh token veya null (token yoksa)
  */
 export const getRefreshToken = async (): Promise<string | null> => {
@@ -74,6 +98,7 @@ export const removeToken = async (): Promise<void> => {
 
 /**
  * Refresh token'ı AsyncStorage'dan siler
+ * NOT: React Native'de AsyncStorage kullanılır.
  */
 export const removeRefreshToken = async (): Promise<void> => {
   try {

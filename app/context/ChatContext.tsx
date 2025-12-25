@@ -2,11 +2,11 @@ import React, { createContext, ReactNode, useContext, useEffect, useRef, useStat
 import { Alert, DeviceEventEmitter } from 'react-native';
 import { chatApi, ChatListItem, ChatMessage, GlobalChatResponse, MessageLimitInfo, PrivateChatResponse, PrivateChatRoom, userApi } from '../services/api';
 import {
-  initializeWebSocket,
-  VybeWebSocketClient,
-  WebSocketMessage,
-  WebSocketMessageType,
-  WebSocketStatus
+    initializeWebSocket,
+    VybeWebSocketClient,
+    WebSocketMessage,
+    WebSocketMessageType,
+    WebSocketStatus
 } from '../services/websocket';
 import { getToken } from '../utils/tokenStorage';
 import { useAuth } from './AuthContext';

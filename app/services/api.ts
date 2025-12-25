@@ -4,7 +4,7 @@ import { ZodiacSign } from '../types/zodiac';
 import { getRefreshToken, getToken, removeAllTokens, saveRefreshToken, saveToken } from '../utils/tokenStorage';
 
 // CLOUDFLARE TUNNEL URL'i - değişebilir
-const CLOUDFLARE_URL = 'https://independently-rec-fragrances-framed.trycloudflare.com';
+const CLOUDFLARE_URL = 'https://occur-amount-staying-comparable.trycloudflare.com';
 
 // Alternative endpoints (gerektiğinde eklenebilir)
 const FALLBACK_URLS: string[] = [
@@ -73,6 +73,7 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
   timeout: 15000, // 15 saniye timeout (daha stabil)
+  withCredentials: true, // HttpOnly cookie'ler için gerekli (refresh token)
 });
 
 // Dynamic base URL güncelleme
@@ -114,168 +115,32 @@ api.interceptors.request.use(
       });
       
       if (token) {
-        // Token'ı decode et ve süresi dolmuş mu kontrol et
+        // Token'ı decode et ve loglama için bilgileri görüntüle
         try {
           const payload = JSON.parse(atob(token.split('.')[1]));
-          const currentTime = Date.now() / 1000;
           
-          console.log('🔍 [API] Token içeriği:', {
+          console.log('🔍 [API] Token bilgileri:', {
             exp: payload.exp ? new Date(payload.exp * 1000).toISOString() : 'N/A',
-            iat: payload.iat ? new Date(payload.iat * 1000).toISOString() : 'N/A',
-            userId: payload.userId,
-            username: payload.username
+            userId: payload.userId
           });
           
-          // Token süresi dolmuş mu kontrol et
-          if (payload.exp && payload.exp < currentTime) {
-            console.warn('⚠️ [API] Token süresi dolmuş!');
-            
-            // Çok fazla yenileme denemesi yapılmışsa logout yap
-            if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
-              console.error('❌ [API] Maksimum token yenileme denemesi aşıldı, logout yapılıyor');
-              refreshAttempts = 0;
-              await removeAllTokens();
-              await AsyncStorage.setItem('logout_alert_needed', 'true');
-              return Promise.reject(new Error('Oturum süresi dolmuş. Lütfen tekrar giriş yapın.'));
-            }
-            
-            // Refresh token varsa yenilemeyi dene - kontrollü şekilde
-            if (refreshToken && !isRefreshing) {
-              refreshAttempts++;
-              isRefreshing = true;
-              
-              console.log(`🔄 [API] Token yenileniyor... (${refreshAttempts}/${MAX_REFRESH_ATTEMPTS})`);
-              
-              try {
-                // Kontrollü refresh token isteği - response interceptor'da işlenecek
-                const refreshResponse = await api.post('/api/auth/refresh', { refreshToken }, {
-                  timeout: 10000, // 10 saniye timeout (daha stabil)
-                  // Özel metadata ekle ki response interceptor'da tanısın
-                  metadata: { isRefreshRequest: true }
-                } as any);
-                
-                if (refreshResponse.data?.token) {
-                  await saveToken(refreshResponse.data.token);
-                  
-                  if (refreshResponse.data?.refreshToken) {
-                    await saveRefreshToken(refreshResponse.data.refreshToken);
-                  }
-                  
-                  // Yeni token ile devam et
-                  config.headers['Authorization'] = `Bearer ${refreshResponse.data.token}`;
-                  refreshAttempts = 0; // Başarılı yenileme, counter'ı sıfırla
-                  console.log('✅ [API] Token başarıyla yenilendi');
-                } else {
-                  throw new Error('Token yenileme yanıtı geçersiz');
-                }
-              } catch (refreshError) {
-                console.error('❌ [API] Token yenileme hatası:', refreshError);
-                
-                // Token yenilenemiyorsa tüm token'ları temizle ve logout flag'i set et
-                await removeAllTokens();
-                await AsyncStorage.setItem('logout_alert_needed', 'true');
-                
-                return Promise.reject(new Error('Oturum süresi dolmuş. Lütfen tekrar giriş yapın.'));
-              } finally {
-                isRefreshing = false;
-              }
-            } else {
-              console.warn('⚠️ [API] Refresh token yok veya zaten yenileniyor, logout yapılıyor');
-              
-              // Refresh token yoksa veya zaten yenileniyorsa logout yap
-              await removeAllTokens();
-              await AsyncStorage.setItem('logout_alert_needed', 'true');
-              
-              return Promise.reject(new Error('Oturum süresi dolmuş. Lütfen tekrar giriş yapın.'));
-            }
-          } else {
-            // Token geçerli, header'a ekle
-            config.headers['Authorization'] = `Bearer ${token}`;
-          }
+          // Token'ı direkt header'a ekle - expire kontrolü YAPMA
+          // Backend 401 döndüğünde response interceptor token'ı yenileyecek
+          config.headers['Authorization'] = `Bearer ${token}`;
         } catch (tokenParseError) {
           console.error('❌ [API] Token parse hatası:', tokenParseError);
           console.warn('⚠️ [API] Token parse edilemedi, refresh token ile devam deneniyor');
           
-          // Parse hatası - Token bozuk olabilir, ama hemen logout yapma
-          // Önce refresh token ile yenilemeyi dene
-          if (refreshToken && !isRefreshing) {
-            try {
-              isRefreshing = true;
-              console.log('🔄 [API] Parse hatası sonrası token yenileniyor...');
-              
-              const refreshResponse = await api.post('/api/auth/refresh', { refreshToken }, {
-                timeout: 10000,
-                metadata: { isRefreshRequest: true }
-              } as any);
-              
-              if (refreshResponse.data?.token) {
-                await saveToken(refreshResponse.data.token);
-                
-                if (refreshResponse.data?.refreshToken) {
-                  await saveRefreshToken(refreshResponse.data.refreshToken);
-                }
-                
-                config.headers['Authorization'] = `Bearer ${refreshResponse.data.token}`;
-                console.log('✅ [API] Parse hatası sonrası token yenilendi');
-              } else {
-                throw new Error('Token yenileme yanıtı geçersiz');
-              }
-            } catch (error) {
-              console.error('❌ [API] Parse hatası sonrası token yenilenemedi');
-              // Son çare: Token'ları temizle
-              await removeAllTokens();
-              await AsyncStorage.setItem('logout_alert_needed', 'true');
-              return Promise.reject(new Error('Geçersiz token. Lütfen tekrar giriş yapın.'));
-            } finally {
-              isRefreshing = false;
-            }
-          } else {
-            // Refresh token da yoksa - bu durumda logout gerekli
-            await removeAllTokens();
-            await AsyncStorage.setItem('logout_alert_needed', 'true');
-            return Promise.reject(new Error('Geçersiz token. Lütfen tekrar giriş yapın.'));
-          }
+          // Parse hatası olsa bile token'ı header'a ekle
+          // Backend 401 dönerse response interceptor yenileyecek
+          config.headers['Authorization'] = `Bearer ${token}`;
         }
       } else {
-        console.warn('⚠️ [API] Token bulunamadı');
+        console.warn('⚠️ [API] Access token bulunamadı');
         
-        // Refresh token varsa yenilemeyi dene
-        if (refreshToken && !isRefreshing) {
-          try {
-            isRefreshing = true;
-            console.log('🔄 [API] Token yok, refresh token ile yenileniyor...');
-            
-            const refreshResponse = await api.post('/api/auth/refresh', { refreshToken }, {
-              timeout: 10000,
-              metadata: { isRefreshRequest: true }
-            } as any);
-            
-            if (refreshResponse.data?.token) {
-              await saveToken(refreshResponse.data.token);
-              
-              if (refreshResponse.data?.refreshToken) {
-                await saveRefreshToken(refreshResponse.data.refreshToken);
-              }
-              
-              config.headers['Authorization'] = `Bearer ${refreshResponse.data.token}`;
-              console.log('✅ [API] Token refresh ile başarıyla oluşturuldu');
-            } else {
-              throw new Error('Token yenileme yanıtı geçersiz');
-            }
-          } catch (error) {
-            console.error('❌ [API] Token yok ve refresh başarısız, logout yapılıyor');
-            await removeAllTokens();
-            await AsyncStorage.setItem('logout_alert_needed', 'true');
-            return Promise.reject(new Error('Oturum bulunamadı. Lütfen giriş yapın.'));
-          } finally {
-            isRefreshing = false;
-          }
-        } else {
-          // Refresh token da yoksa - bu durumda logout gerekli
-          await removeAllTokens();
-          await AsyncStorage.setItem('logout_alert_needed', 'true');
-          return Promise.reject(new Error('Oturum bulunamadı. Lütfen giriş yapın.'));
-        }
+        // Access token yoksa ama refresh token varsa yenilemeyi dene
+        // Backend 401 döndüğünde response interceptor zaten yenileyecek
+        // Burada birşey yapma, backend'e isteği gönder, 401 gelirse yenile
       }
     }
     
@@ -370,17 +235,32 @@ const stopAutoTokenRefresh = () => {
 };
 
 // Token refresh işlemi için yardımcı fonksiyon
-const performTokenRefresh = async (refreshToken: string): Promise<{ token: string; refreshToken?: string }> => {
+// NOT: React Native'de cookie yönetimi YOK! Backend fallback kullanmalı (body'de token)
+// Web için cookie, React Native için body (hybrid approach)
+const performTokenRefresh = async (): Promise<{ token: string; refreshToken?: string }> => {
   try {
-    console.log('🔄 [API] Token yenileme başlıyor...');
+    console.log('🔄 [API] Token yenileme başlıyor (React Native - body fallback)...');
     
-    const response = await api.post('/api/auth/refresh', { refreshToken }, {
+    // React Native'de refresh token'ı AsyncStorage'dan al
+    const refreshToken = await getRefreshToken();
+    
+    if (!refreshToken) {
+      console.error('❌ [API] Refresh token bulunamadı (AsyncStorage)');
+      throw new Error('Refresh token bulunamadı');
+    }
+    
+    // Body'de gönder - Backend fallback mekanizması ile çalışacak
+    // (Web'de cookie olursa cookie öncelikli, yoksa body'den okur)
+    const response = await api.post('/api/auth/refresh', { 
+      refreshToken // Backend fallback için
+    }, {
       timeout: 10000, // 10 saniye timeout
+      withCredentials: true, // Web için cookie desteği (React Native'de işe yaramaz ama zarar vermez)
       metadata: { isRefreshRequest: true }
     } as any);
     
     if (response.data?.token) {
-      console.log('✅ [API] Token başarıyla yenilendi');
+      console.log('✅ [API] Token başarıyla yenilendi (React Native fallback)');
       return {
         token: response.data.token,
         refreshToken: response.data.refreshToken
@@ -451,15 +331,11 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        console.log('🔄 [API] 401 hatası - Token yenileniyor...');
-        const refreshToken = await getRefreshToken();
+        console.log('🔄 [API] 401 hatası - Token yenileniyor (cookie-based)...');
         
-        if (!refreshToken) {
-          throw new Error('Oturum süresi dolmuş');
-        }
-        
-        // Yardımcı fonksiyonu kullan
-        const refreshResult = await performTokenRefresh(refreshToken);
+        // Refresh token HttpOnly cookie'de olduğu için parametre gerek yok
+        // Backend cookie'den otomatik okuyacak
+        const refreshResult = await performTokenRefresh();
         
         // Yeni token'ları kaydet
         await saveToken(refreshResult.token);
@@ -503,7 +379,36 @@ api.interceptors.response.use(
     if (error.response) {
       console.error(`[API RESPONSE ERROR] ${error.response.status}`, error.response.data);
       
-      // 401/403 hatalarında anında logout tetikle
+      // 403 hatalarını kontrol et - token silinmemesi gereken durumlar
+      if (error.response.status === 403) {
+        const errorCode = error.response?.data?.code;
+        
+        // Swipe limit dolması - normal durum, token korunmalı
+        if (errorCode === 'SWIPE_LIMIT_EXCEEDED') {
+          console.warn('⚠️ [API] Swipe limit doldu - Token silinmeyecek');
+          
+          const swipeLimitError = new Error('Swipe limiti doldu') as any;
+          swipeLimitError.isSwipeLimitError = true;
+          swipeLimitError.swipeLimitInfo = error.response?.data?.swipeLimitInfo;
+          swipeLimitError.premiumInfo = error.response?.data?.premiumInfo;
+          swipeLimitError.message = error.response?.data?.message || 'Günlük swipe limitiniz dolmuş';
+          
+          return Promise.reject(swipeLimitError);
+        }
+        
+        // Kullanıcı bulunamadı hatası (mock user'a swipe, match yapma vb.) - token korunmalı
+        if (errorCode === 'AUTH_USER_NOT_FOUND' || errorCode === 'USER_NOT_FOUND') {
+          console.warn('⚠️ [API] Kullanıcı bulunamadı hatası - Token silinmeyecek');
+          
+          const userNotFoundError = new Error(error.response?.data?.message || 'Kullanıcı bulunamadı') as any;
+          userNotFoundError.isUserNotFoundError = true;
+          userNotFoundError.code = errorCode;
+          
+          return Promise.reject(userNotFoundError);
+        }
+      }
+      
+      // 401 veya gerçek yetki hataları (token expired vb.) - token silinmeli
       if (error.response.status === 401 || error.response.status === 403) {
         console.log('🔒 [API] Yetkilendirme hatası - logout tetikleniyor');
         try {
@@ -516,6 +421,9 @@ api.interceptors.response.use(
         } catch (alertError) {
           console.error('❌ [API] Logout alert flag set hatası:', alertError);
         }
+        
+        // 401/403 için error'u reject et
+        return Promise.reject(error);
       }
     } else if (error.request) {
       console.error('[API REQUEST FAILED]', error.request);
@@ -527,20 +435,6 @@ api.interceptors.response.use(
       }
     } else {
       console.error('[API ERROR]', error.message);
-    }
-    
-    // 403 SWIPE_LIMIT_EXCEEDED için özel hata yönetimi
-    if (error.response?.status === 403 && error.response?.data?.code === 'SWIPE_LIMIT_EXCEEDED') {
-      console.warn('⚠️ [API] Swipe limit doldu - Token silinmeyecek');
-      
-      // Swipe limit hatası için özel error objesi
-      const swipeLimitError = new Error('Swipe limiti doldu') as any;
-      swipeLimitError.isSwipeLimitError = true;
-      swipeLimitError.swipeLimitInfo = error.response?.data?.swipeLimitInfo;
-      swipeLimitError.premiumInfo = error.response?.data?.premiumInfo;
-      swipeLimitError.message = error.response?.data?.message || 'Günlük swipe limitiniz dolmuş';
-      
-      return Promise.reject(swipeLimitError);
     }
     
     return Promise.reject(error);
@@ -1190,16 +1084,30 @@ export const authApi = {
   async login(data: LoginRequest): Promise<LoginResponse> {
     const response = await api.post('/api/auth/login', data);
     
-    // JWT token ve refresh token varsa saklama işlemi 
+    // DEBUG: Backend response'u kontrol et
+    console.log('🔍 [API] Login response:', {
+      hasToken: !!response.data?.token,
+      hasRefreshToken: !!response.data?.refreshToken,
+      keys: Object.keys(response.data || {})
+    });
+    
+    // Access token'ı sakla
     if (response.data?.token) {
       await saveToken(response.data.token);
       console.log('✅ [API] Login - access token kaydedildi');
     }
     
+    // Refresh token'ı sakla (React Native için gerekli - cookie çalışmaz)
+    // Backend response'da refreshToken dönerse kaydet
     if (response.data?.refreshToken) {
       await saveRefreshToken(response.data.refreshToken);
-      console.log('✅ [API] Login - refresh token kaydedildi');
+      console.log('✅ [API] Login - refresh token kaydedildi (React Native fallback)');
+    } else {
+      console.error('❌ [API] Login - Backend refreshToken dönmedi! Cookie çalışmaz, AsyncStorage\'a kaydedilemedi!');
+      console.error('⚠️ [API] Backend /api/auth/login endpoint\'i response body\'de refreshToken dönmeli!');
     }
+    
+    console.log('🍪 [API] Web için cookie de set edildi (kullanılmayabilir)');
     
     // Otomatik token yenilemeyi başlat
     startAutoTokenRefresh();
@@ -1211,34 +1119,41 @@ export const authApi = {
   // Token yenileme
   async refreshToken(): Promise<RefreshTokenResponse> {
     try {
+      console.log('🔄 [API] Token yenileme başlıyor (React Native fallback)...');
+      
+      // React Native için refresh token'ı AsyncStorage'dan al
       const refreshToken = await getRefreshToken();
       
       if (!refreshToken) {
-        throw new Error('Oturum süresi dolmuş');
+        console.error('❌ [API] Refresh token bulunamadı');
+        throw new Error('Refresh token bulunamadı');
       }
       
-      console.log('🔄 [API] Token yenileme başlıyor...');
-      
-      const response = await api.post('/api/auth/refresh', { refreshToken }, {
+      // Body'de gönder - Backend fallback mekanizması ile çalışacak
+      const response = await api.post('/api/auth/refresh', {
+        refreshToken // Backend fallback için
+      }, {
         timeout: 10000, // 10 saniye timeout
+        withCredentials: true, // Web için cookie desteği
         metadata: { isRefreshRequest: true }
       } as any);
       
-      // Yeni token'ları kaydet
+      // Yeni access token'ı kaydet
       if (response.data?.token) {
         await saveToken(response.data.token);
         console.log('✅ [API] Yeni access token kaydedildi');
       }
       
+      // Yeni refresh token varsa kaydet (rotation)
       if (response.data?.refreshToken) {
         await saveRefreshToken(response.data.refreshToken);
-        console.log('✅ [API] Yeni refresh token kaydedildi');
+        console.log('🔄 [API] Refresh token rotation: Yeni token kaydedildi');
       }
       
       // Son yenileme zamanını güncelle
       lastTokenRefreshTime = Date.now();
       
-      console.log('🔄 [API] Token başarıyla yenilendi');
+      console.log('🔄 [API] Token başarıyla yenilendi (React Native fallback)');
       return response.data;
     } catch (error: any) {
       console.error('❌ [API] Token yenileme hatası:', error);
@@ -1261,38 +1176,41 @@ export const authApi = {
   // Otomatik giriş yapma (persistent login)
   async persistentLogin(): Promise<LoginResponse> {
     try {
+      console.log('🔄 [API] Persistent login deneniyor (React Native fallback)...');
+      
+      // React Native için refresh token'ı AsyncStorage'dan al
       const refreshToken = await getRefreshToken();
       
       if (!refreshToken) {
-        throw new Error('Oturum süresi dolmuş');
+        console.error('❌ [API] Refresh token bulunamadı (persistent login)');
+        throw new Error('Refresh token bulunamadı');
       }
       
-      console.log('🔄 [API] Persistent login deneniyor...');
-      
-      // Daha uzun timeout - persistent login için daha fazla süre ver
+      // Body'de gönder - Backend fallback mekanizması
       const response = await api.post('/api/auth/persistent-login', {
-        refreshToken: refreshToken
+        refreshToken // Backend fallback için
       }, {
         timeout: 15000, // 15 saniye timeout (daha stabil)
+        withCredentials: true, // Web için cookie desteği
         metadata: { isRefreshRequest: true }
       } as any);
       
       if (response.data?.success && response.data?.token) {
-        // Yeni token'ı kaydet
+        // Yeni access token'ı kaydet
         await saveToken(response.data.token);
         console.log('✅ [API] Persistent login - access token kaydedildi');
         
-        // Refresh token da varsa güncelle
+        // Yeni refresh token varsa kaydet
         if (response.data?.refreshToken) {
           await saveRefreshToken(response.data.refreshToken);
-          console.log('✅ [API] Persistent login - refresh token güncellendi');
+          console.log('🔄 [API] Persistent login - refresh token güncellendi');
         }
         
         // Otomatik token yenilemeyi başlat
         startAutoTokenRefresh();
         lastTokenRefreshTime = Date.now();
         
-        console.log('✅ [API] Persistent login başarılı - otomatik yenileme başlatıldı');
+        console.log('✅ [API] Persistent login başarılı (React Native fallback)');
         return response.data;
       }
       
@@ -1318,15 +1236,20 @@ export const authApi = {
   // Çıkış yapma
   logout: async (): Promise<LogoutResponse> => {
     try {
-      const response = await api.post('/api/auth/logout');
+      // Backend'e logout isteği gönder (cookie'yi temizlemek için)
+      const response = await api.post('/api/auth/logout', {}, {
+        withCredentials: true // Cookie silme için gerekli
+      });
       
       // Otomatik token yenilemeyi durdur
       stopAutoTokenRefresh();
       
-      // Çıkış sonrası tüm token'ları temizle
+      // Çıkış sonrası sadece access token'ı temizle
+      // (Refresh token cookie backend tarafından zaten temizlendi)
       await removeAllTokens();
       
       console.log('✅ [API] Logout başarılı - otomatik yenileme durduruldu');
+      console.log('🍪 [API] Refresh token cookie backend tarafından temizlendi');
       
       return response.data;
     } catch (error) {

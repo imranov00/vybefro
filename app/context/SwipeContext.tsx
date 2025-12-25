@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
+import SwipeLimitModal from '../components/SwipeLimitModal';
 import { SwipeLimitInfo as ApiSwipeLimitInfo, swipeApi } from '../services/api';
 
 // Types
@@ -84,6 +85,10 @@ export const SwipeProvider: React.FC<SwipeProviderProps> = ({ children }) => {
   const [isSwipeInProgress, setIsSwipeInProgress] = useState(false);
   const [swipeLimitInfo, setSwipeLimitInfo] = useState<SwipeLimitInfo | null>(null);
   const [isPreloading, setIsPreloading] = useState(false);
+  
+  // Modal state
+  const [showLimitModal, setShowLimitModal] = useState(false);
+  const [limitModalMessage, setLimitModalMessage] = useState('');
 
   // Refs
   const batchIndexRef = useRef(0);
@@ -308,7 +313,20 @@ export const SwipeProvider: React.FC<SwipeProviderProps> = ({ children }) => {
 
       if (error.isSwipeLimitError) {
         setSwipeLimitInfo(error.swipeLimitInfo);
+        
+        // Swipe limit modal'ı göster
+        setLimitModalMessage(error.message || 'Günlük swipe limitiniz doldu!');
+        setShowLimitModal(true);
+        
         throw error;
+      }
+      
+      // 400 hatası - Backend'den gelen swipe limit hatası
+      if (error.response?.status === 400 && error.response?.data?.message?.includes('limit')) {
+        const message = error.response.data.message || 'Günlük swipe limitiniz doldu!';
+        setLimitModalMessage(message);
+        setShowLimitModal(true);
+        throw new Error(message);
       }
 
       // Duplicate swipe hatası - sessizce geç
@@ -362,6 +380,14 @@ export const SwipeProvider: React.FC<SwipeProviderProps> = ({ children }) => {
   return (
     <SwipeContext.Provider value={value}>
       {children}
+      
+      {/* Swipe Limit Modal */}
+      <SwipeLimitModal
+        visible={showLimitModal}
+        onClose={() => setShowLimitModal(false)}
+        remainingSwipes={swipeLimitInfo?.remainingSwipes || 0}
+        message={limitModalMessage}
+      />
     </SwipeContext.Provider>
   );
 };

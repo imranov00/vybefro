@@ -18,6 +18,7 @@ import {
   View
 } from 'react-native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
+import SwipeLimitModal from '../components/SwipeLimitModal';
 import { useAuth } from '../context/AuthContext';
 import { useProfile } from '../context/ProfileContext';
 import { useSwipe } from '../context/SwipeContext';
@@ -648,6 +649,10 @@ export default function AstrologyMatchesScreen() {
       }
     } catch (error: any) {
       if (error.isSwipeLimitError) {
+        // Modal'da göster (artik overlay değil)
+        setShowLimitOverlay(true);
+      } else if (error.response?.status === 400 && error.response?.data?.message?.includes('limit')) {
+        // 400 hatası - backend'den gelen limit hatası
         setShowLimitOverlay(true);
       }
     } finally {
@@ -1217,38 +1222,6 @@ export default function AstrologyMatchesScreen() {
             <ActivityIndicator size="large" color="#8000FF" />
             <Text style={styles.loadingOverlayText}>İşleniyor...</Text>
           </View>
-        </View>
-      )}
-
-      {/* Swipe Limit Overlay */}
-      {showLimitOverlay && (
-        <View style={styles.limitOverlay}>
-          <LinearGradient colors={['#FF6B6B', '#FF8E53']} style={styles.limitOverlayGradient}>
-            <View style={styles.limitOverlayContent}>
-              <Text style={styles.limitIcon}>⏰</Text>
-              <Text style={styles.limitTitle}>Swipe Limiti Doldu</Text>
-              <Text style={styles.limitSubtitle}>
-                Günlük swipe hakkınız tükendi
-              </Text>
-              
-              <TouchableOpacity
-                style={styles.premiumCtaButton}
-                onPress={() => {
-                  setShowLimitOverlay(false);
-                  goToPremium();
-                }}
-              >
-                <Text style={styles.premiumCtaButtonText}>Premium Ol</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.limitCloseButton}
-                onPress={() => setShowLimitOverlay(false)}
-              >
-                <Text style={styles.limitCloseButtonText}>Tamam</Text>
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
         </View>
       )}
 
@@ -2022,6 +1995,14 @@ export default function AstrologyMatchesScreen() {
           </LinearGradient>
         </View>
       )}
+      
+      {/* Swipe Limit Modal - Premium yönlendirmesi ile */}
+      <SwipeLimitModal
+        visible={showLimitOverlay}
+        onClose={() => setShowLimitOverlay(false)}
+        remainingSwipes={swipeLimitInfo?.remainingSwipes || 0}
+        message={swipeLimitInfo?.limitMessage || 'Günlük swipe limitiniz doldu! Premium üyelik ile sınırsız swipe yapabilirsiniz.'}
+      />
     </LinearGradient>
   );
 }
