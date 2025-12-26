@@ -4,7 +4,7 @@ import { ZodiacSign } from '../types/zodiac';
 import { getRefreshToken, getToken, removeAllTokens, saveRefreshToken, saveToken } from '../utils/tokenStorage';
 
 // CLOUDFLARE TUNNEL URL'i - değişebilir
-const CLOUDFLARE_URL = 'https://contains-because-moses-thirty.trycloudflare.com';
+const CLOUDFLARE_URL = 'https://continually-split-rock-cursor.trycloudflare.com';
 
 // Alternative endpoints (gerektiğinde eklenebilir)
 const FALLBACK_URLS: string[] = [
@@ -157,6 +157,13 @@ let isRefreshing = false;
 let failedQueue: Array<{ resolve: (value: any) => void; reject: (reason?: any) => void }> = [];
 let refreshAttempts = 0;
 const MAX_REFRESH_ATTEMPTS = 5; // Daha fazla deneme hakkı
+
+// Persistent login sırasında 403 hatalarında logout tetiklenmesini engellemek için flag
+let isPersistentLoginInProgress = false;
+
+// Token yenileme sonrası grace period (saniye cinsinden)
+// Bu süre içinde 403 hataları logout tetiklemez çünkü eski istekler hala devam ediyor olabilir
+const TOKEN_REFRESH_GRACE_PERIOD = 5000; // 5 saniye
 
 // Otomatik token yenileme için timer
 let autoRefreshTimer: ReturnType<typeof setInterval> | null = null;
@@ -414,6 +421,20 @@ api.interceptors.response.use(
       
       // 401 veya gerçek yetki hataları (token expired vb.) - token silinmeli
       if (error.response.status === 401 || error.response.status === 403) {
+        // Persistent login sırasında veya token yenileme sonrası grace period içinde logout tetikleme
+        const timeSinceLastRefresh = Date.now() - lastTokenRefreshTime;
+        const isInGracePeriod = timeSinceLastRefresh < TOKEN_REFRESH_GRACE_PERIOD && lastTokenRefreshTime > 0;
+        
+        if (isPersistentLoginInProgress) {
+          console.log('⏳ [API] Persistent login devam ediyor - 403 hatası için logout tetiklenmiyor');
+          return Promise.reject(error);
+        }
+        
+        if (isInGracePeriod) {
+          console.log(`⏳ [API] Token yenileme sonrası grace period içinde (${timeSinceLastRefresh}ms) - 403 hatası için logout tetiklenmiyor`);
+          return Promise.reject(error);
+        }
+        
         console.log('🔒 [API] Yetkilendirme hatası - logout tetikleniyor');
         try {
           await AsyncStorage.setItem('logout_alert_needed', 'true');
@@ -1174,6 +1195,9 @@ export const authApi = {
   
   // Otomatik giriş yapma (persistent login)
   async persistentLogin(): Promise<LoginResponse> {
+    // Persistent login başladığında flag'i set et
+    isPersistentLoginInProgress = true;
+    
     try {
       console.log('🔄 [API] Persistent login deneniyor (React Native fallback)...');
       
@@ -1210,11 +1234,22 @@ export const authApi = {
         lastTokenRefreshTime = Date.now();
         
         console.log('✅ [API] Persistent login başarılı (React Native fallback)');
+        
+        // Başarılı olunca flag'i temizle - ancak grace period için biraz bekle
+        setTimeout(() => {
+          isPersistentLoginInProgress = false;
+          console.log('🔓 [API] Persistent login flag temizlendi (grace period sonrası)');
+        }, TOKEN_REFRESH_GRACE_PERIOD);
+        
         return response.data;
       }
       
       throw new Error('Persistent login başarısız');
     } catch (error: any) {
+      // Hata durumunda flag'i hemen temizle
+      isPersistentLoginInProgress = false;
+      console.log('🔓 [API] Persistent login flag temizlendi (hata sonrası)');
+      
       console.log('❌ [API] Persistent login hatası:', error.message);
       
       // Geçersiz refresh token'ı temizle
