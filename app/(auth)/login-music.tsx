@@ -3,7 +3,7 @@ import axios from 'axios';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Dimensions, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Animated, {
   Easing,
@@ -12,6 +12,7 @@ import Animated, {
   withRepeat,
   withTiming
 } from 'react-native-reanimated';
+import AnimatedSplashScreen from '../components/AnimatedSplashScreen';
 import { useAuth } from '../context/AuthContext';
 import { authApi } from '../services/api';
 
@@ -47,6 +48,7 @@ export default function LoginMusicScreen() {
   const params = useLocalSearchParams();
   const rotation = useSharedValue(0);
   const [loading, setLoading] = useState(false);
+  const [showLoginSplash, setShowLoginSplash] = useState(false);
   const [formData, setFormData] = useState({
     emailOrUsername: '',
     password: '',
@@ -118,11 +120,9 @@ export default function LoginMusicScreen() {
       
       // Token kontrolü
       if (response.token) {
-        console.log('[LOGIN MUSIC PAGE] Token received, redirecting to main page...');
-        // Auth context'e giriş yaptığını bildir
-        await login('music');
-        // Ana sayfaya yönlendir
-        router.replace('/(tabs)' as any);
+        console.log('[LOGIN MUSIC PAGE] Token received, showing splash...');
+        // Splash göster, login splash bitince yapılacak
+        setShowLoginSplash(true);
       } else {
         console.error('[LOGIN MUSIC PAGE] Login successful but no token received');
         Alert.alert('Hata', 'Giriş başarılı ancak oturum açılamadı');
@@ -154,6 +154,24 @@ export default function LoginMusicScreen() {
       setLoading(false);
     }
   };
+
+  // Splash bittiğinde login yap ve ana sayfaya yönlendir
+  const handleSplashFinish = useCallback(async () => {
+    await login('music');
+    router.replace('/(tabs)' as any);
+  }, [router, login]);
+
+  // Login sonrası splash ekranı göster (music = yeşil tema)
+  if (showLoginSplash) {
+    return (
+      <AnimatedSplashScreen 
+        onFinish={handleSplashFinish}
+        isAppReady={true}
+        theme="green"
+        duration={2000}
+      />
+    );
+  }
 
   return (
     <KeyboardAvoidingView 

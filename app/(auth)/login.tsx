@@ -3,7 +3,7 @@ import axios from 'axios';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Dimensions, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Animated, {
     Easing,
@@ -12,6 +12,7 @@ import Animated, {
     withRepeat,
     withTiming
 } from 'react-native-reanimated';
+import AnimatedSplashScreen from '../components/AnimatedSplashScreen';
 import { showLoginError } from '../components/CustomAlert';
 import { useAuth } from '../context/AuthContext';
 import { authApi } from '../services/api';
@@ -47,12 +48,23 @@ export default function LoginScreen() {
   const params = useLocalSearchParams();
   const rotation = useSharedValue(0);
   const [loading, setLoading] = useState(false);
+  const [showLoginSplash, setShowLoginSplash] = useState(false);
   const [formData, setFormData] = useState({
     emailOrUsername: '',
     password: '',
   });
   const [showPassword, setShowPassword] = useState(false);
-  const { login } = useAuth();
+  const [sessionTimeoutShown, setSessionTimeoutShown] = useState(false);
+  const { login, shouldShowLogoutAlert, currentMode } = useAuth();
+  
+  // Oturum timeout uyarısını göster (sayfa yüklendiğinde) - sadece flag true ise ve henüz gösterilmediyse
+  useEffect(() => {
+    // shouldShowLogoutAlert true ve henüz gösterilmediyse, uyarı göster
+    if (shouldShowLogoutAlert === true && !sessionTimeoutShown) {
+      showLoginError('Oturumunuz sona erdi. Lütfen tekrar giriş yapın.');
+      setSessionTimeoutShown(true);
+    }
+  }, [shouldShowLogoutAlert, sessionTimeoutShown]);
   
   // Kayıt sayfasından gelen email parametresini kullan
   useEffect(() => {
@@ -118,11 +130,9 @@ export default function LoginScreen() {
       
       // Token kontrolü
       if (response.token) {
-        console.log('[LOGIN PAGE] Token received, redirecting to main page...');
-        // Auth context'e giriş yaptığını bildir
-        await login('astrology');
-        // Ana sayfaya yönlendir
-        router.replace('/(tabs)' as any);
+        console.log('[LOGIN PAGE] Token received, showing splash...');
+        // Splash göster, login splash bitince yapılacak
+        setShowLoginSplash(true);
       } else {
         console.error('[LOGIN PAGE] Login successful but no token received');
         showLoginError('Giriş başarılı ancak oturum açılamadı');
@@ -162,6 +172,24 @@ export default function LoginScreen() {
       setLoading(false);
     }
   };
+
+  // Splash bittiğinde login yap ve ana sayfaya yönlendir
+  const handleSplashFinish = useCallback(async () => {
+    await login('astrology');
+    router.replace('/(tabs)' as any);
+  }, [router, login]);
+
+  // Login sonrası splash ekranı göster (astrology = mor tema)
+  if (showLoginSplash) {
+    return (
+      <AnimatedSplashScreen 
+        onFinish={handleSplashFinish}
+        isAppReady={true}
+        theme="purple"
+        duration={2000}
+      />
+    );
+  }
 
   return (
     <KeyboardAvoidingView 

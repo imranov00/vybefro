@@ -69,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { userProfile, clearCache: clearProfileCache } = useProfile();
 
   // Kapsamlı cache temizleme fonksiyonu
-  const clearAllCaches = async () => {
+  const clearAllCaches = async (isNormalLogout: boolean = false) => {
     try {
       console.log('🗑️ [AUTH] Tüm cache\'ler temizleniyor...');
       
@@ -92,6 +92,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ];
       
       await Promise.all(keysToRemove.map(key => AsyncStorage.removeItem(key)));
+      
+      // Normal logout ise özel flag set et (oturum sonlandı uyarısı gösterme)
+      if (isNormalLogout) {
+        await AsyncStorage.setItem('normal_logout', 'true');
+        console.log('🚦 [AUTH] Normal logout flag set edildi');
+      }
       
       console.log('✅ [AUTH] Tüm cache\'ler temizlendi');
     } catch (error) {
@@ -238,8 +244,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     stopAutoTokenRefresh();
     console.log('🛑 [AUTH] Otomatik token yenileme durduruldu');
     
-    // Kapsamlı cache temizleme
-    await clearAllCaches();
+    // Kapsamlı cache temizleme (normal logout olduğunu işaretle)
+    await clearAllCaches(true);
     
     // Diğer context'lere logout event'i gönder
     DeviceEventEmitter.emit('user_logout', { reason: 'normal_logout' });
@@ -311,12 +317,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             console.log('❌ [AUTH] Persistent login başarısız - token yok');
             setIsLoggedIn(false);
             
-            // Logout alert flag'ini kontrol et
-            const logoutAlertNeeded = await AsyncStorage.getItem('logout_alert_needed');
-            if (logoutAlertNeeded === 'true') {
-              console.log('🚨 [AUTH] Logout alert flag found - showing alert');
-              setShouldShowLogoutAlert(true);
-              await AsyncStorage.removeItem('logout_alert_needed'); // Flag'i temizle
+            // Normal logout yapıldı mı kontrol et
+            const normalLogout = await AsyncStorage.getItem('normal_logout');
+            if (normalLogout === 'true') {
+              console.log('🚦 [AUTH] Normal logout tespit edildi - alert gösterilmeyecek');
+              await AsyncStorage.removeItem('normal_logout');
+              // Alert gösterme
+            } else {
+              // Logout alert flag'ini kontrol et
+              const logoutAlertNeeded = await AsyncStorage.getItem('logout_alert_needed');
+              if (logoutAlertNeeded === 'true') {
+                console.log('🚨 [AUTH] Logout alert flag found - showing alert');
+                setShouldShowLogoutAlert(true);
+                await AsyncStorage.removeItem('logout_alert_needed'); // Flag'i temizle
+              }
             }
           }
         } catch (persistentError: any) {
@@ -332,12 +346,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // Hata durumunda token'ları silme, sadece login false yap
             setIsLoggedIn(false);
             
-            // Logout alert flag'ini kontrol et ve göster
-            const logoutAlertNeeded = await AsyncStorage.getItem('logout_alert_needed');
-            if (logoutAlertNeeded === 'true') {
-              console.log('🚨 [AUTH] Logout alert flag found - showing alert');
-              setShouldShowLogoutAlert(true);
-              await AsyncStorage.removeItem('logout_alert_needed'); // Flag'i temizle
+            // Normal logout yapıldı mı kontrol et
+            const normalLogout = await AsyncStorage.getItem('normal_logout');
+            if (normalLogout === 'true') {
+              console.log('🚦 [AUTH] Normal logout tespit edildi - alert gösterilmeyecek');
+              await AsyncStorage.removeItem('normal_logout');
+              // Alert gösterme
+            } else {
+              // Logout alert flag'ini kontrol et ve göster
+              const logoutAlertNeeded = await AsyncStorage.getItem('logout_alert_needed');
+              if (logoutAlertNeeded === 'true') {
+                console.log('🚨 [AUTH] Logout alert flag found - showing alert');
+                setShouldShowLogoutAlert(true);
+                await AsyncStorage.removeItem('logout_alert_needed'); // Flag'i temizle
+              }
             }
           }
         }

@@ -4,7 +4,7 @@ import { ZodiacSign } from '../types/zodiac';
 import { getRefreshToken, getToken, removeAllTokens, saveRefreshToken, saveToken } from '../utils/tokenStorage';
 
 // CLOUDFLARE TUNNEL URL'i - değişebilir
-const CLOUDFLARE_URL = 'https://occur-amount-staying-comparable.trycloudflare.com';
+const CLOUDFLARE_URL = 'https://contains-because-moses-thirty.trycloudflare.com';
 
 // Alternative endpoints (gerektiğinde eklenebilir)
 const FALLBACK_URLS: string[] = [
@@ -352,7 +352,7 @@ api.interceptors.response.use(
         console.log('✅ [API] Token yenilendi, istek tekrarlanıyor');
         return api(originalRequest);
         
-      } catch (refreshError) {
+      } catch (refreshError: any) {
         console.error('❌ [API] Token yenileme hatası:', refreshError);
         
         // Refresh token geçersizse tüm token'ları temizle
@@ -361,12 +361,16 @@ api.interceptors.response.use(
         // Başarısız kuyruğu işle
         processQueue(refreshError, null);
         
-        // Logout alert flag'i set et
-        try {
-          await AsyncStorage.setItem('logout_alert_needed', 'true');
-          console.log('🚨 [API] Logout alert flag set edildi');
-        } catch (error) {
-          console.error('❌ [API] Logout alert flag set hatası:', error);
+        // Sadece gerçek session timeout durumunda alert göster
+        // "Refresh token bulunamadı" hatası normal logout sonrası oluşur, alert gösterme
+        const errorMessage = refreshError?.message || '';
+        if (!errorMessage.includes('Refresh token bulunamadı')) {
+          try {
+            await AsyncStorage.setItem('logout_alert_needed', 'true');
+            console.log('🚨 [API] Logout alert flag set edildi (session timeout)');
+          } catch (error) {
+            console.error('❌ [API] Logout alert flag set hatası:', error);
+          }
         }
         
         return Promise.reject(refreshError);
@@ -1161,13 +1165,8 @@ export const authApi = {
       // Refresh token geçersizse tüm token'ları temizle
       await removeAllTokens();
       
-      // Logout alert flag'i set et
-      try {
-        await AsyncStorage.setItem('logout_alert_needed', 'true');
-        console.log('🚨 [API] Logout alert flag set edildi');
-      } catch (alertError) {
-        console.error('❌ [API] Logout alert flag set hatası:', alertError);
-      }
+      // NOT: Burada logout_alert_needed flag set ETME!
+      // Alert sadece interceptor'da 401/403 durumlarında set edilmeli.
       
       throw error;
     }
@@ -1221,13 +1220,9 @@ export const authApi = {
       // Geçersiz refresh token'ı temizle
       await removeAllTokens();
       
-      // Logout alert flag'i set et
-      try {
-        await AsyncStorage.setItem('logout_alert_needed', 'true');
-        console.log('🚨 [API] Persistent login başarısız - logout alert flag set edildi');
-      } catch (alertError) {
-        console.error('❌ [API] Logout alert flag set hatası:', alertError);
-      }
+      // NOT: Burada logout_alert_needed flag set ETME!
+      // Çünkü refresh token yoksa kullanıcı zaten normal logout yapmış demektir.
+      // Alert sadece gerçek session timeout durumlarında (401/403) gösterilmeli.
       
       throw error;
     }

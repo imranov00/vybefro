@@ -24,6 +24,7 @@ interface MessageInputProps {
   disabled?: boolean;
   chatRoomId?: number;
   onTypingChange?: (isTyping: boolean) => void;
+  showPremiumNotice?: boolean;
 }
 
 export default function MessageInput({ 
@@ -32,7 +33,8 @@ export default function MessageInput({
   placeholder = "Mesaj yazın...",
   disabled = false,
   chatRoomId,
-  onTypingChange
+  onTypingChange,
+  showPremiumNotice = false
 }: MessageInputProps) {
   const { currentMode } = useAuth();
   const { userProfile } = useProfile();
@@ -280,6 +282,21 @@ export default function MessageInput({
         </View>
       )}
 
+      {/* Premium olmayan kullanıcılara özel mesaj - input kapalıyken */}
+      {showPremiumNotice && limitInfo && !limitInfo.canSendMessage && !userProfile?.isPremium && (
+        <View style={[styles.premiumNoticeContainer, { backgroundColor: `${currentTheme.primary}15` }]}>
+          <Ionicons name="star" size={24} color={currentTheme.primary} style={styles.premiumNoticeIcon} />
+          <View style={styles.premiumNoticeContent}>
+            <Text style={[styles.premiumNoticeTitle, { color: currentTheme.primary }]}>
+              Sınırsız Mesajlar İçin Premium'a Geçin
+            </Text>
+            <Text style={styles.premiumNoticeSubtitle}>
+              Genel sohbette sadece bir mesaj gönderebilirsiniz. Premium olarak sınırsız mesaj gönderin ve tüm özelliklerin kilidini açın!
+            </Text>
+          </View>
+        </View>
+      )}
+
       {/* Input container */}
       <View style={styles.inputContainer}>
         {/* Text input */}
@@ -359,6 +376,33 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderTopWidth: 1,
     borderTopColor: '#E5E5E5',
+  },
+  
+  // Premium notice
+  premiumNoticeContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5E5',
+  },
+  premiumNoticeIcon: {
+    marginRight: 12,
+    marginTop: 2,
+  },
+  premiumNoticeContent: {
+    flex: 1,
+  },
+  premiumNoticeTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  premiumNoticeSubtitle: {
+    fontSize: 12,
+    color: '#666',
+    lineHeight: 16,
   },
   
   // Limit bilgisi

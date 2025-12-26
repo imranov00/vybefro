@@ -1,13 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  FlatList,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    FlatList,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { ChatMessage } from '../../services/api';
@@ -86,7 +86,10 @@ const MessageList = forwardRef<MessageListRef, MessageListProps>(({
     }
   }, [messages.length]);
 
-  // Kullanıcının son mesajının index'ini bul
+  // Son okunmuş mesajın index'ini bul (status === 'READ' olan son mesaj)
+  const lastReadMessageIndex = messages.findIndex((msg) => msg.status === 'READ');
+
+  // Kullanıcının son mesajının index'ini bul (eski yöntem - artık kullanılmıyor)
   const lastCurrentUserMsgIndex = messages.findIndex(
     (msg, idx) => Number(msg.sender.id) === Number(currentUserId) &&
       !messages.slice(idx + 1).some(m => Number(m.sender.id) === Number(currentUserId))
@@ -99,8 +102,8 @@ const MessageList = forwardRef<MessageListRef, MessageListProps>(({
     const showAvatar = !previousMessage || 
                       previousMessage.sender.id !== item.sender.id ||
                       item.type === 'SYSTEM';
-    // Sadece kullanıcının son mesajında görüldü etiketi göster
-    const showReadReceipt = isCurrentUser && index === lastCurrentUserMsgIndex;
+    // En son okunmuş mesajda read receipt göster (status === 'READ' olan son mesaj)
+    const showReadReceipt = isCurrentUser && index === lastReadMessageIndex;
     return (
       <MessageBubble
         message={item}

@@ -5,17 +5,17 @@ import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { AlertButton } from 'react-native';
 import {
-  Alert,
-  Keyboard,
-  KeyboardAvoidingView,
-  KeyboardEvent,
-  Platform,
-  SafeAreaView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Alert,
+    Keyboard,
+    KeyboardAvoidingView,
+    KeyboardEvent,
+    Platform,
+    SafeAreaView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 
 import MessageInput from '../components/chat/MessageInput';
@@ -337,6 +337,7 @@ export default function GlobalChatScreen() {
           disabled={isLoadingMessages || !activeChat}
           chatRoomId={1}
           onTypingChange={(isTyping) => sendTypingIndicator('1', isTyping)}
+          showPremiumNotice={true}
         />
 
         {/* Hoş geldin mesajı (sadece ilk yükleme) */}

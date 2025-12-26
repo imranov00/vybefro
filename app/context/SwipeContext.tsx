@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { Alert } from 'react-native';
 import SwipeLimitModal from '../components/SwipeLimitModal';
 import { SwipeLimitInfo as ApiSwipeLimitInfo, swipeApi } from '../services/api';
+import { useAuth } from './AuthContext';
 
 // Types
 export interface DiscoverUserDTO {
@@ -76,6 +77,9 @@ interface SwipeProviderProps {
 }
 
 export const SwipeProvider: React.FC<SwipeProviderProps> = ({ children }) => {
+  // Auth context'ten isLoggedIn durumunu al
+  const { isLoggedIn } = useAuth();
+  
   // State
   const [currentUser, setCurrentUser] = useState<DiscoverUserDTO | null>(null);
   const [userBatch, setUserBatch] = useState<DiscoverUserDTO[]>([]);
@@ -356,11 +360,21 @@ export const SwipeProvider: React.FC<SwipeProviderProps> = ({ children }) => {
 
   // İlk yüklemede batch'i getir
   useEffect(() => {
-    if (userBatch.length === 0 && !isLoading) {
-      loadUserBatch(false);
+    // Sadece kullanıcı giriş yaptıktan sonra limit bilgilerini ve batch'i yükle
+    if (!isLoggedIn) {
+      console.log('⏸️ [SWIPE] Kullanıcı giriş yapmamış, swipe limit ve batch yüklenmesi ertelendi');
+      return;
     }
+
+    console.log('🔄 [SWIPE] Kullanıcı giriş yaptı, swipe limit bilgileri getiriliyor...');
     fetchSwipeLimitInfo();
-  }, []);
+    
+    // İlk açılışta refresh: true ile kullanıcıları yükle
+    if (userBatch.length === 0 && !isLoading) {
+      console.log('🔄 [SWIPE] Kullanıcı giriş yaptı, batch yükleniyor (refresh: true)...');
+      loadUserBatch(true);
+    }
+  }, [isLoggedIn]); // Sadece isLoggedIn değiştiğinde çalış
 
   const value: SwipeContextType = {
     currentUser,

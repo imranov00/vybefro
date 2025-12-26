@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { Tabs } from 'expo-router';
-import React, { useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Platform, StatusBar, TouchableOpacity } from 'react-native';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRouter } from 'expo-router';
+import AnimatedSplashScreen, { SplashTheme } from '../components/AnimatedSplashScreen';
 import ProfileDrawer from '../components/profile/ProfileDrawer';
 import { useAuth } from '../context/AuthContext';
 import { useProfile } from '../context/ProfileContext';
@@ -15,13 +16,41 @@ export default function TabLayout() {
   const { isProfileVisible, showProfile, hideProfile, userProfile } = useProfile();
   const { isLoggedIn, currentMode, switchMode } = useAuth();
   const router = useRouter();
+  
+  // Mod değişikliği splash state'i
+  const [showModeSplash, setShowModeSplash] = useState(false);
+  const [modeSplashReady, setModeSplashReady] = useState(false);
+  const [modeSplashTheme, setModeSplashTheme] = useState<SplashTheme>('purple');
+  const [pendingMode, setPendingMode] = useState<'astrology' | 'music' | null>(null);
 
-  // Kullanıcı giriş yapmamışsa auth ekranına yönlendir
-  useEffect(() => {
-    if (!isLoggedIn) {
-      router.replace('/(auth)/login');
+  // Mod değişikliği başlat
+  const handleModeSwitch = useCallback(() => {
+    const newMode = currentMode === 'astrology' ? 'music' : 'astrology';
+    // Hedef moda göre splash temasını seç
+    // Astro → Music: yeşil splash
+    // Music → Astro: mor splash
+    const theme: SplashTheme = newMode === 'music' ? 'green' : 'purple';
+    
+    setModeSplashTheme(theme);
+    setPendingMode(newMode);
+    setModeSplashReady(true);
+    setShowModeSplash(true);
+  }, [currentMode]);
+
+  // Splash tamamlandığında mod değişikliğini gerçekleştir
+  const handleModeSplashFinish = useCallback(() => {
+    if (pendingMode) {
+      switchMode(pendingMode);
+      if (pendingMode === 'astrology') {
+        router.push('/astrology');
+      } else {
+        router.push('/music');
+      }
+      setPendingMode(null);
     }
-  }, [isLoggedIn]);
+    setShowModeSplash(false);
+    setModeSplashReady(false);
+  }, [pendingMode, switchMode, router]);
 
   // Mode'a göre tab bar renklerini belirle - memoized
   const tabColors = useMemo(() => {
@@ -76,15 +105,7 @@ export default function TabLayout() {
           ),
           headerRight: () => (
             <TouchableOpacity
-              onPress={() => {
-                const newMode = currentMode === 'astrology' ? 'music' : 'astrology';
-                switchMode(newMode);
-                if (newMode === 'astrology') {
-                  router.push('/astrology');
-                } else {
-                  router.push('/music');
-                }
-              }}
+              onPress={handleModeSwitch}
               style={{
                 backgroundColor: 'rgba(255, 255, 255, 0.25)',
                 borderRadius: 22,
@@ -262,6 +283,16 @@ export default function TabLayout() {
         onClose={hideProfile} 
         user={userProfile} 
       />
+      
+      {/* Mod Değişikliği Splash Screen */}
+      {showModeSplash && modeSplashReady && (
+        <AnimatedSplashScreen 
+          onFinish={handleModeSplashFinish}
+          theme={modeSplashTheme}
+          isAppReady={true}
+          duration={2000}
+        />
+      )}
     </>
   );
 }

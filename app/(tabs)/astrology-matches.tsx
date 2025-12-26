@@ -4,18 +4,18 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Animated,
-  Dimensions,
-  Image,
-  Modal,
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Animated,
+    Dimensions,
+    Image,
+    Modal,
+    Platform,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import SwipeLimitModal from '../components/SwipeLimitModal';
@@ -768,7 +768,12 @@ export default function AstrologyMatchesScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchSwipeLimitInfo();
-    }, [fetchSwipeLimitInfo])
+      // Eğer kullanıcı yoksa ve yüklenmiyorsa otomatik yükle
+      if (!currentUser && !isLoading) {
+        console.log('🔄 [ASTROLOGY] Sayfa fokuslandı, kullanıcılar yükleniyor...');
+        loadUserBatch(true);
+      }
+    }, [fetchSwipeLimitInfo, currentUser, isLoading, loadUserBatch])
   );
 
   // Loading state
@@ -2077,13 +2082,13 @@ const styles = StyleSheet.create({
 
   cardContainer: {
     flex: 1,
-    paddingHorizontal: 25,
-    paddingTop: 50,
-    paddingBottom: 65,
+    paddingHorizontal: 12,
+    paddingTop: 55,
+    paddingBottom: 55,
   },
   card: {
     backgroundColor: '#1E1B4B',
-    borderRadius: 30,
+    borderRadius: 24,
     overflow: 'hidden',
     shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 15 },
@@ -2122,23 +2127,23 @@ const styles = StyleSheet.create({
   },
   // Photo Container
   photoContainer: {
-    height: 400,
+    height: 480,
   },
   mainPhoto: {
     width: '100%',
-    height: 400,
+    height: 480,
     resizeMode: 'cover',
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
   photoOverlay: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: 240,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
+    height: 280,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
   nameOverlay: {
     position: 'absolute',
