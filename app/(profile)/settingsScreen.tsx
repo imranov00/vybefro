@@ -134,6 +134,27 @@ export default function SettingsScreen() {
       </View>
       
       <ScrollView style={styles.settingsContainer}>
+        {/* Gizlilik ve Güvenlik */}
+        <View style={[styles.section, { backgroundColor: isDark ? '#2c2c54' : '#FFFFFF' }]}>
+          <Text style={[styles.sectionTitle, { color: isDark ? '#d0d0ff' : '#2c2c54' }]}>
+            Gizlilik ve Güvenlik
+          </Text>
+          
+          <TouchableOpacity 
+            style={styles.settingsItem}
+            onPress={() => router.push('/(profile)/blockedUsersScreen' as any)}
+          >
+            <View style={styles.settingsItemLeft}>
+              <Ionicons name="ban-outline" size={24} color={isDark ? '#d0d0ff' : '#666'} />
+              <Text style={[styles.settingsItemText, { color: isDark ? '#FFFFFF' : '#333' }]}>
+                Engellenen Kullanıcılar
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={isDark ? '#999' : '#CCC'} />
+          </TouchableOpacity>
+        </View>
+        
+        {/* Hesap */}
         <View style={[styles.section, { backgroundColor: isDark ? '#2c2c54' : '#FFFFFF' }]}>
           <Text style={[styles.sectionTitle, { color: isDark ? '#d0d0ff' : '#2c2c54' }]}>
             Hesap
@@ -199,6 +220,22 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 16,
+  },
+  settingsItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+  },
+  settingsItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  settingsItemText: {
+    fontSize: 16,
+    marginLeft: 12,
   },
   logoutButton: {
     flexDirection: 'row',

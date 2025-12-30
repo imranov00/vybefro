@@ -273,6 +273,24 @@ export default function GlobalChatScreen() {
     return () => clearInterval(interval);
   }, []);
 
+  // Global sohbet mesajlarını her 1 saatte bir temizle ve yenile
+  useEffect(() => {
+    // Her 1 saatte bir mesajları yenile (cache'i temizle)
+    const HOUR_IN_MS = 60 * 60 * 1000; // 1 saat
+    
+    const cleanupInterval = setInterval(async () => {
+      console.log('🧹 [GLOBAL CHAT] 1 saatlik temizlik - mesajlar yenileniyor...');
+      try {
+        await loadMessages(1, 'GLOBAL');
+        console.log('✅ [GLOBAL CHAT] Mesajlar başarıyla yenilendi');
+      } catch (error) {
+        console.error('❌ [GLOBAL CHAT] Mesaj yenileme hatası:', error);
+      }
+    }, HOUR_IN_MS);
+    
+    return () => clearInterval(cleanupInterval);
+  }, [loadMessages]);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView 

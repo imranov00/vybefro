@@ -344,6 +344,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await performSwipeCleanup('persistent login');
             
             console.log('✅ [AUTH] Kullanıcı otomatik giriş yaptı');
+            
+            // Persistent login sonrası profil bilgilerini çek (burç bilgisi için)
+            // Kısa bir gecikme ile event gönder (token'ın tam olarak set edilmesi için)
+            setTimeout(() => {
+              console.log('🔄 [AUTH] Persistent login sonrası profil bilgileri çekiliyor...');
+              DeviceEventEmitter.emit('fetch_profile_after_login');
+              console.log('📡 [AUTH] Profil çekme eventi gönderildi (persistent login)');
+            }, 1500); // Token'ın tamamen kaydedilmesini bekle
           } else {
             console.log('❌ [AUTH] Persistent login başarısız - token yok');
             setIsLoggedIn(false);

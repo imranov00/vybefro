@@ -4,11 +4,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+    ActionSheetIOS,
     Alert,
     Image,
     Keyboard,
     KeyboardAvoidingView,
     KeyboardEvent,
+    Modal,
     Platform,
     SafeAreaView,
     StatusBar,
@@ -23,6 +25,7 @@ import MessageList from '../components/chat/MessageList';
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
 import { useProfile } from '../context/ProfileContext';
+import { MatchRelationship, relationshipApi } from '../services/api';
 
 export default function PrivateChatScreen() {
   const { currentMode } = useAuth();
@@ -41,13 +44,22 @@ export default function PrivateChatScreen() {
     wsStatus,
     wsClient,
     updateMessageStatuses,
-    clearActiveChat
+    clearActiveChat,
+    refreshPrivateChats
   } = useChat();
   const router = useRouter();
   const { chatId } = useLocalSearchParams();
   const [refreshing, setRefreshing] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  
+  // Relationship state
+  const [relationship, setRelationship] = useState<MatchRelationship | null>(null);
+  const [showActionSheet, setShowActionSheet] = useState(false);
+  const [showBlockModal, setShowBlockModal] = useState(false);
+  const [showUnmatchModal, setShowUnmatchModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [isActionLoading, setIsActionLoading] = useState(false);
   const messageListRef = useRef<any>(null);
 
   // Tema renklerini belirle
@@ -138,6 +150,9 @@ export default function PrivateChatScreen() {
         if (!joinedOnceRef.current) {
           loadMessages(chatRoomId, 'PRIVATE');
           markMessagesAsRead(chatRoomId);
+          
+          // Relationship durumunu yükle (matchId varsa)
+          fetchRelationship();
         }
         
         // WebSocket'e chat odasına katıl
@@ -280,15 +295,141 @@ export default function PrivateChatScreen() {
     router.navigate('/(tabs)/chat' as any);
   };
 
-  // Profil görüntüleme
+  // Relationship durumunu yükle
+  const fetchRelationship = async () => {
+    if (!activeChat || 'chatType' in activeChat) return;
+    
+    const matchId = (activeChat as any).matchId;
+    if (!matchId) return;
+    
+    try {
+      const relationshipData = await relationshipApi.getRelationship(matchId);
+      setRelationship(relationshipData);
+      console.log('✅ [PRIVATE CHAT] Relationship yüklendi:', relationshipData);
+    } catch (error: any) {
+      console.error('❌ [PRIVATE CHAT] Relationship yüklenemedi:', error.message);
+      // 404 = eşleşme artık yok, chat listesine dön
+      if (error.message?.includes('mevcut değil')) {
+        Alert.alert(
+          'Eşleşme Bulunamadı',
+          'Bu eşleşme artık mevcut değil.',
+          [{ text: 'Tamam', onPress: () => router.navigate('/(tabs)/chat' as any) }]
+        );
+      }
+    }
+  };
+
+  // Profil görüntüleme - Match Profile ekranına yönlendir
   const handleViewProfile = () => {
     if (activeChat && !('chatType' in activeChat)) {
-      // TODO: Kullanıcı profil ekranına yönlendir
-      Alert.alert(
-        'Profil',
-        'Profil görüntüleme özelliği yakında eklenecek!',
-        [{ text: 'Tamam', style: 'default' }]
+      const matchId = (activeChat as any).matchId;
+      if (matchId) {
+        router.push(`/match/${matchId}` as any);
+      } else {
+        Alert.alert('Hata', 'Profil bilgisi bulunamadı');
+      }
+    }
+  };
+
+  // Action Sheet göster (Header'daki 3 nokta menüsü)
+  const handleShowActionSheet = () => {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['İptal', 'Profili Görüntüle', 'Şikayet Et', 'Eşleşmeyi Kaldır', 'Engelle'],
+          destructiveButtonIndex: 4,
+          cancelButtonIndex: 0,
+        },
+        (buttonIndex) => {
+          switch (buttonIndex) {
+            case 1:
+              handleViewProfile();
+              break;
+            case 2:
+              setShowReportModal(true);
+              break;
+            case 3:
+              setShowUnmatchModal(true);
+              break;
+            case 4:
+              setShowBlockModal(true);
+              break;
+          }
+        }
       );
+    } else {
+      // Android için custom modal
+      setShowActionSheet(true);
+    }
+  };
+
+  // Block işlemi
+  const handleBlock = async () => {
+    if (!activeChat || 'chatType' in activeChat) return;
+    
+    const otherUserId = activeChat.otherUser?.id;
+    if (!otherUserId) return;
+    
+    setIsActionLoading(true);
+    try {
+      await relationshipApi.blockUser(otherUserId, 'CHAT');
+      setShowBlockModal(false);
+      
+      // Chat listesini yenile ve geri dön
+      await refreshPrivateChats();
+      router.navigate('/(tabs)/chat' as any);
+      
+      Alert.alert('Başarılı', 'Kullanıcı engellendi');
+    } catch (error: any) {
+      console.error('❌ [PRIVATE CHAT] Block hatası:', error);
+      Alert.alert('Hata', 'Engelleme işlemi başarısız oldu');
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  // Unmatch işlemi
+  const handleUnmatch = async () => {
+    if (!activeChat || 'chatType' in activeChat) return;
+    
+    const matchId = (activeChat as any).matchId;
+    if (!matchId) return;
+    
+    setIsActionLoading(true);
+    try {
+      const result = await relationshipApi.unmatchUser(matchId);
+      setShowUnmatchModal(false);
+      
+      // Chat listesini yenile ve geri dön
+      await refreshPrivateChats();
+      router.navigate('/(tabs)/chat' as any);
+      
+      Alert.alert('Başarılı', 'Eşleşme kaldırıldı. 7 gün sonra tekrar karşınıza çıkabilir.');
+    } catch (error: any) {
+      console.error('❌ [PRIVATE CHAT] Unmatch hatası:', error);
+      Alert.alert('Hata', 'Eşleşme kaldırma işlemi başarısız oldu');
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  // Report işlemi
+  const handleReport = async (reason: string) => {
+    if (!activeChat || 'chatType' in activeChat) return;
+    
+    const otherUserId = activeChat.otherUser?.id;
+    if (!otherUserId) return;
+    
+    setIsActionLoading(true);
+    try {
+      await relationshipApi.reportUser(otherUserId, reason);
+      setShowReportModal(false);
+      Alert.alert('Başarılı', 'Şikayetiniz alındı. İnceleme sonrasında gerekli işlemler yapılacaktır.');
+    } catch (error: any) {
+      console.error('❌ [PRIVATE CHAT] Report hatası:', error);
+      Alert.alert('Hata', 'Şikayet gönderilemedi');
+    } finally {
+      setIsActionLoading(false);
     }
   };
 
@@ -299,7 +440,8 @@ export default function PrivateChatScreen() {
         otherUser: null,
         matchType: null,
         compatibilityScore: null,
-        matchDate: null
+        matchDate: null,
+        matchId: null
       };
     }
 
@@ -307,11 +449,15 @@ export default function PrivateChatScreen() {
       otherUser: activeChat.otherUser,
       matchType: activeChat.matchType as 'ZODIAC' | 'MUSIC' | null, // Backend'den gelen gerçek matchType
       compatibilityScore: activeChat.compatibilityScore,
-      matchDate: activeChat.matchDate
+      matchDate: activeChat.matchDate,
+      matchId: (activeChat as any).matchId
     };
   };
 
   const chatInfo = getChatInfo();
+  
+  // canChat kontrolü - Backend'den gelen relationship'e göre
+  const canChat = relationship?.canChat !== false; // undefined ise true varsay
 
   // Burç simgelerini tanımla
   const getZodiacEmoji = (zodiacSign?: string) => {
@@ -389,27 +535,29 @@ export default function PrivateChatScreen() {
             <Ionicons name="arrow-back" size={24} color="white" />
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.headerInfo} onPress={handleViewProfile}>
-            <View style={styles.avatarContainer}>
-              {chatInfo.otherUser?.profileImageUrl ? (
-                <Image 
-                  source={{ uri: chatInfo.otherUser.profileImageUrl }}
-                  style={styles.headerAvatar}
-                />
-              ) : (
-                <View style={[styles.headerAvatarPlaceholder, { backgroundColor: currentTheme.secondary }]}>
-                  <Text style={styles.headerAvatarText}>
-                    {chatInfo.otherUser?.displayName?.charAt(0).toUpperCase() || '?'}
-                  </Text>
-                </View>
-              )}
-              
-              {/* Online indicator */}
-              {chatInfo.otherUser?.isOnline && (
-                <View style={styles.onlineIndicator} />
-              )}
-            </View>
+          {/* Avatar - Tıklayınca direkt profil açılır */}
+          <TouchableOpacity style={styles.avatarContainer} onPress={handleViewProfile}>
+            {chatInfo.otherUser?.profileImageUrl ? (
+              <Image 
+                source={{ uri: chatInfo.otherUser.profileImageUrl }}
+                style={styles.headerAvatar}
+              />
+            ) : (
+              <View style={[styles.headerAvatarPlaceholder, { backgroundColor: currentTheme.secondary }]}>
+                <Text style={styles.headerAvatarText}>
+                  {chatInfo.otherUser?.displayName?.charAt(0).toUpperCase() || '?'}
+                </Text>
+              </View>
+            )}
+            
+            {/* Online indicator */}
+            {chatInfo.otherUser?.isOnline && (
+              <View style={styles.onlineIndicator} />
+            )}
+          </TouchableOpacity>
 
+          {/* İsim - Tıklayınca action sheet açılır */}
+          <TouchableOpacity style={styles.headerInfo} onPress={handleShowActionSheet}>
             <View style={styles.userInfo}>
               <View style={styles.nameContainer}>
                 <Text style={styles.userName} numberOfLines={1}>
@@ -429,10 +577,18 @@ export default function PrivateChatScreen() {
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.moreButton}>
+          <TouchableOpacity style={styles.moreButton} onPress={handleShowActionSheet}>
             <Ionicons name="ellipsis-vertical" size={20} color="white" />
           </TouchableOpacity>
         </View>
+
+        {/* Chat kapalı uyarısı */}
+        {!canChat && (
+          <View style={styles.chatClosedContainer}>
+            <Ionicons name="lock-closed" size={20} color="#FF6B6B" />
+            <Text style={styles.chatClosedText}>Bu sohbet kapatıldı</Text>
+          </View>
+        )}
 
         {/* Uyumluluk bilgisi */}
         {chatInfo.compatibilityScore && (
@@ -467,15 +623,226 @@ export default function PrivateChatScreen() {
           )}
         </View>
 
-        {/* Mesaj input */}
-        <MessageInput
-          onSendMessage={handleSendMessage}
-          limitInfo={null} // Özel mesajlarda limit yok
-          placeholder={`${chatInfo.otherUser?.displayName || 'Kullanıcı'}'ya mesaj yaz...`}
-          disabled={isLoadingMessages}
-          chatRoomId={chatRoomId}
-          onTypingChange={(isTyping) => sendTypingIndicator(chatRoomId.toString(), isTyping)}
-        />
+        {/* Mesaj input - canChat false ise gizle */}
+        {canChat ? (
+          <MessageInput
+            onSendMessage={handleSendMessage}
+            limitInfo={null} // Özel mesajlarda limit yok
+            placeholder={`${chatInfo.otherUser?.displayName || 'Kullanıcı'}'ya mesaj yaz...`}
+            disabled={isLoadingMessages}
+            chatRoomId={chatRoomId}
+            onTypingChange={(isTyping) => sendTypingIndicator(chatRoomId.toString(), isTyping)}
+          />
+        ) : (
+          <View style={styles.chatClosedInputContainer}>
+            <Text style={styles.chatClosedInputText}>
+              Bu sohbete mesaj gönderemezsiniz
+            </Text>
+          </View>
+        )}
+
+        {/* Android Action Sheet Modal */}
+        <Modal
+          visible={showActionSheet}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowActionSheet(false)}
+        >
+          <TouchableOpacity 
+            style={styles.actionSheetOverlay} 
+            activeOpacity={1} 
+            onPress={() => setShowActionSheet(false)}
+          >
+            <View style={styles.actionSheetContainer}>
+              <TouchableOpacity 
+                style={styles.actionSheetItem}
+                onPress={() => {
+                  setShowActionSheet(false);
+                  handleViewProfile();
+                }}
+              >
+                <Ionicons name="person-outline" size={24} color="#333" />
+                <Text style={styles.actionSheetItemText}>Profili Görüntüle</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.actionSheetItem}
+                onPress={() => {
+                  setShowActionSheet(false);
+                  setShowReportModal(true);
+                }}
+              >
+                <Ionicons name="flag-outline" size={24} color="#333" />
+                <Text style={styles.actionSheetItemText}>Şikayet Et</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.actionSheetItem}
+                onPress={() => {
+                  setShowActionSheet(false);
+                  setShowUnmatchModal(true);
+                }}
+              >
+                <Ionicons name="heart-dislike-outline" size={24} color="#FF9500" />
+                <Text style={[styles.actionSheetItemText, { color: '#FF9500' }]}>Eşleşmeyi Kaldır</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.actionSheetItem}
+                onPress={() => {
+                  setShowActionSheet(false);
+                  setShowBlockModal(true);
+                }}
+              >
+                <Ionicons name="ban-outline" size={24} color="#FF3B30" />
+                <Text style={[styles.actionSheetItemText, { color: '#FF3B30' }]}>Engelle</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.actionSheetItem, styles.actionSheetCancel]}
+                onPress={() => setShowActionSheet(false)}
+              >
+                <Text style={styles.actionSheetCancelText}>İptal</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* Block Confirmation Modal */}
+        <Modal
+          visible={showBlockModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowBlockModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalIconContainer}>
+                <Ionicons name="ban" size={48} color="#FF3B30" />
+              </View>
+              <Text style={styles.modalTitle}>Kullanıcıyı Engelle</Text>
+              <Text style={styles.modalMessage}>
+                Bu kullanıcıyı engellerseniz mesajlaşamazsınız ve bir daha karşınıza çıkmaz.{'\n\n'}
+                Engeli Ayarlar'dan kaldırabilirsiniz.
+              </Text>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity 
+                  style={[styles.modalButton, styles.modalButtonCancel]}
+                  onPress={() => setShowBlockModal(false)}
+                  disabled={isActionLoading}
+                >
+                  <Text style={styles.modalButtonCancelText}>İptal</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.modalButton, styles.modalButtonDestructive]}
+                  onPress={handleBlock}
+                  disabled={isActionLoading}
+                >
+                  <Text style={styles.modalButtonDestructiveText}>
+                    {isActionLoading ? 'Engelleniyor...' : 'Engelle'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Unmatch Confirmation Modal */}
+        <Modal
+          visible={showUnmatchModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowUnmatchModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalIconContainer}>
+                <Ionicons name="heart-dislike" size={48} color="#FF9500" />
+              </View>
+              <Text style={styles.modalTitle}>Eşleşmeyi Kaldır</Text>
+              <Text style={styles.modalMessage}>
+                Bu eşleşme kaldırılacak.{'\n\n'}
+                7 gün sonra tekrar karşınıza çıkabilir.
+              </Text>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity 
+                  style={[styles.modalButton, styles.modalButtonCancel]}
+                  onPress={() => setShowUnmatchModal(false)}
+                  disabled={isActionLoading}
+                >
+                  <Text style={styles.modalButtonCancelText}>İptal</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.modalButton, styles.modalButtonWarning]}
+                  onPress={handleUnmatch}
+                  disabled={isActionLoading}
+                >
+                  <Text style={styles.modalButtonWarningText}>
+                    {isActionLoading ? 'Kaldırılıyor...' : 'Kaldır'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Report Modal */}
+        <Modal
+          visible={showReportModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowReportModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalIconContainer}>
+                <Ionicons name="flag" size={48} color="#FF9500" />
+              </View>
+              <Text style={styles.modalTitle}>Kullanıcıyı Şikayet Et</Text>
+              <Text style={styles.modalMessage}>Şikayet nedenini seçin:</Text>
+              
+              <TouchableOpacity 
+                style={styles.reportOption}
+                onPress={() => handleReport('INAPPROPRIATE_CONTENT')}
+                disabled={isActionLoading}
+              >
+                <Text style={styles.reportOptionText}>Uygunsuz İçerik</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.reportOption}
+                onPress={() => handleReport('HARASSMENT')}
+                disabled={isActionLoading}
+              >
+                <Text style={styles.reportOptionText}>Taciz</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.reportOption}
+                onPress={() => handleReport('SPAM')}
+                disabled={isActionLoading}
+              >
+                <Text style={styles.reportOptionText}>Spam</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.reportOption}
+                onPress={() => handleReport('FAKE_PROFILE')}
+                disabled={isActionLoading}
+              >
+                <Text style={styles.reportOptionText}>Sahte Profil</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalButtonCancel, { marginTop: 16 }]}
+                onPress={() => setShowReportModal(false)}
+                disabled={isActionLoading}
+              >
+                <Text style={styles.modalButtonCancelText}>İptal</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -625,5 +992,163 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#8000FF',
     fontWeight: '600',
+  },
+  
+  // Chat closed state
+  chatClosedContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,107,107,0.15)',
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
+  chatClosedText: {
+    color: '#FF6B6B',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  chatClosedInputContainer: {
+    backgroundColor: '#F5F5F5',
+    padding: 16,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+  },
+  chatClosedInputText: {
+    color: '#999',
+    fontSize: 14,
+  },
+  
+  // Action Sheet (Android)
+  actionSheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  actionSheetContainer: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 16,
+  },
+  actionSheetItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  actionSheetItemText: {
+    fontSize: 16,
+    marginLeft: 16,
+    color: '#333',
+  },
+  actionSheetCancel: {
+    borderBottomWidth: 0,
+    marginTop: 8,
+    justifyContent: 'center',
+  },
+  actionSheetCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#007AFF',
+    textAlign: 'center',
+  },
+  
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContainer: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
+  },
+  modalIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F5F5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalMessage: {
+    fontSize: 15,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    width: '100%',
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginHorizontal: 6,
+  },
+  modalButtonCancel: {
+    backgroundColor: '#F0F0F0',
+  },
+  modalButtonCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  modalButtonDestructive: {
+    backgroundColor: '#FF3B30',
+  },
+  modalButtonDestructiveText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
+  },
+  modalButtonWarning: {
+    backgroundColor: '#FF9500',
+  },
+  modalButtonWarningText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
+  },
+  
+  // Report options
+  reportOption: {
+    width: '100%',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  reportOptionText: {
+    fontSize: 16,
+    color: '#333',
+    textAlign: 'center',
   },
 });

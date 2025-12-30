@@ -223,12 +223,33 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     initializeUser();
 
     // Login sonrası profil çekme eventini dinle
-    const handleFetchProfileAfterLogin = () => {
+    const handleFetchProfileAfterLogin = async () => {
       console.log('📡 [PROFILE CONTEXT] Login sonrası profil çekme eventi alındı');
-      // Kısa bir gecikme ile profil bilgilerini çek (login işleminin tamamlanması için)
-      setTimeout(() => {
-        fetchProfile(true); // Force ile güncelleme
-      }, 500);
+      
+      // Retry mekanizması ile profil çek (token sorunlarına karşı)
+      const maxRetries = 3;
+      let retryCount = 0;
+      
+      const attemptFetch = async () => {
+        retryCount++;
+        console.log(`🔄 [PROFILE CONTEXT] Profil çekme denemesi ${retryCount}/${maxRetries}`);
+        
+        try {
+          await fetchProfile(true); // Force ile güncelleme
+          console.log('✅ [PROFILE CONTEXT] Profil başarıyla yüklendi');
+        } catch (error: any) {
+          console.error(`❌ [PROFILE CONTEXT] Profil çekme hatası (deneme ${retryCount}):`, error.message);
+          
+          // 403 veya token hatası durumunda tekrar dene
+          if (retryCount < maxRetries && (error.response?.status === 403 || error.message?.includes('403'))) {
+            console.log(`⏳ [PROFILE CONTEXT] ${retryCount * 1000}ms sonra tekrar denenecek...`);
+            setTimeout(attemptFetch, retryCount * 1000); // Her denemede daha uzun bekle
+          }
+        }
+      };
+      
+      // İlk denemeyi kısa bir gecikmeyle başlat
+      setTimeout(attemptFetch, 500);
     };
 
     DeviceEventEmitter.addListener('fetch_profile_after_login', handleFetchProfileAfterLogin);

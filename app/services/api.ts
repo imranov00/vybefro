@@ -4,7 +4,7 @@ import { ZodiacSign } from '../types/zodiac';
 import { getRefreshToken, getToken, removeAllTokens, saveRefreshToken, saveToken } from '../utils/tokenStorage';
 
 // CLOUDFLARE TUNNEL URL'i - değişebilir
-const CLOUDFLARE_URL = 'https://travelling-various-convert-kevin.trycloudflare.com';
+const CLOUDFLARE_URL = 'https://massive-tested-thoroughly-disturbed.trycloudflare.com';
 
 // Alternative endpoints (gerektiğinde eklenebilir)
 const FALLBACK_URLS: string[] = [
@@ -964,6 +964,10 @@ export interface Match {
     age: number;
     profileImageUrl: string | null;
     zodiacSign: ZodiacSign | string;
+    zodiacSignTurkish?: string;
+    isPremium?: boolean;
+    bio?: string;
+    photos?: string[];
   };
   compatibilityScore: number;
   compatibilityDescription: string;
@@ -971,6 +975,7 @@ export interface Match {
   matchedAt: string;
   lastMessageAt?: string;
   unreadCount?: number;
+  chatRoomId?: number;
 }
 
 export interface HighCompatibilityMatchesResponse {
@@ -2028,6 +2033,138 @@ export const swipeApi = {
       }
     } catch (error) {
       console.error('❌ [API] showSwipeLimitWarning hatası:', error);
+    }
+  }
+};
+
+// ============================================
+// RELATIONSHIP API - Block/Unmatch/Rematch
+// ============================================
+
+// Relationship durumu DTO
+export interface MatchRelationship {
+  matchId: number;
+  status: 'ACTIVE' | 'UNMATCHED' | 'ARCHIVED';
+  isBlocked: boolean;
+  blockedByMe: boolean;
+  isUnmatched: boolean;
+  unmatchedByMe: boolean;
+  canChat: boolean;
+  canRematch: boolean;
+  cooldownUntil: string | null;
+  statusText: string;
+  actionText: string;
+}
+
+// Engellenen kullanıcı DTO
+export interface BlockedUser {
+  userId: number;
+  username: string;
+  displayName: string;
+  profileImageUrl: string | null;
+  blockedAt: string;
+  context: 'CHAT' | 'PROFILE' | 'SWIPE';
+}
+
+// Block/Unmatch API'leri
+export const relationshipApi = {
+  // Eşleşme ilişki durumunu getir
+  getRelationship: async (matchId: number): Promise<MatchRelationship> => {
+    console.log('🔄 [API] getRelationship çağrısı:', { matchId });
+    const authHeader = await createAuthHeader();
+    try {
+      const response = await api.get(`/api/matches/${matchId}/relationship`, authHeader);
+      console.log('✅ [API] getRelationship yanıtı:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] getRelationship hatası:', error.response?.data || error.message);
+      
+      // 404 durumunda özel hata
+      if (error.response?.status === 404) {
+        throw new Error('Bu eşleşme artık mevcut değil');
+      }
+      throw error;
+    }
+  },
+
+  // Kullanıcıyı engelle
+  blockUser: async (userId: number, context: 'CHAT' | 'PROFILE' | 'SWIPE' = 'CHAT'): Promise<{ success: boolean; message: string }> => {
+    console.log('🔄 [API] blockUser çağrısı:', { userId, context });
+    const authHeader = await createAuthHeader();
+    try {
+      const response = await api.post(`/api/users/${userId}/block`, { context }, authHeader);
+      console.log('✅ [API] blockUser yanıtı:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] blockUser hatası:', error.response?.data || error.message);
+      
+      // Zaten engelli durumu (idempotent)
+      if (error.response?.data?.alreadyBlocked) {
+        console.log('ℹ️ [API] Kullanıcı zaten engelli');
+        return { success: true, message: 'Kullanıcı zaten engelli' };
+      }
+      throw error;
+    }
+  },
+
+  // Engeli kaldır
+  unblockUser: async (userId: number): Promise<{ success: boolean; message: string }> => {
+    console.log('🔄 [API] unblockUser çağrısı:', { userId });
+    const authHeader = await createAuthHeader();
+    try {
+      const response = await api.delete(`/api/users/${userId}/unblock`, authHeader);
+      console.log('✅ [API] unblockUser yanıtı:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] unblockUser hatası:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Eşleşmeyi kaldır (unmatch)
+  unmatchUser: async (matchId: number): Promise<{ success: boolean; message: string; cooldownUntil: string }> => {
+    console.log('🔄 [API] unmatchUser çağrısı:', { matchId });
+    const authHeader = await createAuthHeader();
+    try {
+      const response = await api.post(`/api/matches/${matchId}/unmatch`, {}, authHeader);
+      console.log('✅ [API] unmatchUser yanıtı:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] unmatchUser hatası:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Engellenen kullanıcılar listesi
+  getBlockedUsers: async (): Promise<BlockedUser[]> => {
+    console.log('🔄 [API] getBlockedUsers çağrısı');
+    const authHeader = await createAuthHeader();
+    try {
+      const response = await api.get('/api/users/blocked', authHeader);
+      console.log('✅ [API] getBlockedUsers yanıtı:', {
+        count: response.data?.length || 0
+      });
+      return response.data || [];
+    } catch (error: any) {
+      console.error('❌ [API] getBlockedUsers hatası:', error.response?.data || error.message);
+      return [];
+    }
+  },
+
+  // Kullanıcıyı şikayet et
+  reportUser: async (userId: number, reason: string, description?: string): Promise<{ success: boolean; message: string }> => {
+    console.log('🔄 [API] reportUser çağrısı:', { userId, reason });
+    const authHeader = await createAuthHeader();
+    try {
+      const response = await api.post(`/api/users/${userId}/report`, { 
+        reason, 
+        description 
+      }, authHeader);
+      console.log('✅ [API] reportUser yanıtı:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ [API] reportUser hatası:', error.response?.data || error.message);
+      throw error;
     }
   }
 };

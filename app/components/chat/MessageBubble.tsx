@@ -157,9 +157,16 @@ export default function MessageBubble({
         {/* Kullanıcı adı (diğer kullanıcılar için) */}
         {!isCurrentUser && (
           <View style={styles.senderInfo}>
-            <Text style={styles.senderName}>
-              {message.sender.displayName}
-            </Text>
+            <LinearGradient
+              colors={currentTheme.gradient as any}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.senderNameGradient}
+            >
+              <Text style={styles.senderName}>
+                {message.sender.displayName}
+              </Text>
+            </LinearGradient>
             {renderPremiumBadge()}
           </View>
         )}
@@ -287,12 +294,26 @@ const styles = StyleSheet.create({
   senderInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
+  },
+  senderNameGradient: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 2,
   },
   senderName: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#666',
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   premiumBadge: {
     marginLeft: 4,
