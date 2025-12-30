@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { Tabs } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Platform, StatusBar, TouchableOpacity } from 'react-native';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -258,6 +258,22 @@ export default function TabLayout() {
               />
             ),
             href: '/(tabs)/chat' as any,
+          }}
+        />
+
+        {/* Birth Chart Tab - yalnızca astrology modunda göster */}
+        <Tabs.Screen
+          name="birth-chart"
+          options={{
+            title: 'Doğum Haritası',
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons
+                name={focused ? 'planet' : 'planet-outline'}
+                size={28}
+                color={color}
+              />
+            ),
+            href: currentMode === 'astrology' ? '/birth-chart' : null,
           }}
         />
 

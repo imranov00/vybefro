@@ -4,7 +4,7 @@ import { ZodiacSign } from '../types/zodiac';
 import { getRefreshToken, getToken, removeAllTokens, saveRefreshToken, saveToken } from '../utils/tokenStorage';
 
 // CLOUDFLARE TUNNEL URL'i - değişebilir
-const CLOUDFLARE_URL = 'https://massive-tested-thoroughly-disturbed.trycloudflare.com';
+const CLOUDFLARE_URL = 'https://hands-manager-xml-offer.trycloudflare.com';
 
 // Alternative endpoints (gerektiğinde eklenebilir)
 const FALLBACK_URLS: string[] = [
@@ -791,6 +791,7 @@ export interface UserProfileResponse {
   zodiacSignEmoji?: string;
   zodiacSignDisplayName?: string;
   profileImageUrl: string | null;
+  photos?: string[]; // Tüm fotoğraflar
   bio: string | null;
   isPremium?: boolean; // Premium durumu
 }
@@ -2524,28 +2525,54 @@ export const chatApi = {
     try {
       const response = await api.get(`/api/chat/private/${chatRoomId}/messages?page=${page}&size=${size}`, authHeader);
       
-      // otherUser kontrolü ekle
-      if (!response.data.otherUser || !response.data.otherUser.id) {
-        console.error('❌ [API] getPrivateMessages - otherUser eksik:', {
+      // otherUser veya matchId eksik mi kontrol et
+      const needsChatListFallback = !response.data.otherUser || !response.data.otherUser.id || !response.data.matchId;
+      
+      if (needsChatListFallback) {
+        console.warn('⚠️ [API] getPrivateMessages - otherUser veya matchId eksik:', {
           hasOtherUser: !!response.data.otherUser,
           otherUserId: response.data.otherUser?.id,
-          responseData: response.data
+          matchId: response.data.matchId
         });
         
-        // Backend'den otherUser null geldiğinde, chat listesinden almaya çalış
-        console.log('🔄 [API] otherUser eksik, chat listesinden almaya çalışılıyor...');
+        // Backend'den eksik veri geldiğinde, chat listesinden almaya çalış
+        console.log('🔄 [API] Eksik veriler için chat listesinden almaya çalışılıyor...');
         try {
           const chatListResponse = await api.get('/api/chat/private/list', authHeader);
           const chatRoom = chatListResponse.data.privateChatRooms?.find((chat: any) => chat.id === chatRoomId);
           
-          if (chatRoom && chatRoom.otherUser) {
-            console.log('✅ [API] Chat listesinden otherUser bulundu:', chatRoom.otherUser);
-            response.data.otherUser = chatRoom.otherUser;
-          } else {
+          if (chatRoom) {
+            // otherUser eksikse chat listesinden al
+            if (!response.data.otherUser || !response.data.otherUser.id) {
+              if (chatRoom.otherUser) {
+                console.log('✅ [API] Chat listesinden otherUser bulundu:', chatRoom.otherUser);
+                response.data.otherUser = chatRoom.otherUser;
+              }
+            }
+            
+            // matchId eksikse chat listesinden al
+            if (!response.data.matchId && chatRoom.matchId) {
+              console.log('✅ [API] Chat listesinden matchId bulundu:', chatRoom.matchId);
+              response.data.matchId = chatRoom.matchId;
+            }
+            
+            // matchType eksikse chat listesinden al
+            if (!response.data.matchType && chatRoom.matchType) {
+              console.log('✅ [API] Chat listesinden matchType bulundu:', chatRoom.matchType);
+              response.data.matchType = chatRoom.matchType;
+            }
+          }
+          
+          // Hala otherUser yoksa hata fırlat
+          if (!response.data.otherUser || !response.data.otherUser.id) {
             console.error('❌ [API] Chat listesinde de otherUser bulunamadı');
             throw new Error('Sohbet bilgileri eksik. Lütfen tekrar deneyin.');
           }
-        } catch (chatListError) {
+        } catch (chatListError: any) {
+          // Eğer zaten throw edilen hata ise tekrar fırlat
+          if (chatListError.message?.includes('Sohbet bilgileri eksik')) {
+            throw chatListError;
+          }
           console.error('❌ [API] Chat listesi alınamadı:', chatListError);
           throw new Error('Sohbet bilgileri eksik. Lütfen tekrar deneyin.');
         }
@@ -2555,6 +2582,7 @@ export const chatApi = {
         messageCount: response.data.messages?.length || 0,
         otherUser: response.data.otherUser?.displayName,
         otherUserId: response.data.otherUser?.id,
+        matchId: response.data.matchId,
         unreadCount: response.data.unreadCount
       });
       return response.data;

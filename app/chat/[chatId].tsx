@@ -319,14 +319,15 @@ export default function PrivateChatScreen() {
     }
   };
 
-  // Profil görüntüleme - Match Profile ekranına yönlendir
+  // Profil görüntüleme - User Profile ekranına yönlendir (userId ile)
   const handleViewProfile = () => {
     if (activeChat && !('chatType' in activeChat)) {
-      const matchId = (activeChat as any).matchId;
-      if (matchId) {
-        router.push(`/match/${matchId}` as any);
+      const otherUserId = activeChat.otherUser?.id;
+      if (otherUserId) {
+        // chatRoomId'yi de gönder ki geri mesaj gönderebilsin
+        router.push(`/profile/${otherUserId}?chatRoomId=${chatRoomId}` as any);
       } else {
-        Alert.alert('Hata', 'Profil bilgisi bulunamadı');
+        Alert.alert('Hata', 'Kullanıcı bilgisi bulunamadı');
       }
     }
   };

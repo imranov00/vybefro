@@ -212,29 +212,50 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       } else {
         chatData = await chatApi.getPrivateMessages(chatRoomId, 0, 20);
         
-        // Private chat için otherUser kontrolü
-        if (!('chatType' in chatData) && (!chatData.otherUser || !chatData.otherUser.id)) {
-          console.error('❌ [CHAT CONTEXT] Private chat otherUser eksik:', {
+        // Private chat için otherUser veya matchId kontrolü
+        if (!('chatType' in chatData) && (!chatData.otherUser || !chatData.otherUser.id || !chatData.matchId)) {
+          console.warn('⚠️ [CHAT CONTEXT] Private chat eksik veriler:', {
             hasOtherUser: !!chatData.otherUser,
             otherUserId: chatData.otherUser?.id,
-            chatData: chatData
+            matchId: chatData.matchId
           });
           
-          // Chat listesinden otherUser bilgisini almaya çalış
-          console.log('🔄 [CHAT CONTEXT] Chat listesinden otherUser almaya çalışılıyor...');
+          // Chat listesinden eksik bilgileri almaya çalış
+          console.log('🔄 [CHAT CONTEXT] Chat listesinden eksik veriler alınıyor...');
           try {
             await refreshPrivateChats();
             const chatRoom = privateChatList.find(chat => chat.id === chatRoomId);
             
-            if (chatRoom && chatRoom.otherUser) {
-              console.log('✅ [CHAT CONTEXT] Chat listesinden otherUser bulundu:', chatRoom.otherUser);
-              chatData.otherUser = chatRoom.otherUser;
-            } else {
+            if (chatRoom) {
+              // otherUser eksikse al
+              if ((!chatData.otherUser || !chatData.otherUser.id) && chatRoom.otherUser) {
+                console.log('✅ [CHAT CONTEXT] Chat listesinden otherUser bulundu:', chatRoom.otherUser);
+                chatData.otherUser = chatRoom.otherUser;
+              }
+              
+              // matchId eksikse al
+              if (!chatData.matchId && chatRoom.matchId) {
+                console.log('✅ [CHAT CONTEXT] Chat listesinden matchId bulundu:', chatRoom.matchId);
+                (chatData as any).matchId = chatRoom.matchId;
+              }
+              
+              // matchType eksikse al
+              if (!chatData.matchType && chatRoom.matchType) {
+                console.log('✅ [CHAT CONTEXT] Chat listesinden matchType bulundu:', chatRoom.matchType);
+                (chatData as any).matchType = chatRoom.matchType;
+              }
+            }
+            
+            // Hala otherUser yoksa hata fırlat
+            if (!chatData.otherUser || !chatData.otherUser.id) {
               console.error('❌ [CHAT CONTEXT] Chat listesinde de otherUser bulunamadı');
               throw new Error('Sohbet bilgileri eksik. Lütfen tekrar deneyin.');
             }
-          } catch (fallbackError) {
-            console.error('❌ [CHAT CONTEXT] Fallback otherUser alma hatası:', fallbackError);
+          } catch (fallbackError: any) {
+            if (fallbackError.message?.includes('Sohbet bilgileri eksik')) {
+              throw fallbackError;
+            }
+            console.error('❌ [CHAT CONTEXT] Fallback veri alma hatası:', fallbackError);
             throw new Error('Sohbet bilgileri eksik. Lütfen tekrar deneyin.');
           }
         }
@@ -245,7 +266,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       console.log('✅ [CHAT CONTEXT] Mesajlar yüklendi:', {
         chatRoomId,
         chatType,
-        messageCount: chatData.messages.length
+        messageCount: chatData.messages.length,
+        matchId: 'chatType' in chatData ? null : (chatData as any).matchId
       });
     } catch (error: any) {
       console.error('❌ [CHAT CONTEXT] Mesajlar yüklenemedi:', error);
