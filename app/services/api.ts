@@ -4,7 +4,7 @@ import { ZodiacSign } from '../types/zodiac';
 import { getRefreshToken, getToken, removeAllTokens, saveRefreshToken, saveToken } from '../utils/tokenStorage';
 
 // CLOUDFLARE TUNNEL URL'i - değişebilir
-const CLOUDFLARE_URL = 'https://broken-stylish-explosion-shorter.trycloudflare.com';
+const CLOUDFLARE_URL = 'https://travelling-various-convert-kevin.trycloudflare.com';
 
 // Alternative endpoints (gerektiğinde eklenebilir)
 const FALLBACK_URLS: string[] = [
@@ -118,14 +118,47 @@ api.interceptors.request.use(
         // Token'ı decode et ve loglama için bilgileri görüntüle
         try {
           const payload = JSON.parse(atob(token.split('.')[1]));
+          const currentTime = Date.now() / 1000;
+          const timeUntilExpire = payload.exp ? (payload.exp - currentTime) : 0;
           
           console.log('🔍 [API] Token bilgileri:', {
             exp: payload.exp ? new Date(payload.exp * 1000).toISOString() : 'N/A',
-            userId: payload.userId
+            userId: payload.userId,
+            expiresIn: `${Math.floor(timeUntilExpire / 60)} dakika`
           });
           
-          // Token'ı direkt header'a ekle - expire kontrolü YAPMA
-          // Backend 401 döndüğünde response interceptor token'ı yenileyecek
+          // PROAKTIF TOKEN YENİLEME: Token 10 dakika içinde dolacaksa ÖNCE yenile
+          // Bu sayede 401 hatası almadan token yenilenir
+          if (refreshToken && timeUntilExpire > 0 && timeUntilExpire < TOKEN_EXPIRE_THRESHOLD) {
+            console.log(`⚡ [API] Proaktif token yenileme: ${Math.floor(timeUntilExpire / 60)} dakika kaldı`);
+            
+            // Eğer zaten yenileme yapılmıyorsa yenile
+            if (!isRefreshing) {
+              isRefreshing = true;
+              try {
+                const refreshResult = await performTokenRefresh();
+                await saveToken(refreshResult.token);
+                if (refreshResult.refreshToken) {
+                  await saveRefreshToken(refreshResult.refreshToken);
+                }
+                lastTokenRefreshTime = Date.now();
+                console.log('✅ [API] Proaktif token yenileme başarılı');
+                
+                // Yeni token ile isteği gönder
+                config.headers['Authorization'] = `Bearer ${refreshResult.token}`;
+                isRefreshing = false;
+                processQueue(null, refreshResult.token);
+                return config;
+              } catch (refreshError) {
+                console.error('❌ [API] Proaktif token yenileme hatası:', refreshError);
+                isRefreshing = false;
+                processQueue(refreshError, null);
+                // Hata olsa bile mevcut token ile devam et, 401 gelirse response interceptor halledecek
+              }
+            }
+          }
+          
+          // Normal durum: Token'ı header'a ekle
           config.headers['Authorization'] = `Bearer ${token}`;
         } catch (tokenParseError) {
           console.error('❌ [API] Token parse hatası:', tokenParseError);
@@ -135,12 +168,32 @@ api.interceptors.request.use(
           // Backend 401 dönerse response interceptor yenileyecek
           config.headers['Authorization'] = `Bearer ${token}`;
         }
-      } else {
-        console.warn('⚠️ [API] Access token bulunamadı');
+      } else if (refreshToken) {
+        // Access token yok ama refresh token var - proaktif olarak yenile
+        console.log('🔄 [API] Access token yok, refresh token ile yenileniyor...');
         
-        // Access token yoksa ama refresh token varsa yenilemeyi dene
-        // Backend 401 döndüğünde response interceptor zaten yenileyecek
-        // Burada birşey yapma, backend'e isteği gönder, 401 gelirse yenile
+        if (!isRefreshing) {
+          isRefreshing = true;
+          try {
+            const refreshResult = await performTokenRefresh();
+            await saveToken(refreshResult.token);
+            if (refreshResult.refreshToken) {
+              await saveRefreshToken(refreshResult.refreshToken);
+            }
+            lastTokenRefreshTime = Date.now();
+            console.log('✅ [API] Token yenileme başarılı (access token yoktu)');
+            
+            config.headers['Authorization'] = `Bearer ${refreshResult.token}`;
+            isRefreshing = false;
+            processQueue(null, refreshResult.token);
+          } catch (refreshError) {
+            console.error('❌ [API] Token yenileme hatası:', refreshError);
+            isRefreshing = false;
+            processQueue(refreshError, null);
+          }
+        }
+      } else {
+        console.warn('⚠️ [API] Access token ve refresh token bulunamadı');
       }
     }
     
@@ -168,7 +221,8 @@ const TOKEN_REFRESH_GRACE_PERIOD = 5000; // 5 saniye
 // Otomatik token yenileme için timer
 let autoRefreshTimer: ReturnType<typeof setInterval> | null = null;
 let lastTokenRefreshTime = 0;
-const TOKEN_REFRESH_INTERVAL = 15 * 60 * 1000; // 15 dakika
+const TOKEN_REFRESH_INTERVAL = 25 * 60 * 1000; // 25 dakika (30 dk token için güvenli)
+const TOKEN_EXPIRE_THRESHOLD = 10 * 60; // 10 dakika kala yenile (saniye cinsinden)
 
 const processQueue = (error: any, token: string | null = null) => {
   failedQueue.forEach(({ resolve, reject }) => {
@@ -189,30 +243,46 @@ const startAutoTokenRefresh = () => {
     clearInterval(autoRefreshTimer);
   }
   
-  console.log('🔄 [API] Otomatik token yenileme başlatıldı (15 dakika aralıklarla)');
+  console.log('🔄 [API] Otomatik token yenileme başlatıldı (25 dakika aralıklarla)');
+  
+  // İlk olarak hemen bir kontrol yap
+  checkAndRefreshTokenIfNeeded();
   
   autoRefreshTimer = setInterval(async () => {
-    try {
-      const refreshToken = await getRefreshToken();
+    await checkAndRefreshTokenIfNeeded();
+  }, TOKEN_REFRESH_INTERVAL);
+};
+
+// Token kontrolü ve gerekirse yenileme
+const checkAndRefreshTokenIfNeeded = async () => {
+  try {
+    const refreshToken = await getRefreshToken();
       const accessToken = await getToken();
       
       // Her iki token da varsa yenileme yap
       if (refreshToken && accessToken) {
-        console.log('🔄 [API] Otomatik token yenileme başlıyor...');
+        console.log('🔄 [API] Otomatik token kontrolü başlıyor...');
         
         // Token'ın süresi dolmuş mu kontrol et
         try {
           const payload = JSON.parse(atob(accessToken.split('.')[1]));
           const currentTime = Date.now() / 1000;
+          const timeUntilExpire = payload.exp ? (payload.exp - currentTime) : 0;
           
-          // Token'ın süresi 5 dakika içinde dolacaksa yenile
-          if (payload.exp && (payload.exp - currentTime) < 300) {
-            console.log('⏰ [API] Token süresi yakında dolacak, yenileniyor...');
+          // Token'ın süresi 10 dakika içinde dolacaksa yenile (daha güvenli)
+          if (payload.exp && timeUntilExpire < TOKEN_EXPIRE_THRESHOLD) {
+            console.log(`⏰ [API] Token süresi ${Math.floor(timeUntilExpire / 60)} dakika içinde dolacak, yenileniyor...`);
             await authApi.refreshToken();
             lastTokenRefreshTime = Date.now();
             console.log('✅ [API] Otomatik token yenileme başarılı');
+          } else if (timeUntilExpire <= 0) {
+            // Token zaten expired - hemen yenile
+            console.log('🔴 [API] Token süresi dolmuş, acil yenileme yapılıyor...');
+            await authApi.refreshToken();
+            lastTokenRefreshTime = Date.now();
+            console.log('✅ [API] Expired token yenilendi');
           } else {
-            console.log('✅ [API] Token henüz geçerli, yenileme gerekmiyor');
+            console.log(`✅ [API] Token henüz geçerli (${Math.floor(timeUntilExpire / 60)} dakika kaldı)`);
           }
         } catch (tokenError) {
           console.error('❌ [API] Token parse hatası:', tokenError);
@@ -220,16 +290,24 @@ const startAutoTokenRefresh = () => {
           await authApi.refreshToken();
           lastTokenRefreshTime = Date.now();
         }
+      } else if (refreshToken && !accessToken) {
+        // Access token yok ama refresh token var - yenile
+        console.log('🔄 [API] Access token yok, refresh token ile yenileniyor...');
+        await authApi.refreshToken();
+        lastTokenRefreshTime = Date.now();
+        console.log('✅ [API] Token yenilendi (access token yoktu)');
       } else {
-        console.log('⚠️ [API] Token bulunamadı, otomatik yenileme durduruluyor');
+        console.log('⚠️ [API] Refresh token bulunamadı, otomatik yenileme durduruluyor');
         stopAutoTokenRefresh();
       }
-    } catch (error) {
-      console.error('❌ [API] Otomatik token yenileme hatası:', error);
-      // Hata durumunda timer'ı durdur
+  } catch (error) {
+    console.error('❌ [API] Otomatik token kontrolü hatası:', error);
+    // Sadece refresh token yoksa durdur, diğer hatalarda devam et
+    const refreshToken = await getRefreshToken();
+    if (!refreshToken) {
       stopAutoTokenRefresh();
     }
-  }, TOKEN_REFRESH_INTERVAL);
+  }
 };
 
 // Otomatik token yenilemeyi durdur
@@ -2442,6 +2520,6 @@ export const chatApi = {
 };
 
 // Otomatik token yenileme fonksiyonlarını export et
-export { startAutoTokenRefresh, stopAutoTokenRefresh };
+export { checkAndRefreshTokenIfNeeded, startAutoTokenRefresh, stopAutoTokenRefresh };
 
 export default api; 

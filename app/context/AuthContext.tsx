@@ -1,9 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useSegments } from 'expo-router';
-import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
-import { DeviceEventEmitter } from 'react-native';
+import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
+import { AppState, AppStateStatus, DeviceEventEmitter } from 'react-native';
 import { showSessionTimeoutAlert } from '../components/CustomAlert';
-import { authApi, startAutoTokenRefresh, stopAutoTokenRefresh, swipeCleanupApi } from '../services/api';
+import { authApi, checkAndRefreshTokenIfNeeded, startAutoTokenRefresh, stopAutoTokenRefresh, swipeCleanupApi } from '../services/api';
 import { removeAllTokens } from '../utils/tokenStorage';
 import { useProfile } from './ProfileContext';
 
@@ -65,8 +65,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [shouldShowLogoutAlert, setShouldShowLogoutAlert] = useState<boolean>(false);
   const router = useRouter();
   
+  // AppState tracking için ref
+  const appState = useRef<AppStateStatus>(AppState.currentState);
+  
   // ProfileContext'ten premium durumunu al
   const { userProfile, clearCache: clearProfileCache } = useProfile();
+  
+  // App foreground'a geldiğinde token kontrolü
+  useEffect(() => {
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+      // App arka plandan ön plana geldiğinde
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        console.log('📱 [AUTH] App foreground\'a geldi, token kontrolü yapılıyor...');
+        
+        // Eğer kullanıcı giriş yapmışsa token kontrolü yap
+        if (isLoggedIn) {
+          try {
+            await checkAndRefreshTokenIfNeeded();
+            console.log('✅ [AUTH] Foreground token kontrolü tamamlandı');
+          } catch (error) {
+            console.error('❌ [AUTH] Foreground token kontrolü hatası:', error);
+          }
+        }
+      }
+      
+      appState.current = nextAppState;
+    };
+    
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    
+    return () => {
+      subscription?.remove();
+    };
+  }, [isLoggedIn]);
 
   // Kapsamlı cache temizleme fonksiyonu
   const clearAllCaches = async (isNormalLogout: boolean = false) => {
