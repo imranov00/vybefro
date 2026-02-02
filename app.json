@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "vybefro",
+    "slug": "vybefro",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "myapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.imranow.vybefro"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.imranow.vybefro"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-web-browser",
+      "expo-asset"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "owner": "imranow",
+    "runtimeVersion": "1.0.0",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "4b43ae46-2898-4f56-ba22-814bd6fe753e"
+      }
+    }
+  }
+}
