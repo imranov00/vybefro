@@ -329,67 +329,88 @@ export default function BirthChartScreen() {
       );
     }
     
-    // Oransal boyutlandırma - her şey chartSize'a göre hesaplanıyor
-    const chartSize = width - 32;
+    const chartSize = width - 24;
     const centerX = chartSize / 2;
     const centerY = chartSize / 2;
     
-    // Çember yarıçapları - oransal
-    const outerRadius = chartSize / 2 - 8;
-    const zodiacOuterRadius = outerRadius - 2; // Burç bandı dış
-    const zodiacInnerRadius = outerRadius - 28; // Burç bandı iç
-    const houseRadius = zodiacInnerRadius - 4; // Ev sınırları
-    const planetRadius = houseRadius - 35; // Gezegen bandı
-    const innerRadius = planetRadius - 20; // Açı çizgileri iç
-    const centerRadius = innerRadius - 15; // Merkez
+    // Katmanlar (dıştan içe) - referans görüntüdeki gibi
+    const outerRadius = chartSize / 2 - 4;           // En dış çizgi
+    const degreeRadius = outerRadius - 18;           // Derece numaraları bandı
+    const zodiacOuterRadius = degreeRadius - 2;      // Burç bandı dış
+    const zodiacInnerRadius = zodiacOuterRadius - 24; // Burç bandı iç
+    const planetRadius = zodiacInnerRadius - 40;      // Gezegen bandı (burçlardan uzak)
+    const houseNumRadius = planetRadius - 30;         // Ev numaraları bandı
+    const innerRadius = houseNumRadius - 20;          // Açı çizgileri çemberi
+    const centerRadius = innerRadius - 5;             // Merkez boşluk
 
-    // Derece işaretlerini render et
+    // En dış çemberde derece işaretleri ve sayıları
     const renderDegreeMarks = () => {
-      const marks = [];
+      const elements = [];
+      
       for (let i = 0; i < 360; i += 5) {
         const angle = (i - 90) * (Math.PI / 180);
         const isMajor = i % 30 === 0;
         const isMedium = i % 10 === 0;
         
-        const outerR = outerRadius;
-        let innerR = outerRadius - 4;
-        let strokeW = 0.5;
+        // Tick çizgisi
+        let innerR = outerRadius - 3;
+        let strokeW = 0.3;
         let strokeColor = 'rgba(157, 78, 221, 0.25)';
         
         if (isMajor) {
-          innerR = zodiacOuterRadius;
-          strokeW = 1.5;
+          innerR = degreeRadius;
+          strokeW = 1;
           strokeColor = 'rgba(157, 78, 221, 0.7)';
         } else if (isMedium) {
           innerR = outerRadius - 6;
-          strokeW = 0.8;
+          strokeW = 0.5;
           strokeColor = 'rgba(157, 78, 221, 0.4)';
         }
         
-        marks.push(
+        elements.push(
           <Line
             key={`tick-${i}`}
             x1={centerX + innerR * Math.cos(angle)}
             y1={centerY + innerR * Math.sin(angle)}
-            x2={centerX + outerR * Math.cos(angle)}
-            y2={centerY + outerR * Math.sin(angle)}
+            x2={centerX + outerRadius * Math.cos(angle)}
+            y2={centerY + outerRadius * Math.sin(angle)}
             stroke={strokeColor}
             strokeWidth={strokeW}
           />
         );
+        
+        // Derece sayıları (her 30°'de)
+        if (isMajor) {
+          const numRadius = (outerRadius + degreeRadius) / 2;
+          const numX = centerX + numRadius * Math.cos(angle + 0.03);
+          const numY = centerY + numRadius * Math.sin(angle + 0.03);
+          elements.push(
+            <SvgText
+              key={`deg-${i}`}
+              x={numX}
+              y={numY}
+              fontSize={7}
+              fill="rgba(200, 180, 220, 0.8)"
+              textAnchor="middle"
+              alignmentBaseline="central"
+            >
+              {i}°
+            </SvgText>
+          );
+        }
       }
-      return marks;
+      return elements;
     };
 
-    // Burç sembolleri
+    // Burç sembolleri (burç bandı içinde)
     const renderZodiacSigns = () => {
       const signs = ['ARIES', 'TAURUS', 'GEMINI', 'CANCER', 'LEO', 'VIRGO', 
                      'LIBRA', 'SCORPIO', 'SAGITTARIUS', 'CAPRICORN', 'AQUARIUS', 'PISCES'];
       
       const elementColors: Record<string, string> = {
-        ARIES: '#FF6B6B', TAURUS: '#7CB342', GEMINI: '#64B5F6', CANCER: '#B0BEC5',
-        LEO: '#FFB300', VIRGO: '#7CB342', LIBRA: '#64B5F6', SCORPIO: '#B0BEC5',
-        SAGITTARIUS: '#FF6B6B', CAPRICORN: '#7CB342', AQUARIUS: '#64B5F6', PISCES: '#B0BEC5',
+        ARIES: '#E53935', TAURUS: '#7CB342', GEMINI: '#FDD835', CANCER: '#B0BEC5',
+        LEO: '#FF8F00', VIRGO: '#7CB342', LIBRA: '#FDD835', SCORPIO: '#B0BEC5',
+        SAGITTARIUS: '#E53935', CAPRICORN: '#7CB342', AQUARIUS: '#FDD835', PISCES: '#B0BEC5',
       };
       
       const zodiacMidRadius = (zodiacOuterRadius + zodiacInnerRadius) / 2;
@@ -404,11 +425,11 @@ export default function BirthChartScreen() {
             key={sign}
             x={x}
             y={y}
-            fontSize={14}
+            fontSize={15}
             fill={elementColors[sign]}
             textAnchor="middle"
             alignmentBaseline="central"
-            fontWeight="600"
+            fontWeight="bold"
           >
             {ZODIAC_SYMBOLS[sign]}
           </SvgText>
@@ -416,26 +437,108 @@ export default function BirthChartScreen() {
       });
     };
 
-    // Ev çizgileri ve numaraları
+    // Gezegenler - burç bandı sınırında, dereceleriyle birlikte
+    const renderPlanets = () => {
+      const planets = Object.values(data.planets);
+      
+      // Gezegenleri açıya göre sırala
+      const sortedPlanets = [...planets].sort((a, b) => {
+        const angleA = a.longitude - data.angles.ascendantLongitude;
+        const angleB = b.longitude - data.angles.ascendantLongitude;
+        return angleA - angleB;
+      });
+      
+      // Çakışma önleme
+      const positions: { planet: typeof planets[0]; angle: number; layer: number }[] = [];
+      
+      sortedPlanets.forEach((planet) => {
+        const baseAngle = ((planet.longitude - data.angles.ascendantLongitude) - 90) * (Math.PI / 180);
+        
+        let layer = 0;
+        const minAngleDiff = 0.15; // Radyan cinsinden minimum açı farkı
+        
+        for (const pos of positions) {
+          const angleDiff = Math.abs(baseAngle - pos.angle);
+          const normalizedDiff = Math.min(angleDiff, 2 * Math.PI - angleDiff);
+          
+          if (normalizedDiff < minAngleDiff && pos.layer === layer) {
+            layer++;
+          }
+        }
+        
+        positions.push({ planet, angle: baseAngle, layer });
+      });
+      
+      return positions.map(({ planet, angle, layer }) => {
+        // Gezegen konumu - layer'a göre içeri doğru
+        const r = planetRadius - (layer * 22);
+        const x = centerX + r * Math.cos(angle);
+        const y = centerY + r * Math.sin(angle);
+        
+        // Derece hesapla
+        const deg = Math.floor(planet.signDegree);
+        const min = Math.floor((planet.signDegree - deg) * 60);
+        
+        // Derece yazısı - gezegenin yanında (dışa doğru)
+        const degR = r + 13;
+        const degX = centerX + degR * Math.cos(angle);
+        const degY = centerY + degR * Math.sin(angle);
+        
+        return (
+          <G key={planet.name}>
+            {/* Gezegen dairesi */}
+            <Circle
+              cx={x} cy={y} r={8}
+              fill={getPlanetColor(planet.name)}
+              stroke="rgba(0,0,0,0.3)"
+              strokeWidth={0.5}
+            />
+            {/* Gezegen sembolü */}
+            <SvgText
+              x={x} y={y + 0.5}
+              fontSize={8}
+              fill="#fff"
+              textAnchor="middle"
+              alignmentBaseline="central"
+              fontWeight="bold"
+            >
+              {getPlanetSymbol(planet.name)}
+            </SvgText>
+        // Derece bilgisi - beyaz ve daha büyük
+            <SvgText
+              x={degX} y={degY}
+              fontSize={7}
+              fill="#fff"
+              textAnchor="middle"
+              alignmentBaseline="central"
+              fontWeight="bold"
+            >
+              {deg}°{min.toString().padStart(2, '0')}'
+            </SvgText>
+          </G>
+        );
+      });
+    };
+
+    // Ev çizgileri ve numaraları (ince çember içinde)
     const renderHouses = () => {
       return data.houses.map((house) => {
         const angle = (house.cuspLongitude - data.angles.ascendantLongitude - 90) * (Math.PI / 180);
         
-        // Ev çizgisi - merkeze kadar
-        const x1 = centerX + centerRadius * Math.cos(angle);
-        const y1 = centerY + centerRadius * Math.sin(angle);
+        // Ev çizgisi - innerRadius'tan zodiacInnerRadius'a
+        const x1 = centerX + innerRadius * Math.cos(angle);
+        const y1 = centerY + innerRadius * Math.sin(angle);
         const x2 = centerX + zodiacInnerRadius * Math.cos(angle);
         const y2 = centerY + zodiacInnerRadius * Math.sin(angle);
         
-        // Ev numarası - ev ortasında
+        // Ev numarası - houseNumRadius çemberinde
         const nextHouse = data.houses.find(h => h.number === (house.number % 12) + 1);
         const nextCusp = nextHouse ? nextHouse.cuspLongitude : house.cuspLongitude + 30;
         let midLongitude = (house.cuspLongitude + nextCusp) / 2;
         if (nextCusp < house.cuspLongitude) midLongitude = (house.cuspLongitude + nextCusp + 360) / 2;
         const midAngle = ((midLongitude - data.angles.ascendantLongitude) - 90) * (Math.PI / 180);
-        const numRadius = centerRadius + 20;
-        const numX = centerX + numRadius * Math.cos(midAngle);
-        const numY = centerY + numRadius * Math.sin(midAngle);
+        const numX = centerX + houseNumRadius * Math.cos(midAngle);
+        const numY = centerY + houseNumRadius * Math.sin(midAngle);
         
         const isCardinal = [1, 4, 7, 10].includes(house.number);
         
@@ -444,11 +547,11 @@ export default function BirthChartScreen() {
             <Line
               x1={x1} y1={y1} x2={x2} y2={y2}
               stroke={isCardinal ? 'rgba(157, 78, 221, 0.7)' : 'rgba(157, 78, 221, 0.25)'}
-              strokeWidth={isCardinal ? 1.5 : 0.8}
+              strokeWidth={isCardinal ? 1.5 : 0.5}
             />
             <SvgText
               x={numX} y={numY}
-              fontSize={9}
+              fontSize={10}
               fill={isCardinal ? 'rgba(157, 78, 221, 0.9)' : 'rgba(255,255,255,0.4)'}
               textAnchor="middle"
               alignmentBaseline="central"
@@ -461,89 +564,7 @@ export default function BirthChartScreen() {
       });
     };
 
-    // Gezegenler - çakışma önleme algoritması ile
-    const renderPlanets = () => {
-      const planets = Object.values(data.planets);
-      
-      // Gezegenleri açıya göre sırala
-      const sortedPlanets = [...planets].sort((a, b) => {
-        const angleA = a.longitude - data.angles.ascendantLongitude;
-        const angleB = b.longitude - data.angles.ascendantLongitude;
-        return angleA - angleB;
-      });
-      
-      // Çakışma kontrolü için pozisyonları hesapla
-      const positions: { planet: typeof planets[0]; angle: number; radius: number; layer: number }[] = [];
-      
-      sortedPlanets.forEach((planet) => {
-        const baseAngle = ((planet.longitude - data.angles.ascendantLongitude) - 90) * (Math.PI / 180);
-        
-        // Çakışma kontrolü
-        let layer = 0;
-        const minDistance = 18; // Minimum piksel mesafesi
-        
-        for (const pos of positions) {
-          const angleDiff = Math.abs(baseAngle - pos.angle);
-          const normalizedDiff = Math.min(angleDiff, 2 * Math.PI - angleDiff);
-          const arcDistance = normalizedDiff * planetRadius;
-          
-          if (arcDistance < minDistance && pos.layer === layer) {
-            layer++;
-          }
-        }
-        
-        positions.push({ planet, angle: baseAngle, radius: planetRadius - layer * 16, layer });
-      });
-      
-      return positions.map(({ planet, angle, radius }) => {
-        const x = centerX + radius * Math.cos(angle);
-        const y = centerY + radius * Math.sin(angle);
-        
-        // Derece hesapla
-        const deg = Math.floor(planet.signDegree);
-        const min = Math.floor((planet.signDegree - deg) * 60);
-        
-        // Derece yazısı için konum (gezegen dışında, burç bandına doğru)
-        const degRadius = radius + 14;
-        const degX = centerX + degRadius * Math.cos(angle);
-        const degY = centerY + degRadius * Math.sin(angle);
-        
-        return (
-          <G key={planet.name}>
-            {/* Gezegen dairesi */}
-            <Circle
-              cx={x} cy={y} r={9}
-              fill={getPlanetColor(planet.name)}
-              stroke="rgba(255,255,255,0.6)"
-              strokeWidth={1}
-            />
-            {/* Gezegen sembolü */}
-            <SvgText
-              x={x} y={y + 0.5}
-              fontSize={9}
-              fill="#fff"
-              textAnchor="middle"
-              alignmentBaseline="central"
-              fontWeight="bold"
-            >
-              {getPlanetSymbol(planet.name)}
-            </SvgText>
-            {/* Derece */}
-            <SvgText
-              x={degX} y={degY}
-              fontSize={6}
-              fill={getPlanetColor(planet.name)}
-              textAnchor="middle"
-              alignmentBaseline="central"
-            >
-              {deg}°{min.toString().padStart(2, '0')}'
-            </SvgText>
-          </G>
-        );
-      });
-    };
-
-    // Açı çizgileri
+    // Açı çizgileri (en iç çemberde - taşmadan)
     const renderAspects = () => {
       if (!data.aspects || !data.planets) return null;
       
@@ -558,14 +579,16 @@ export default function BirthChartScreen() {
         }
       };
       
-      return data.aspects.slice(0, 15).map((aspect, i) => {
+      return data.aspects.slice(0, 20).map((aspect, i) => {
         const p1 = data.planets[aspect.planet1];
         const p2 = data.planets[aspect.planet2];
         if (!p1 || !p2) return null;
         
         const a1 = ((p1.longitude - data.angles.ascendantLongitude) - 90) * (Math.PI / 180);
         const a2 = ((p2.longitude - data.angles.ascendantLongitude) - 90) * (Math.PI / 180);
-        const r = innerRadius;
+        
+        // innerRadius'u aşma!
+        const r = innerRadius - 2;
         
         const style = getStyle(aspect.aspectType);
         
@@ -578,7 +601,7 @@ export default function BirthChartScreen() {
             y2={centerY + r * Math.sin(a2)}
             stroke={style.color}
             strokeWidth={style.width}
-            opacity={0.6}
+            opacity={0.65}
             strokeDasharray={style.dash}
           />
         );
@@ -606,20 +629,27 @@ export default function BirthChartScreen() {
               <Stop offset="0%" stopColor="#0d0d1a" />
               <Stop offset="100%" stopColor="#1a1a2e" />
             </RadialGradient>
+            <RadialGradient id="innerGrad" cx="50%" cy="50%" r="50%">
+              <Stop offset="0%" stopColor="#0a0a15" />
+              <Stop offset="100%" stopColor="#12121f" />
+            </RadialGradient>
           </Defs>
           
-          {/* Arka plan */}
+          {/* Arka plan - koyu */}
           <Circle cx={centerX} cy={centerY} r={outerRadius} fill="url(#bgGrad)" />
           
-          {/* Dış çember */}
+          {/* En dış çember */}
           <Circle cx={centerX} cy={centerY} r={outerRadius} stroke="#9D4EDD" strokeWidth={2} fill="none" />
           
-          {/* Derece işaretleri */}
+          {/* Derece bandı çemberi */}
+          <Circle cx={centerX} cy={centerY} r={degreeRadius} stroke="rgba(157, 78, 221, 0.4)" strokeWidth={0.5} fill="none" />
+          
+          {/* Derece işaretleri ve sayıları */}
           {renderDegreeMarks()}
           
-          {/* Burç bandı çemberleri */}
+          {/* Burç bandı */}
           <Circle cx={centerX} cy={centerY} r={zodiacOuterRadius} stroke="rgba(157, 78, 221, 0.5)" strokeWidth={1} fill="none" />
-          <Circle cx={centerX} cy={centerY} r={zodiacInnerRadius} stroke="rgba(157, 78, 221, 0.5)" strokeWidth={1} fill="none" />
+          <Circle cx={centerX} cy={centerY} r={zodiacInnerRadius} stroke="rgba(157, 78, 221, 0.6)" strokeWidth={1.5} fill="none" />
           
           {/* Burç ayırıcı çizgileri */}
           {[...Array(12)].map((_, i) => {
@@ -637,12 +667,13 @@ export default function BirthChartScreen() {
             );
           })}
           
-          {/* İç çemberler */}
-          <Circle cx={centerX} cy={centerY} r={houseRadius} stroke="rgba(157, 78, 221, 0.2)" strokeWidth={0.5} fill="none" />
-          <Circle cx={centerX} cy={centerY} r={innerRadius} stroke="rgba(157, 78, 221, 0.3)" strokeWidth={1} fill="none" />
-          <Circle cx={centerX} cy={centerY} r={centerRadius} stroke="rgba(157, 78, 221, 0.3)" strokeWidth={1} fill="rgba(10,10,20,0.5)" />
+          {/* Ev numaraları çemberi */}
+          <Circle cx={centerX} cy={centerY} r={houseNumRadius + 10} stroke="rgba(157, 78, 221, 0.15)" strokeWidth={0.5} fill="none" />
           
-          {/* Açılar */}
+          {/* İç çember (açı çizgileri sınırı) */}
+          <Circle cx={centerX} cy={centerY} r={innerRadius} stroke="rgba(157, 78, 221, 0.4)" strokeWidth={1} fill="url(#innerGrad)" />
+          
+          {/* Açılar (en içte, taşmıyor) */}
           {renderAspects()}
           
           {/* Evler */}
@@ -651,10 +682,10 @@ export default function BirthChartScreen() {
           {/* Burç sembolleri */}
           {renderZodiacSigns()}
           
-          {/* Gezegenler */}
+          {/* Gezegenler (burç bandı sınırında) */}
           {renderPlanets()}
           
-          {/* Köşe etiketleri */}
+          {/* AC, DC, MC, IC */}
           {renderAngles()}
         </Svg>
       </View>
