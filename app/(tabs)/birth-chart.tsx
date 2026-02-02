@@ -329,76 +329,130 @@ export default function BirthChartScreen() {
       );
     }
     
-    const chartSize = width - 60;
+    // Oransal boyutlandırma - her şey chartSize'a göre hesaplanıyor
+    const chartSize = width - 32;
     const centerX = chartSize / 2;
     const centerY = chartSize / 2;
-    const outerRadius = chartSize / 2 - 10;
-    const zodiacRadius = outerRadius - 25;
-    const houseRadius = zodiacRadius - 30;
-    const planetRadius = houseRadius - 35;
-    const innerRadius = planetRadius - 30;
+    
+    // Çember yarıçapları - oransal
+    const outerRadius = chartSize / 2 - 8;
+    const zodiacOuterRadius = outerRadius - 2; // Burç bandı dış
+    const zodiacInnerRadius = outerRadius - 28; // Burç bandı iç
+    const houseRadius = zodiacInnerRadius - 4; // Ev sınırları
+    const planetRadius = houseRadius - 35; // Gezegen bandı
+    const innerRadius = planetRadius - 20; // Açı çizgileri iç
+    const centerRadius = innerRadius - 15; // Merkez
 
+    // Derece işaretlerini render et
+    const renderDegreeMarks = () => {
+      const marks = [];
+      for (let i = 0; i < 360; i += 5) {
+        const angle = (i - 90) * (Math.PI / 180);
+        const isMajor = i % 30 === 0;
+        const isMedium = i % 10 === 0;
+        
+        const outerR = outerRadius;
+        let innerR = outerRadius - 4;
+        let strokeW = 0.5;
+        let strokeColor = 'rgba(157, 78, 221, 0.25)';
+        
+        if (isMajor) {
+          innerR = zodiacOuterRadius;
+          strokeW = 1.5;
+          strokeColor = 'rgba(157, 78, 221, 0.7)';
+        } else if (isMedium) {
+          innerR = outerRadius - 6;
+          strokeW = 0.8;
+          strokeColor = 'rgba(157, 78, 221, 0.4)';
+        }
+        
+        marks.push(
+          <Line
+            key={`tick-${i}`}
+            x1={centerX + innerR * Math.cos(angle)}
+            y1={centerY + innerR * Math.sin(angle)}
+            x2={centerX + outerR * Math.cos(angle)}
+            y2={centerY + outerR * Math.sin(angle)}
+            stroke={strokeColor}
+            strokeWidth={strokeW}
+          />
+        );
+      }
+      return marks;
+    };
+
+    // Burç sembolleri
     const renderZodiacSigns = () => {
       const signs = ['ARIES', 'TAURUS', 'GEMINI', 'CANCER', 'LEO', 'VIRGO', 
                      'LIBRA', 'SCORPIO', 'SAGITTARIUS', 'CAPRICORN', 'AQUARIUS', 'PISCES'];
       
+      const elementColors: Record<string, string> = {
+        ARIES: '#FF6B6B', TAURUS: '#7CB342', GEMINI: '#64B5F6', CANCER: '#B0BEC5',
+        LEO: '#FFB300', VIRGO: '#7CB342', LIBRA: '#64B5F6', SCORPIO: '#B0BEC5',
+        SAGITTARIUS: '#FF6B6B', CAPRICORN: '#7CB342', AQUARIUS: '#64B5F6', PISCES: '#B0BEC5',
+      };
+      
+      const zodiacMidRadius = (zodiacOuterRadius + zodiacInnerRadius) / 2;
+      
       return signs.map((sign, index) => {
         const midAngle = ((index * 30 + 15) - 90) * (Math.PI / 180);
-        const textX = centerX + (zodiacRadius - 12) * Math.cos(midAngle);
-        const textY = centerY + (zodiacRadius - 12) * Math.sin(midAngle);
-        
-        const elementColors: Record<string, string> = {
-          ARIES: '#FF6B6B', TAURUS: '#8B7355', GEMINI: '#87CEEB', CANCER: '#C0C0C0',
-          LEO: '#FFD700', VIRGO: '#8B7355', LIBRA: '#87CEEB', SCORPIO: '#C0C0C0',
-          SAGITTARIUS: '#FF6B6B', CAPRICORN: '#8B7355', AQUARIUS: '#87CEEB', PISCES: '#C0C0C0',
-        };
+        const x = centerX + zodiacMidRadius * Math.cos(midAngle);
+        const y = centerY + zodiacMidRadius * Math.sin(midAngle);
         
         return (
-          <G key={sign}>
-            <SvgText
-              x={textX}
-              y={textY}
-              fontSize={14}
-              fill={elementColors[sign]}
-              textAnchor="middle"
-              alignmentBaseline="middle"
-            >
-              {ZODIAC_SYMBOLS[sign]}
-            </SvgText>
-          </G>
+          <SvgText
+            key={sign}
+            x={x}
+            y={y}
+            fontSize={14}
+            fill={elementColors[sign]}
+            textAnchor="middle"
+            alignmentBaseline="central"
+            fontWeight="600"
+          >
+            {ZODIAC_SYMBOLS[sign]}
+          </SvgText>
         );
       });
     };
 
+    // Ev çizgileri ve numaraları
     const renderHouses = () => {
       return data.houses.map((house) => {
         const angle = (house.cuspLongitude - data.angles.ascendantLongitude - 90) * (Math.PI / 180);
-        const x1 = centerX + innerRadius * Math.cos(angle);
-        const y1 = centerY + innerRadius * Math.sin(angle);
-        const x2 = centerX + houseRadius * Math.cos(angle);
-        const y2 = centerY + houseRadius * Math.sin(angle);
         
-        const midAngle = ((house.cuspLongitude - data.angles.ascendantLongitude + 15) - 90) * (Math.PI / 180);
-        const textX = centerX + (innerRadius + 15) * Math.cos(midAngle);
-        const textY = centerY + (innerRadius + 15) * Math.sin(midAngle);
+        // Ev çizgisi - merkeze kadar
+        const x1 = centerX + centerRadius * Math.cos(angle);
+        const y1 = centerY + centerRadius * Math.sin(angle);
+        const x2 = centerX + zodiacInnerRadius * Math.cos(angle);
+        const y2 = centerY + zodiacInnerRadius * Math.sin(angle);
+        
+        // Ev numarası - ev ortasında
+        const nextHouse = data.houses.find(h => h.number === (house.number % 12) + 1);
+        const nextCusp = nextHouse ? nextHouse.cuspLongitude : house.cuspLongitude + 30;
+        let midLongitude = (house.cuspLongitude + nextCusp) / 2;
+        if (nextCusp < house.cuspLongitude) midLongitude = (house.cuspLongitude + nextCusp + 360) / 2;
+        const midAngle = ((midLongitude - data.angles.ascendantLongitude) - 90) * (Math.PI / 180);
+        const numRadius = centerRadius + 20;
+        const numX = centerX + numRadius * Math.cos(midAngle);
+        const numY = centerY + numRadius * Math.sin(midAngle);
+        
+        const isCardinal = [1, 4, 7, 10].includes(house.number);
         
         return (
           <G key={`house-${house.number}`}>
             <Line
-              x1={x1}
-              y1={y1}
-              x2={x2}
-              y2={y2}
-              stroke="rgba(157, 78, 221, 0.4)"
-              strokeWidth={house.number === 1 || house.number === 10 ? 2 : 1}
+              x1={x1} y1={y1} x2={x2} y2={y2}
+              stroke={isCardinal ? 'rgba(157, 78, 221, 0.7)' : 'rgba(157, 78, 221, 0.25)'}
+              strokeWidth={isCardinal ? 1.5 : 0.8}
             />
             <SvgText
-              x={textX}
-              y={textY}
+              x={numX} y={numY}
               fontSize={9}
-              fill="rgba(255,255,255,0.5)"
+              fill={isCardinal ? 'rgba(157, 78, 221, 0.9)' : 'rgba(255,255,255,0.4)'}
               textAnchor="middle"
-              alignmentBaseline="middle"
+              alignmentBaseline="central"
+              fontWeight={isCardinal ? 'bold' : 'normal'}
             >
               {house.number}
             </SvgText>
@@ -407,135 +461,201 @@ export default function BirthChartScreen() {
       });
     };
 
+    // Gezegenler - çakışma önleme algoritması ile
     const renderPlanets = () => {
       const planets = Object.values(data.planets);
       
-      return planets.map((planet, index) => {
-        const adjustedLongitude = planet.longitude - data.angles.ascendantLongitude;
-        const angle = (adjustedLongitude - 90) * (Math.PI / 180);
+      // Gezegenleri açıya göre sırala
+      const sortedPlanets = [...planets].sort((a, b) => {
+        const angleA = a.longitude - data.angles.ascendantLongitude;
+        const angleB = b.longitude - data.angles.ascendantLongitude;
+        return angleA - angleB;
+      });
+      
+      // Çakışma kontrolü için pozisyonları hesapla
+      const positions: { planet: typeof planets[0]; angle: number; radius: number; layer: number }[] = [];
+      
+      sortedPlanets.forEach((planet) => {
+        const baseAngle = ((planet.longitude - data.angles.ascendantLongitude) - 90) * (Math.PI / 180);
         
-        const offset = index * 3;
-        const adjustedRadius = planetRadius + (index % 2 === 0 ? offset : -offset);
+        // Çakışma kontrolü
+        let layer = 0;
+        const minDistance = 18; // Minimum piksel mesafesi
         
-        const x = centerX + adjustedRadius * Math.cos(angle);
-        const y = centerY + adjustedRadius * Math.sin(angle);
+        for (const pos of positions) {
+          const angleDiff = Math.abs(baseAngle - pos.angle);
+          const normalizedDiff = Math.min(angleDiff, 2 * Math.PI - angleDiff);
+          const arcDistance = normalizedDiff * planetRadius;
+          
+          if (arcDistance < minDistance && pos.layer === layer) {
+            layer++;
+          }
+        }
+        
+        positions.push({ planet, angle: baseAngle, radius: planetRadius - layer * 16, layer });
+      });
+      
+      return positions.map(({ planet, angle, radius }) => {
+        const x = centerX + radius * Math.cos(angle);
+        const y = centerY + radius * Math.sin(angle);
+        
+        // Derece hesapla
+        const deg = Math.floor(planet.signDegree);
+        const min = Math.floor((planet.signDegree - deg) * 60);
+        
+        // Derece yazısı için konum (gezegen dışında, burç bandına doğru)
+        const degRadius = radius + 14;
+        const degX = centerX + degRadius * Math.cos(angle);
+        const degY = centerY + degRadius * Math.sin(angle);
         
         return (
           <G key={planet.name}>
+            {/* Gezegen dairesi */}
             <Circle
-              cx={x}
-              cy={y}
-              r={8}
+              cx={x} cy={y} r={9}
               fill={getPlanetColor(planet.name)}
-              stroke="#fff"
+              stroke="rgba(255,255,255,0.6)"
               strokeWidth={1}
             />
+            {/* Gezegen sembolü */}
             <SvgText
-              x={x}
-              y={y + 1}
-              fontSize={8}
+              x={x} y={y + 0.5}
+              fontSize={9}
               fill="#fff"
               textAnchor="middle"
-              alignmentBaseline="middle"
+              alignmentBaseline="central"
               fontWeight="bold"
             >
               {getPlanetSymbol(planet.name)}
+            </SvgText>
+            {/* Derece */}
+            <SvgText
+              x={degX} y={degY}
+              fontSize={6}
+              fill={getPlanetColor(planet.name)}
+              textAnchor="middle"
+              alignmentBaseline="central"
+            >
+              {deg}°{min.toString().padStart(2, '0')}'
             </SvgText>
           </G>
         );
       });
     };
 
+    // Açı çizgileri
     const renderAspects = () => {
       if (!data.aspects || !data.planets) return null;
       
-      return data.aspects.slice(0, 15).map((aspect, index) => {
-        const planet1 = data.planets[aspect.planet1];
-        const planet2 = data.planets[aspect.planet2];
+      const getStyle = (type: string) => {
+        switch (type) {
+          case 'CONJUNCTION': return { color: '#FFD700', width: 1.2 };
+          case 'OPPOSITION': return { color: '#E53935', width: 1.2 };
+          case 'TRINE': return { color: '#1E88E5', width: 1 };
+          case 'SQUARE': return { color: '#F4511E', width: 1 };
+          case 'SEXTILE': return { color: '#43A047', width: 0.8, dash: '4,2' };
+          default: return { color: 'rgba(150,150,150,0.3)', width: 0.5, dash: '2,2' };
+        }
+      };
+      
+      return data.aspects.slice(0, 15).map((aspect, i) => {
+        const p1 = data.planets[aspect.planet1];
+        const p2 = data.planets[aspect.planet2];
+        if (!p1 || !p2) return null;
         
-        if (!planet1 || !planet2) return null;
+        const a1 = ((p1.longitude - data.angles.ascendantLongitude) - 90) * (Math.PI / 180);
+        const a2 = ((p2.longitude - data.angles.ascendantLongitude) - 90) * (Math.PI / 180);
+        const r = innerRadius;
         
-        const angle1 = ((planet1.longitude - data.angles.ascendantLongitude) - 90) * (Math.PI / 180);
-        const angle2 = ((planet2.longitude - data.angles.ascendantLongitude) - 90) * (Math.PI / 180);
-        
-        const x1 = centerX + (innerRadius - 10) * Math.cos(angle1);
-        const y1 = centerY + (innerRadius - 10) * Math.sin(angle1);
-        const x2 = centerX + (innerRadius - 10) * Math.cos(angle2);
-        const y2 = centerY + (innerRadius - 10) * Math.sin(angle2);
+        const style = getStyle(aspect.aspectType);
         
         return (
           <Line
-            key={`aspect-${index}`}
-            x1={x1}
-            y1={y1}
-            x2={x2}
-            y2={y2}
-            stroke={ASPECT_COLORS[aspect.aspectType] || '#666'}
-            strokeWidth={1}
-            opacity={0.5}
-            strokeDasharray={aspect.aspectType === 'SQUARE' ? '4,4' : undefined}
+            key={`asp-${i}`}
+            x1={centerX + r * Math.cos(a1)}
+            y1={centerY + r * Math.sin(a1)}
+            x2={centerX + r * Math.cos(a2)}
+            y2={centerY + r * Math.sin(a2)}
+            stroke={style.color}
+            strokeWidth={style.width}
+            opacity={0.6}
+            strokeDasharray={style.dash}
           />
         );
       });
     };
 
+    // AC, DC, MC, IC etiketleri
+    const renderAngles = () => {
+      const r = zodiacInnerRadius - 12;
+      return (
+        <G>
+          <SvgText x={centerX + r} y={centerY} fontSize={9} fill="#FFD700" fontWeight="bold" textAnchor="start" alignmentBaseline="central">AC</SvgText>
+          <SvgText x={centerX - r} y={centerY} fontSize={9} fill="#FFD700" fontWeight="bold" textAnchor="end" alignmentBaseline="central">DC</SvgText>
+          <SvgText x={centerX} y={centerY - r} fontSize={9} fill="#FFD700" fontWeight="bold" textAnchor="middle" alignmentBaseline="baseline">MC</SvgText>
+          <SvgText x={centerX} y={centerY + r} fontSize={9} fill="#FFD700" fontWeight="bold" textAnchor="middle" alignmentBaseline="hanging">IC</SvgText>
+        </G>
+      );
+    };
+
     return (
       <View style={styles.chartWheelContainer}>
-        <Svg width={chartSize} height={chartSize}>
+        <Svg width={chartSize} height={chartSize} viewBox={`0 0 ${chartSize} ${chartSize}`}>
           <Defs>
-            <RadialGradient id="bgGradient" cx="50%" cy="50%" r="50%">
-              <Stop offset="0%" stopColor="#1a1a2e" />
-              <Stop offset="100%" stopColor="#0F0C29" />
+            <RadialGradient id="bgGrad" cx="50%" cy="50%" r="50%">
+              <Stop offset="0%" stopColor="#0d0d1a" />
+              <Stop offset="100%" stopColor="#1a1a2e" />
             </RadialGradient>
           </Defs>
           
-          <Circle cx={centerX} cy={centerY} r={outerRadius} fill="url(#bgGradient)" />
-          <Circle cx={centerX} cy={centerY} r={outerRadius} stroke="#9D4EDD" strokeWidth={2} fill="none" />
-          <Circle cx={centerX} cy={centerY} r={zodiacRadius} stroke="rgba(157, 78, 221, 0.3)" strokeWidth={1} fill="none" />
-          <Circle cx={centerX} cy={centerY} r={houseRadius} stroke="rgba(157, 78, 221, 0.2)" strokeWidth={1} fill="none" />
-          <Circle cx={centerX} cy={centerY} r={planetRadius} stroke="rgba(157, 78, 221, 0.15)" strokeWidth={1} fill="none" />
-          <Circle cx={centerX} cy={centerY} r={innerRadius} stroke="rgba(157, 78, 221, 0.3)" strokeWidth={1} fill="none" />
+          {/* Arka plan */}
+          <Circle cx={centerX} cy={centerY} r={outerRadius} fill="url(#bgGrad)" />
           
+          {/* Dış çember */}
+          <Circle cx={centerX} cy={centerY} r={outerRadius} stroke="#9D4EDD" strokeWidth={2} fill="none" />
+          
+          {/* Derece işaretleri */}
+          {renderDegreeMarks()}
+          
+          {/* Burç bandı çemberleri */}
+          <Circle cx={centerX} cy={centerY} r={zodiacOuterRadius} stroke="rgba(157, 78, 221, 0.5)" strokeWidth={1} fill="none" />
+          <Circle cx={centerX} cy={centerY} r={zodiacInnerRadius} stroke="rgba(157, 78, 221, 0.5)" strokeWidth={1} fill="none" />
+          
+          {/* Burç ayırıcı çizgileri */}
           {[...Array(12)].map((_, i) => {
             const angle = (i * 30 - 90) * (Math.PI / 180);
             return (
               <Line
-                key={`zodiac-line-${i}`}
-                x1={centerX + zodiacRadius * Math.cos(angle)}
-                y1={centerY + zodiacRadius * Math.sin(angle)}
-                x2={centerX + outerRadius * Math.cos(angle)}
-                y2={centerY + outerRadius * Math.sin(angle)}
-                stroke="rgba(157, 78, 221, 0.3)"
+                key={`zl-${i}`}
+                x1={centerX + zodiacInnerRadius * Math.cos(angle)}
+                y1={centerY + zodiacInnerRadius * Math.sin(angle)}
+                x2={centerX + zodiacOuterRadius * Math.cos(angle)}
+                y2={centerY + zodiacOuterRadius * Math.sin(angle)}
+                stroke="rgba(157, 78, 221, 0.5)"
                 strokeWidth={1}
               />
             );
           })}
           
+          {/* İç çemberler */}
+          <Circle cx={centerX} cy={centerY} r={houseRadius} stroke="rgba(157, 78, 221, 0.2)" strokeWidth={0.5} fill="none" />
+          <Circle cx={centerX} cy={centerY} r={innerRadius} stroke="rgba(157, 78, 221, 0.3)" strokeWidth={1} fill="none" />
+          <Circle cx={centerX} cy={centerY} r={centerRadius} stroke="rgba(157, 78, 221, 0.3)" strokeWidth={1} fill="rgba(10,10,20,0.5)" />
+          
+          {/* Açılar */}
           {renderAspects()}
+          
+          {/* Evler */}
           {renderHouses()}
+          
+          {/* Burç sembolleri */}
           {renderZodiacSigns()}
+          
+          {/* Gezegenler */}
           {renderPlanets()}
           
-          <SvgText
-            x={centerX + outerRadius + 5}
-            y={centerY}
-            fontSize={12}
-            fill="#FFD700"
-            fontWeight="bold"
-          >
-            AC
-          </SvgText>
-          
-          <SvgText
-            x={centerX}
-            y={centerY - outerRadius - 5}
-            fontSize={12}
-            fill="#FFD700"
-            fontWeight="bold"
-            textAnchor="middle"
-          >
-            MC
-          </SvgText>
+          {/* Köşe etiketleri */}
+          {renderAngles()}
         </Svg>
       </View>
     );
@@ -1409,14 +1529,13 @@ export default function BirthChartScreen() {
           {chartData && (
             <ScrollView 
               contentContainerStyle={styles.fullChartScroll}
-              maximumZoomScale={3}
+              maximumZoomScale={4}
               minimumZoomScale={1}
               showsVerticalScrollIndicator={false}
               showsHorizontalScrollIndicator={false}
+              centerContent={true}
             >
-              <View style={{ transform: [{ scale: 1.3 }] }}>
-                <NatalChartWheel data={chartData} />
-              </View>
+              <NatalChartWheel data={chartData} />
             </ScrollView>
           )}
           
