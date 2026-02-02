@@ -504,7 +504,7 @@ export default function BirthChartScreen() {
             >
               {getPlanetSymbol(planet.name)}
             </SvgText>
-        // Derece bilgisi - beyaz ve daha büyük
+            {/* Derece bilgisi */}
             <SvgText
               x={degX} y={degY}
               fontSize={7}
