@@ -278,9 +278,14 @@ const checkAndRefreshTokenIfNeeded = async () => {
           } else if (timeUntilExpire <= 0) {
             // Token zaten expired - hemen yenile
             console.log('🔴 [API] Token süresi dolmuş, acil yenileme yapılıyor...');
-            await authApi.refreshToken();
-            lastTokenRefreshTime = Date.now();
-            console.log('✅ [API] Expired token yenilendi');
+            try {
+              await authApi.refreshToken();
+              lastTokenRefreshTime = Date.now();
+              console.log('✅ [API] Expired token yenilendi');
+            } catch (error) {
+              console.error('❌ [API] Expired token yenileme hatası:', error);
+              // Network hatası olabilir, token korunur
+            }
           } else {
             console.log(`✅ [API] Token henüz geçerli (${Math.floor(timeUntilExpire / 60)} dakika kaldı)`);
           }
@@ -440,23 +445,35 @@ api.interceptors.response.use(
       } catch (refreshError: any) {
         console.error('❌ [API] Token yenileme hatası:', refreshError);
         
-        // Refresh token geçersizse tüm token'ları temizle
-        await removeAllTokens();
+        const refreshStatus = refreshError?.response?.status;
+        const isNetworkError = !refreshError?.response; // Network/timeout hatası
         
-        // Başarısız kuyruğu işle
-        processQueue(refreshError, null);
+        // Network hatalarında token korunur (kullanıcı logout olmaz)
+        if (isNetworkError) {
+          console.warn('⚠️ [API] Network hatası - Token korunuyor, kullanıcı giriş yapılı kalıyor');
+          processQueue(refreshError, null);
+          return Promise.reject(refreshError);
+        }
         
-        // Sadece gerçek session timeout durumunda alert göster
-        // "Refresh token bulunamadı" hatası normal logout sonrası oluşur, alert gösterme
-        const errorMessage = refreshError?.message || '';
-        if (!errorMessage.includes('Refresh token bulunamadı')) {
+        // Gerçek authentication hatalarında token temizle (401, 403, vb.)
+        if (refreshStatus === 401 || refreshStatus === 403) {
+          console.error('🔒 [API] Refresh token geçersiz - Token\'lar temizleniyor');
+          await removeAllTokens();
+          
+          // Logout alert flag set et
           try {
             await AsyncStorage.setItem('logout_alert_needed', 'true');
             console.log('🚨 [API] Logout alert flag set edildi (session timeout)');
           } catch (error) {
             console.error('❌ [API] Logout alert flag set hatası:', error);
           }
+        } else {
+          // Diğer hatalarda (500, vb.) token korunur
+          console.warn(`⚠️ [API] Refresh hatası (${refreshStatus}) - Token korunuyor`);
         }
+        
+        // Başarısız kuyruğu işle
+        processQueue(refreshError, null);
         
         return Promise.reject(refreshError);
       } finally {

@@ -300,14 +300,20 @@ export default function BirthChartScreen() {
   }, [birthDate, birthTime, selectedCity]);
 
   const onDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === 'ios');
+    // Android'de picker otomatik kapanır, iOS'ta modal içinde olduğu için kapanmaz
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
     if (selectedDate) {
       setBirthDate(selectedDate);
     }
   };
 
   const onTimeChange = (event: any, selectedTime?: Date) => {
-    setShowTimePicker(Platform.OS === 'ios');
+    // Android'de picker otomatik kapanır, iOS'ta modal içinde olduğu için kapanmaz
+    if (Platform.OS === 'android') {
+      setShowTimePicker(false);
+    }
     if (selectedTime) {
       setBirthTime(selectedTime);
     }
@@ -1030,25 +1036,102 @@ export default function BirthChartScreen() {
         <View style={{ height: 120 }} />
       </ScrollView>
 
-      {showDatePicker && (
-        <DateTimePicker
-          value={birthDate}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={onDateChange}
-          maximumDate={new Date()}
-          minimumDate={new Date(1920, 0, 1)}
-        />
+      {/* iOS için Date Picker Modal */}
+      {Platform.OS === 'ios' ? (
+        <Modal
+          visible={showDatePicker}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowDatePicker(false)}
+        >
+          <View style={styles.pickerModalOverlay}>
+            <View style={styles.pickerModalContainer}>
+              <LinearGradient
+                colors={['#1a1a2e', '#16213e', '#0f0c29']}
+                style={styles.pickerModalGradient}
+              >
+                <View style={styles.pickerModalHeader}>
+                  <Text style={styles.pickerModalTitle}>📅 Doğum Tarihi</Text>
+                  <TouchableOpacity
+                    style={styles.pickerModalDoneButton}
+                    onPress={() => setShowDatePicker(false)}
+                  >
+                    <Text style={styles.pickerModalDoneText}>Tamam</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={birthDate}
+                  mode="date"
+                  display="spinner"
+                  onChange={onDateChange}
+                  maximumDate={new Date()}
+                  minimumDate={new Date(1920, 0, 1)}
+                  style={styles.iosPicker}
+                  textColor="#fff"
+                />
+              </LinearGradient>
+            </View>
+          </View>
+        </Modal>
+      ) : (
+        showDatePicker && (
+          <DateTimePicker
+            value={birthDate}
+            mode="date"
+            display="default"
+            onChange={onDateChange}
+            maximumDate={new Date()}
+            minimumDate={new Date(1920, 0, 1)}
+          />
+        )
       )}
 
-      {showTimePicker && (
-        <DateTimePicker
-          value={birthTime}
-          mode="time"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={onTimeChange}
-          is24Hour={true}
-        />
+      {/* iOS için Time Picker Modal */}
+      {Platform.OS === 'ios' ? (
+        <Modal
+          visible={showTimePicker}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowTimePicker(false)}
+        >
+          <View style={styles.pickerModalOverlay}>
+            <View style={styles.pickerModalContainer}>
+              <LinearGradient
+                colors={['#1a1a2e', '#16213e', '#0f0c29']}
+                style={styles.pickerModalGradient}
+              >
+                <View style={styles.pickerModalHeader}>
+                  <Text style={styles.pickerModalTitle}>🕐 Doğum Saati</Text>
+                  <TouchableOpacity
+                    style={styles.pickerModalDoneButton}
+                    onPress={() => setShowTimePicker(false)}
+                  >
+                    <Text style={styles.pickerModalDoneText}>Tamam</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={birthTime}
+                  mode="time"
+                  display="spinner"
+                  onChange={onTimeChange}
+                  is24Hour={true}
+                  style={styles.iosPicker}
+                  textColor="#fff"
+                />
+              </LinearGradient>
+            </View>
+          </View>
+        </Modal>
+      ) : (
+        showTimePicker && (
+          <DateTimePicker
+            value={birthTime}
+            mode="time"
+            display="default"
+            onChange={onTimeChange}
+            is24Hour={true}
+          />
+        )
       )}
 
       <Modal
@@ -2453,5 +2536,48 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: 'rgba(255,255,255,0.8)',
     lineHeight: 20,
+  },
+  // iOS Picker Modal Styles
+  pickerModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  pickerModalContainer: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    overflow: 'hidden',
+  },
+  pickerModalGradient: {
+    paddingBottom: 40,
+  },
+  pickerModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
+  pickerModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  pickerModalDoneButton: {
+    backgroundColor: '#9D4EDD',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  pickerModalDoneText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  iosPicker: {
+    height: 200,
+    width: '100%',
   },
 });

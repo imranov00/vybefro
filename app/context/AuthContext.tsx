@@ -85,6 +85,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             console.log('✅ [AUTH] Foreground token kontrolü tamamlandı');
           } catch (error) {
             console.error('❌ [AUTH] Foreground token kontrolü hatası:', error);
+            // Network hatası olabilir, kullanıcı giriş yapılı kalabilir
+            // Token geçersizse response interceptor zaten logout yapacak
           }
         }
       }
