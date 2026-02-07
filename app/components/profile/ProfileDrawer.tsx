@@ -27,7 +27,7 @@ import Reanimated, {
 } from 'react-native-reanimated';
 import { useAuth } from '../../context/AuthContext';
 import { useProfile, UserProfile } from '../../context/ProfileContext';
-import { getZodiacDisplay, getZodiacEmoji } from '../../types/zodiac';
+import { getZodiacTurkishName, getZodiacEmoji } from '../../types/zodiac';
 
 const { width, height } = Dimensions.get('window');
 const DRAWER_WIDTH = width * 0.88;
@@ -219,7 +219,7 @@ export default function ProfileDrawer({ visible, onClose, user, isLoading = fals
               {getZodiacEmoji(userProfile.zodiacSign || '')}
             </Text>
             <Text style={[styles.zodiacName, { color: theme.primary }]}>
-              {userProfile.zodiacSign ? getZodiacDisplay(userProfile.zodiacSign) : userProfile.zodiacSignTurkish}
+              {userProfile.zodiacSign ? getZodiacTurkishName(userProfile.zodiacSign) : userProfile.zodiacSignTurkish}
             </Text>
           </View>
         )}
